@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
+import type { PostForMeError } from "@/types/post-for-me";
 
 /**
- * GET /api/post-results/[id]
- * Official API: GET /v1/social-post-results/{id}
+ * POST /api/accounts/[id]/disconnect
+ * Disconnect a social account
+ * Official API: POST /v1/social-accounts/{id}/disconnect
  */
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const data = await pfm.socialPostResults.retrieve(id);
+    const data = await pfm.socialAccounts.disconnect(id);
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {
@@ -21,7 +23,7 @@ export async function GET(
         { status: error.status || 500 },
       );
     }
-    console.error("[API] Error fetching post result:", error);
+    console.error("[API] Error disconnecting account:", error);
     return NextResponse.json(
       { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },

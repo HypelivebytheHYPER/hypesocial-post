@@ -54,6 +54,7 @@ interface MediaFile {
   uploadedUrl?: string;
   uploadProgress?: number;
   error?: string;
+  skipProcessing?: boolean;
 }
 
 // Animation variants
@@ -204,33 +205,47 @@ function PreviewCard({
 
         {/* Media Preview */}
         {preview.media && preview.media.length > 0 && (
-          <div
-            className={`mt-3 grid gap-2 ${preview.media.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
-          >
-            {preview.media.slice(0, 4).map((mediaItem, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.05 }}
-                className="aspect-square rounded-xl overflow-hidden bg-slate-100"
-              >
-                <img
-                  src={mediaItem.url}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </motion.div>
-            ))}
-            {preview.media.length > 4 && (
-              <div className="aspect-square rounded-xl overflow-hidden bg-slate-900/80 flex items-center justify-center">
-                <span
-                  className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-700"}`}
+          <div className="mt-3 space-y-2">
+            <div
+              className={`grid gap-2 ${preview.media.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+            >
+              {preview.media.slice(0, 4).map((mediaItem, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="aspect-square rounded-xl overflow-hidden bg-slate-100 relative group"
                 >
-                  +{preview.media.length - 4}
-                </span>
-              </div>
-            )}
+                  <img
+                    src={mediaItem.url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Media Type Badge */}
+                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 text-white text-[10px] rounded-full">
+                    {mediaItem.url.match(/\.(mp4|mov|webm)($|\?)/) ? "VIDEO" : "IMAGE"}
+                  </div>
+                </motion.div>
+              ))}
+              {preview.media.length > 4 && (
+                <div className="aspect-square rounded-xl overflow-hidden bg-slate-900/80 flex items-center justify-center">
+                  <span
+                    className={`text-lg font-bold ${isDark ? "text-white" : "text-slate-700"}`}
+                  >
+                    +{preview.media.length - 4}
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* Media URLs */}
+            <div className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"} space-y-1`}>
+              {preview.media.map((mediaItem, idx) => (
+                <div key={idx} className="truncate font-mono">
+                  {idx + 1}. {mediaItem.url.split('/').pop()?.split('?')[0]}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -356,14 +371,18 @@ export default function NewPostPage() {
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [previews, setPreviews] = useState<SocialPostPreview[]>([]);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [expandedPlatforms, setExpandedPlatforms] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
   const { isPaused } = usePausedAccounts();
   const createPost = useCreatePost();
   const uploadMedia = useUploadMedia();
   const postPreview = usePostPreview();
+  const postPreviewRef = useRef(postPreview);
+  postPreviewRef.current = postPreview;
 
   const accounts = accountsData?.data || [];
   const connectedAccounts = accounts.filter(
@@ -402,12 +421,14 @@ export default function NewPostPage() {
 
   const hasUploadingMedia = mediaFiles.some((f) => f.status === "uploading");
   const hasUploadErrors = mediaFiles.some((f) => f.status === "error");
-  const uploadedMediaUrls = useMemo(
+  const uploadedMedia = useMemo(
     () =>
       mediaFiles
         .filter((f) => f.status === "success")
-        .map((f) => f.uploadedUrl)
-        .filter(Boolean) as string[],
+        .map((f) => ({
+          url: f.uploadedUrl!,
+          skip_processing: f.skipProcessing || false,
+        })),
     [mediaFiles],
   );
 
@@ -550,10 +571,17 @@ export default function NewPostPage() {
     const generatePreview = async () => {
       if (!content.trim() || selectedAccountIds.length === 0) {
         setPreviews([]);
+        setPreviewError(null);
+        return;
+      }
+
+      // Skip if media is still uploading
+      if (hasUploadingMedia) {
         return;
       }
 
       setIsGeneratingPreview(true);
+      setPreviewError(null);
       try {
         const previewAccounts = selectedAccountIds.map((id) => {
           const account = accounts.find((a) => a.id === id);
@@ -615,9 +643,7 @@ export default function NewPostPage() {
           };
         }
 
-        console.log("[Preview] Sending media URLs:", uploadedMediaUrls);
-
-        const result = await postPreview.mutateAsync({
+        const result = await postPreviewRef.current.mutateAsync({
           caption: content,
           preview_social_accounts: previewAccounts,
           platform_configurations:
@@ -625,24 +651,22 @@ export default function NewPostPage() {
               ? platformConfigs
               : undefined,
           media:
-            uploadedMediaUrls.length > 0
-              ? uploadedMediaUrls.map((url) => ({ url }))
+            uploadedMedia.length > 0
+              ? uploadedMedia.map((m) => ({ url: m.url, skip_processing: m.skip_processing }))
               : undefined,
         });
 
-        console.log("[Preview] API response:", result);
-
-        // Ensure media is always an array of objects with url property
-        const previewsWithMedia = (result.data || []).map((preview) => ({
+        // API returns array directly, not { data: [...] }
+        const previewsArray = Array.isArray(result) ? result : (result.data || []);
+        const previewsWithMedia = previewsArray.map((preview) => ({
           ...preview,
           media: preview.media || [],
         }));
 
-        console.log("[Preview] Processed previews:", previewsWithMedia);
-
         setPreviews(previewsWithMedia);
       } catch (error) {
         console.error("Preview generation failed:", error);
+        setPreviewError(error instanceof Error ? error.message : "Failed to generate preview");
       } finally {
         setIsGeneratingPreview(false);
       }
@@ -653,9 +677,8 @@ export default function NewPostPage() {
   }, [
     content,
     selectedAccountIds,
-    uploadedMediaUrls,
+    uploadedMedia,
     accounts,
-    postPreview,
     tiktokPrivacy,
     tiktokAllowComment,
     tiktokAllowDuet,
@@ -672,6 +695,7 @@ export default function NewPostPage() {
     xReplySettings,
     pinterestBoardId,
     pinterestLink,
+    previewRefreshTrigger,
   ]);
 
   const handleMediaSelect = useCallback(
@@ -718,6 +742,13 @@ export default function NewPostPage() {
 
         setMediaFiles((prev) => [...prev, ...newFiles]);
 
+        // Check if any images are being uploaded for TikTok-only selection
+        const hasImages = newFiles.some((f) => !f.file.type.startsWith("video/"));
+        const hasOnlyTikTok = selectedPlatforms.length === 1 && selectedPlatforms[0] === "tiktok";
+        if (hasImages && hasOnlyTikTok) {
+          toast.warning("TikTok only supports video posts. Images will not be posted to TikTok.");
+        }
+
         // Upload files sequentially to avoid overwhelming the server
         for (const mediaFile of newFiles) {
           try {
@@ -738,8 +769,6 @@ export default function NewPostPage() {
               );
             }, 300);
 
-            console.log("[Upload] Starting upload for:", mediaFile.file.name);
-
             const result = await uploadMedia.mutateAsync({
               file: mediaFile.file,
               onProgress: (progress) => {
@@ -753,7 +782,8 @@ export default function NewPostPage() {
               },
             });
 
-            console.log("[Upload] Success:", result.url);
+            // Auto-enable skip_processing for large videos (>50MB)
+            const isLargeVideo = mediaFile.file.type.startsWith("video/") && mediaFile.file.size > 50 * 1024 * 1024;
 
             clearInterval(progressInterval);
 
@@ -765,26 +795,32 @@ export default function NewPostPage() {
                       status: "success",
                       uploadedUrl: result.url,
                       uploadProgress: 100,
+                      skipProcessing: isLargeVideo,
                     }
                   : f,
               ),
             );
 
             toast.success(`${mediaFile.file.name} uploaded successfully`);
+
+            // Trigger preview refresh after successful upload
+            setPreviewRefreshTrigger(prev => prev + 1);
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Upload failed";
+            console.error("[Upload] Error:", errorMsg);
             setMediaFiles((prev) =>
               prev.map((f) =>
                 f.id === mediaFile.id
                   ? {
                       ...f,
                       status: "error",
-                      error: "Upload failed",
+                      error: errorMsg,
                       uploadProgress: 0,
                     }
                   : f,
               ),
             );
-            toast.error(`Failed to upload ${mediaFile.file.name}`);
+            toast.error(`Failed to upload ${mediaFile.file.name}: ${errorMsg}`);
           }
         }
       };
@@ -870,10 +906,12 @@ export default function NewPostPage() {
       };
     }
 
-    const mediaUrls = mediaFiles
+    const mediaForPost = mediaFiles
       .filter((f) => f.status === "success")
-      .map((f) => f.uploadedUrl)
-      .filter(Boolean) as string[];
+      .map((f) => ({
+        url: f.uploadedUrl!,
+        skip_processing: f.skipProcessing || false,
+      }));
 
     try {
       await createPost.mutateAsync({
@@ -884,7 +922,7 @@ export default function NewPostPage() {
             ? `${scheduledDate}T${scheduledTime}`
             : undefined,
         media:
-          mediaUrls.length > 0 ? mediaUrls.map((url) => ({ url })) : undefined,
+          mediaForPost.length > 0 ? mediaForPost : undefined,
         platform_configurations:
           Object.keys(platformConfigs).length > 0 ? platformConfigs : undefined,
       });
@@ -1154,14 +1192,20 @@ export default function NewPostPage() {
                         {media.status === "uploading" && (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         )}
-                        {media.status === "success" && (
+                        {media.status === "success" && !isGeneratingPreview && (
                           <Check className="w-3 h-3" />
+                        )}
+                        {media.status === "success" && isGeneratingPreview && (
+                          <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
                         )}
                         {media.status === "error" && (
                           <AlertCircle className="w-3 h-3" />
                         )}
                         <span className="truncate max-w-[120px]">
                           {media.file.name}
+                          {media.status === "success" && isGeneratingPreview && (
+                            <span className="ml-1 text-[10px] text-amber-600">(syncing preview...)</span>
+                          )}
                         </span>
                         <button
                           onClick={() => removeMedia(media.id)}
@@ -1397,10 +1441,10 @@ export default function NewPostPage() {
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-xs text-slate-400 flex items-center gap-1.5"
+                  className="text-xs text-amber-500 flex items-center gap-1.5"
                 >
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Updating...
+                  {uploadedMedia.length > 0 && content.length > 0 ? 'Syncing preview...' : 'Updating...'}
                 </motion.span>
               )}
             </div>
@@ -1414,6 +1458,20 @@ export default function NewPostPage() {
                   exit={{ opacity: 0 }}
                 >
                   <PreviewSkeleton />
+                </motion.div>
+              ) : previewError ? (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center py-12 bg-red-50 rounded-2xl border border-red-100"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center mx-auto mb-3">
+                    <AlertCircle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <p className="text-red-600 font-medium mb-1">Preview failed</p>
+                  <p className="text-red-400 text-sm max-w-xs mx-auto">{previewError}</p>
                 </motion.div>
               ) : previews.length === 0 ? (
                 <motion.div

@@ -1,77 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  PostForMeWebhook,
-  PostForMeWebhookListResponse,
-} from "@/types/webhooks";
-
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POST_FOR_ME_API_KEY;
+import { pfm } from "@/lib/post-for-me";
+import { APIError } from "post-for-me";
+import type { PostForMeError } from "@/types/post-for-me";
 
 /**
  * GET /api/webhooks
  * List all webhooks with optional filtering
  * Official API: GET /v1/webhooks
- *
- * Query Parameters:
- * - offset: number (default: 0)
- * - limit: number (default: 20)
- * - url: string[] (filter by URL, OR logic for multiple)
- * - event_type: string[] (filter by event type, OR logic for multiple)
- * - id: string[] (filter by webhook ID, OR logic for multiple)
  */
 export async function GET(request: NextRequest) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
-      );
-    }
-
     const { searchParams } = new URL(request.url);
-    const queryParts: string[] = [];
 
-    // Pagination
-    const offset = searchParams.get("offset") || "0";
-    const limit = searchParams.get("limit") || "20";
-    queryParts.push(`offset=${offset}`, `limit=${limit}`);
+    const query: Record<string, any> = {
+      offset: Number(searchParams.get("offset") || 0),
+      limit: Number(searchParams.get("limit") || 20),
+    };
 
-    // Filters (can be arrays - OR logic)
     const urls = searchParams.getAll("url");
-    urls.forEach((u) => queryParts.push(`url=${encodeURIComponent(u)}`));
+    if (urls.length > 0) query.url = urls;
 
     const eventTypes = searchParams.getAll("event_type");
-    eventTypes.forEach((e) =>
-      queryParts.push(`event_type=${encodeURIComponent(e)}`),
-    );
+    if (eventTypes.length > 0) query.event_type = eventTypes;
 
     const ids = searchParams.getAll("id");
-    ids.forEach((i) => queryParts.push(`id=${encodeURIComponent(i)}`));
+    if (ids.length > 0) query.id = ids;
 
-    const query = queryParts.join("&");
-
-    const response = await fetch(`${API_BASE}/v1/webhooks?${query}`, {
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      next: { revalidate: 0 },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json(
-        { error: `Post For Me API error: ${error}` },
-        { status: response.status },
-      );
-    }
-
-    const data: PostForMeWebhookListResponse = await response.json();
+    const data = await pfm.get("/v1/webhooks", { query });
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
+      );
+    }
     console.error("[API] Error fetching webhooks:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -80,41 +46,51 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/webhooks
  * Create a new webhook
+ * Official API: POST /v1/webhooks
  */
 export async function POST(request: NextRequest) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
+    let body: Record<string, unknown>;
+
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json<PostForMeError>(
+        { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
+        { status: 400 },
       );
     }
 
-    const body = await request.json();
-
-    const response = await fetch(`${API_BASE}/v1/webhooks`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json(
-        { error: `Post For Me API error: ${error}` },
-        { status: response.status },
+    if (!body.url || typeof body.url !== "string") {
+      return NextResponse.json<PostForMeError>(
+        { error: "Validation Error", message: "url is required and must be a string", statusCode: 400 },
+        { status: 400 },
       );
     }
 
-    const data: PostForMeWebhook = await response.json();
+    if (
+      !body.event_types ||
+      !Array.isArray(body.event_types) ||
+      body.event_types.length === 0
+    ) {
+      return NextResponse.json<PostForMeError>(
+        { error: "Validation Error", message: "event_types is required and must be a non-empty array", statusCode: 400 },
+        { status: 400 },
+      );
+    }
+
+    const data = await pfm.post("/v1/webhooks", { body });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
+      );
+    }
     console.error("[API] Error creating webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }

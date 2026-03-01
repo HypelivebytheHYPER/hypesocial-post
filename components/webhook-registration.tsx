@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRegisterAppWebhook } from "@/lib/hooks/usePostForMe";
 
 /**
  * Webhook Registration Component
- * Automatically registers app webhooks on startup if not already registered
+ * Automatically registers app webhooks on startup if not already registered.
+ * Uses a ref guard to ensure registration is attempted only once,
+ * preventing infinite retry loops on 401/auth errors.
  *
  * Docs: https://www.postforme.dev/resources/webhooks
  * Registered Events:
@@ -15,10 +17,13 @@ import { useRegisterAppWebhook } from "@/lib/hooks/usePostForMe";
  */
 export function WebhookRegistration() {
   const { register } = useRegisterAppWebhook();
+  const hasRun = useRef(false);
 
   useEffect(() => {
-    // Register webhooks on app startup
-    // This is idempotent - checks if webhook already exists before creating
+    // Guard: only attempt once per app lifecycle
+    if (hasRun.current) return;
+    hasRun.current = true;
+
     register([
       "social.post.result.created",
       "social.post.updated",
@@ -26,9 +31,10 @@ export function WebhookRegistration() {
     ]).catch((error) => {
       // Silently fail - webhook registration is non-critical
       // App will fall back to polling for updates
-      console.log("[Webhook] Registration skipped:", error.message);
+      console.log("[Webhook] Registration skipped:", error?.message);
     });
-  }, [register]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // This component renders nothing
   return null;

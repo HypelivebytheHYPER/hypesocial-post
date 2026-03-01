@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  CreateUploadUrlDto,
-  CreateUploadUrlResponse,
-  PostForMeError,
-} from "@/types/post-for-me";
-
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POST_FOR_ME_API_KEY;
+import { pfm } from "@/lib/post-for-me";
+import { APIError } from "post-for-me";
+import type { PostForMeError } from "@/types/post-for-me";
 
 // Maximum file sizes per platform (in bytes)
 const MAX_FILE_SIZES: Record<string, number> = {
@@ -30,47 +25,16 @@ const ALLOWED_CONTENT_TYPES = [
  * POST /api/media
  * Get presigned URL for media upload
  * Official API: POST /v1/media/create-upload-url
- *
- * Required Body Fields:
- * - filename: string - The name of the file
- * - content_type: string - MIME type (image/jpeg, video/mp4, etc.)
- *
- * Optional Body Fields:
- * - size: number - File size in bytes
- *
- * Returns:
- * - upload_url: string - Signed URL to upload the file to
- * - media_url: string - Public URL of the file after upload
- *
- * Notes:
- * - Upload the file directly to the upload_url using PUT method
- * - The upload_url is signed and expires after a short time
- * - Maximum file sizes: Images 8MB, Videos 512MB
  */
 export async function POST(request: NextRequest) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Configuration Error",
-          message: "API key not configured",
-          statusCode: 500,
-        },
-        { status: 500 },
-      );
-    }
-
-    let body: Partial<CreateUploadUrlDto>;
+    let body: Record<string, any>;
 
     try {
       body = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
+        { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
         { status: 400 },
       );
     }
@@ -81,7 +45,6 @@ export async function POST(request: NextRequest) {
     if (!body.filename || typeof body.filename !== "string") {
       errors.push("filename is required and must be a string");
     } else {
-      // Validate filename has extension
       const hasExtension = /\.[^.]+$/.test(body.filename);
       if (!hasExtension) {
         errors.push("filename must include a file extension");
@@ -89,19 +52,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!body.content_type || typeof body.content_type !== "string") {
-      errors.push(
-        "content_type is required and must be a string (e.g., 'image/jpeg', 'video/mp4')",
-      );
+      errors.push("content_type is required and must be a string (e.g., 'image/jpeg', 'video/mp4')");
     }
 
     if (errors.length > 0) {
       return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: errors.join("; "),
-          statusCode: 400,
-          details: { fields: errors },
-        },
+        { error: "Validation Error", message: errors.join("; "), statusCode: 400, details: { fields: errors } },
         { status: 400 },
       );
     }
@@ -124,16 +80,11 @@ export async function POST(request: NextRequest) {
     if (body.size !== undefined) {
       if (typeof body.size !== "number" || body.size < 0) {
         return NextResponse.json<PostForMeError>(
-          {
-            error: "Validation Error",
-            message: "size must be a positive number (in bytes)",
-            statusCode: 400,
-          },
+          { error: "Validation Error", message: "size must be a positive number (in bytes)", statusCode: 400 },
           { status: 400 },
         );
       }
 
-      // Determine max size based on content type
       const maxSize = contentType.startsWith("video/")
         ? MAX_FILE_SIZES.video
         : MAX_FILE_SIZES.image;
@@ -146,77 +97,36 @@ export async function POST(request: NextRequest) {
             error: "Validation Error",
             message: `File size ${actualSizeMB}MB exceeds maximum allowed ${maxSizeMB}MB for ${contentType.startsWith("video/") ? "videos" : "images"}`,
             statusCode: 400,
-            details: {
-              max_size_bytes: maxSize,
-              max_size_mb: maxSizeMB,
-              provided_size_bytes: body.size,
-            },
+            details: { max_size_bytes: maxSize, max_size_mb: maxSizeMB, provided_size_bytes: body.size },
           },
           { status: 400 },
         );
       }
     }
 
-    // Get presigned URL from Post For Me API
-    const response = await fetch(`${API_BASE}/v1/media/create-upload-url`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        filename: body.filename,
-        content_type: contentType,
-        size: body.size,
-      }),
-    });
+    const data = await pfm.media.createUploadURL();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData: Partial<PostForMeError>;
-
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { message: errorText };
-      }
-
-      return NextResponse.json<PostForMeError>(
-        {
-          error: errorData.error || "API Error",
-          message:
-            errorData.message || `Failed to get upload URL: ${response.status}`,
-          statusCode: response.status,
-          details: errorData.details,
-        },
-        { status: response.status },
-      );
-    }
-
-    const data: CreateUploadUrlResponse = await response.json();
-
-    // Return with additional metadata
     return NextResponse.json(
       {
         ...data,
         _meta: {
           upload_instructions:
             "Upload the file using PUT request to the upload_url. Do not include the Authorization header when uploading to the signed URL.",
-          expires_in:
-            "The upload_url expires after a short time (typically 15 minutes)",
+          expires_in: "The upload_url expires after a short time (typically 15 minutes)",
         },
       },
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
+      );
+    }
     console.error("[API] Error getting upload URL:", error);
-    return NextResponse.json<PostForMeError>(
-      {
-        error: "Internal Server Error",
-        message:
-          error instanceof Error ? error.message : "Unknown error occurred",
-        statusCode: 500,
-      },
+    return NextResponse.json(
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }
