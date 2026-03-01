@@ -187,7 +187,7 @@ export default function HomePage() {
               </Badge>
             </div>
             <h1 className="greeting-title">
-              Hello, <span>Alif Reza</span>
+              Welcome to <span>HypePost</span>
             </h1>
             <p className="text-slate-400 text-sm mt-1">
               Your social media dashboard
@@ -213,7 +213,7 @@ export default function HomePage() {
             </Badge>
           </div>
           <h1 className="greeting-title">
-            Hello, <span>Alif Reza</span>
+            Welcome to <span>HypePost</span>
           </h1>
           <p className="text-slate-400 text-sm mt-1">
             Your social media dashboard
