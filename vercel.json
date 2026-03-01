@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install",
+  "regions": ["iad1"],
+  "env": {
+    "POSTFORME_API_URL": "https://api.postforme.dev",
+    "NEXT_PUBLIC_APP_URL": "https://hypesocial-post.vercel.app"
+  },
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  }
+}

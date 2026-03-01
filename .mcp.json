@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "post_for_me_api": {
+      "command": "npx",
+      "args": ["-y", "post-for-me-mcp"],
+      "env": {
+        "POSTFORME_API_KEY": "${POSTFORME_API_KEY}",
+        "POST_FOR_ME_API_KEY": "${POSTFORME_API_KEY}"
+      }
+    },
+    "shadcn_ui": {
+      "command": "npx",
+      "args": ["-y", "@magnusrodseth/shadcn-mcp-server"]
+    },
+    "vercel": {
+      "command": "npx",
+      "args": ["-y", "@robinson_ai_systems/vercel-mcp"],
+      "env": {
+        "VERCEL_TOKEN": "${VERCEL_TOKEN}"
+      }
+    }
+  }
+}
