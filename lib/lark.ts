@@ -246,4 +246,32 @@ export function larkDateToISO(val: unknown): string {
   return isNaN(n) ? "" : new Date(n).toISOString();
 }
 
+/**
+ * Extract plain text from a Lark text field.
+ * Lark returns text as [{text: "value", type: "text"}] or plain string.
+ */
+export function larkText(val: unknown): string {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  if (Array.isArray(val)) {
+    return val
+      .map((v: { text?: string }) => v?.text || "")
+      .join("");
+  }
+  return String(val);
+}
+
+/** Extract number from a Lark field. */
+export function larkNumber(val: unknown): number {
+  if (typeof val === "number") return val;
+  if (!val) return 0;
+  const n = Number(val);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Extract boolean from a Lark checkbox field. */
+export function larkBool(val: unknown): boolean {
+  return val === true;
+}
+
 export type { LarkField, LarkRecord };

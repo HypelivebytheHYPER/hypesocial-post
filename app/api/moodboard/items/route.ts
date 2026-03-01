@@ -5,6 +5,8 @@ import {
   filterAnd,
   eq,
   larkDateToISO,
+  larkText,
+  larkNumber,
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
 
@@ -29,7 +31,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all items for this project, then filter by date in code
-    // (column_date is a Text field, so Lark comparison operators may not work reliably)
     const allRecords = await larkSearchAllRecords(
       TABLE_ID,
       filterAnd(eq("project_id", projectId)),
@@ -39,27 +40,34 @@ export async function GET(request: NextRequest) {
     const records =
       startDate && endDate
         ? allRecords.filter((r) => {
-            const date = r.fields.column_date as string;
+            const date = larkText(r.fields.column_date);
             return date >= startDate && date <= endDate;
           })
         : allRecords;
 
     const items = records.map((r) => ({
-      id: r.fields.item_id as string,
+      id: larkText(r.fields.item_id),
       record_id: r.record_id,
-      project_id: r.fields.project_id as string,
-      column_date: r.fields.column_date as string,
-      sort_order: (r.fields.sort_order as number) ?? 0,
-      type: r.fields.type as string,
-      content: (r.fields.content as string) || "",
-      media_url: (r.fields.media_url as string) || "",
-      platform: (r.fields.platform as string) || "",
-      video_ratio: (r.fields.video_ratio as string) || "",
-      author: (r.fields.author as string) || "",
-      tags: r.fields.tags ? JSON.parse(r.fields.tags as string) : [],
-      likes: (r.fields.likes as string) || "",
-      comments: (r.fields.comments as string) || "",
-      linked_post_id: (r.fields.linked_post_id as string) || "",
+      project_id: larkText(r.fields.project_id),
+      column_date: larkText(r.fields.column_date),
+      sort_order: larkNumber(r.fields.sort_order),
+      type: larkText(r.fields.type),
+      content: larkText(r.fields.content),
+      media_url: larkText(r.fields.media_url),
+      platform: larkText(r.fields.platform),
+      video_ratio: larkText(r.fields.video_ratio),
+      author: larkText(r.fields.author),
+      tags: (() => {
+        const raw = larkText(r.fields.tags);
+        try {
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      })(),
+      likes: larkText(r.fields.likes),
+      comments: larkText(r.fields.comments),
+      linked_post_id: larkText(r.fields.linked_post_id),
       created_at: larkDateToISO(r.fields.created_at),
       updated_at: larkDateToISO(r.fields.updated_at),
     }));

@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { larkSearchRecords, larkCreateRecords, filterAnd, eq, larkDateToISO } from "@/lib/lark";
+import {
+  larkSearchRecords,
+  larkCreateRecords,
+  filterAnd,
+  eq,
+  larkDateToISO,
+  larkText,
+} from "@/lib/lark";
 import { randomUUID } from "crypto";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
@@ -15,17 +22,24 @@ export async function GET() {
       filterAnd(eq("archived", false)),
     );
 
-    const projects = (data.items || []).map((r) => ({
-      id: r.fields.project_id as string,
-      record_id: r.record_id,
-      name: r.fields.name as string,
-      description: (r.fields.description as string) || "",
-      created_at: larkDateToISO(r.fields.created_at),
-      updated_at: larkDateToISO(r.fields.updated_at),
-      week_notes: r.fields.week_notes
-        ? JSON.parse(r.fields.week_notes as string)
-        : {},
-    }));
+    const projects = (data.items || [])
+      .filter((r) => larkText(r.fields.project_id)) // skip empty records
+      .map((r) => ({
+        id: larkText(r.fields.project_id),
+        record_id: r.record_id,
+        name: larkText(r.fields.name),
+        description: larkText(r.fields.description),
+        created_at: larkDateToISO(r.fields.created_at),
+        updated_at: larkDateToISO(r.fields.updated_at),
+        week_notes: (() => {
+          const raw = larkText(r.fields.week_notes);
+          try {
+            return raw ? JSON.parse(raw) : {};
+          } catch {
+            return {};
+          }
+        })(),
+      }));
 
     return NextResponse.json({ projects });
   } catch (error) {
