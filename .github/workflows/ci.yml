@@ -158,7 +158,7 @@ jobs:
         run: tar -xzf build.tar.gz
 
       - name: Run E2E Tests
-        run: pnpm test:e2e
+        run: pnpm exec playwright test --workers=1
         env:
           POSTFORME_API_KEY: ${{ secrets.POSTFORME_API_KEY }}
           POSTFORME_API_URL: ${{ secrets.POSTFORME_API_URL }}
