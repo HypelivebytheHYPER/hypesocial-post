@@ -17,7 +17,7 @@ The MCP server is already configured in `.mcp.json`:
       "command": "npx",
       "args": ["-y", "post-for-me-mcp"],
       "env": {
-        "POSTFORME_API_KEY": "${POSTFORME_API_KEY}"
+        "POST_FOR_ME_API_KEY": "${POST_FOR_ME_API_KEY}"
       }
     }
   }
@@ -35,7 +35,7 @@ The MCP server is already configured in `.mcp.json`:
 1. Set your API key as an environment variable:
 
    ```bash
-   export POSTFORME_API_KEY="your_api_key_here"
+   export POST_FOR_ME_API_KEY="your_api_key_here"
    ```
 
 2. The MCP server will be installed automatically when you use AI features
@@ -102,7 +102,7 @@ npx -y post-for-me-mcp@latest
 
 ### API Key Issues
 
-Ensure your `POSTFORME_API_KEY` environment variable is set correctly.
+Ensure your `POST_FOR_ME_API_KEY` environment variable is set correctly.
 
 ### AI Doesn't Understand
 

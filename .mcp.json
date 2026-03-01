@@ -4,8 +4,7 @@
       "command": "npx",
       "args": ["-y", "post-for-me-mcp"],
       "env": {
-        "POSTFORME_API_KEY": "${POSTFORME_API_KEY}",
-        "POST_FOR_ME_API_KEY": "${POSTFORME_API_KEY}"
+        "POST_FOR_ME_API_KEY": "${POST_FOR_ME_API_KEY}"
       }
     },
     "shadcn_ui": {

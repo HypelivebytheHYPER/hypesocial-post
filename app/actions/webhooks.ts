@@ -6,8 +6,8 @@ import {
   PostForMeEventType,
 } from "@/types/webhooks";
 
-const API_BASE = process.env.POSTFORME_API_URL || "https://api.post-for-me.com";
-const API_KEY = process.env.POSTFORME_API_KEY;
+const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+const API_KEY = process.env.POST_FOR_ME_API_KEY;
 
 /**
  * Post For Me Webhook Management Actions
@@ -20,7 +20,7 @@ async function pfmApi<T>(
   options: RequestInit = {},
 ): Promise<T> {
   if (!API_KEY) {
-    throw new Error("POSTFORME_API_KEY is not configured");
+    throw new Error("POST_FOR_ME_API_KEY is not configured");
   }
 
   const url = `${API_BASE}${endpoint}`;

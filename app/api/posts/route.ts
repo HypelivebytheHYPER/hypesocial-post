@@ -6,8 +6,46 @@ import {
   PostForMeError,
 } from "@/types/post-for-me";
 
-const API_BASE = process.env.POSTFORME_API_URL || "https://api.postforme.dev";
+const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 const API_KEY = process.env.POST_FOR_ME_API_KEY;
+
+// Allowed media storage domains - ONLY Post For Me storage
+const ALLOWED_MEDIA_DOMAINS = [
+  "data.postforme.dev",           // Post For Me primary storage
+  "cjsgitiiwhrsfolwmtby.supabase.co", // Post For Me Supabase storage (profile photos)
+];
+
+/**
+ * Validate that media URLs are from allowed Post For Me storage
+ * Rejects external URLs to prevent "All media failed to process" errors
+ */
+function validateMediaUrls(media?: { url: string }[]): { valid: boolean; error?: string } {
+  if (!media || media.length === 0) return { valid: true };
+
+  for (const item of media) {
+    if (!item.url || typeof item.url !== "string") {
+      return { valid: false, error: "Media item must have a valid URL string" };
+    }
+
+    try {
+      const url = new URL(item.url);
+      const isAllowed = ALLOWED_MEDIA_DOMAINS.some(domain =>
+        url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+      );
+
+      if (!isAllowed) {
+        return {
+          valid: false,
+          error: `Invalid media URL: ${url.hostname}. Only Post For Me storage URLs are allowed. Please upload via /api/media first.`,
+        };
+      }
+    } catch {
+      return { valid: false, error: `Invalid URL format: ${item.url}` };
+    }
+  }
+
+  return { valid: true };
+}
 
 /**
  * GET /api/posts
@@ -195,6 +233,23 @@ export async function POST(request: NextRequest) {
           error: "Validation Error",
           message: "media must be an array of { url: string } objects",
           statusCode: 400,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Validate media URLs are from Post For Me storage only
+    const mediaValidation = validateMediaUrls(body.media);
+    if (!mediaValidation.valid) {
+      return NextResponse.json<PostForMeError>(
+        {
+          error: "Validation Error",
+          message: mediaValidation.error,
+          statusCode: 400,
+          details: {
+            allowed_domains: ALLOWED_MEDIA_DOMAINS,
+            instruction: "Upload media via POST /api/media to get valid URLs",
+          },
         },
         { status: 400 },
       );
