@@ -61,8 +61,8 @@ test.describe('Dashboard - E2E Happy Path', () => {
   test('should display dashboard with analytics', async ({ page }) => {
     await page.goto('/');
 
-    // Verify main dashboard elements
-    await expect(page.locator('text=Dashboard')).toBeVisible();
+    // Verify main dashboard elements - greeting is shown
+    await expect(page.locator('h1')).toContainText('Hello, Alif Reza');
     await expect(page.locator('[data-testid="analytics-section"]')).toBeVisible();
     await expect(page.locator('[data-testid="recent-posts"]')).toBeVisible();
   });
@@ -70,7 +70,7 @@ test.describe('Dashboard - E2E Happy Path', () => {
   test('should navigate between pages', async ({ page }) => {
     // Dashboard
     await page.goto('/');
-    await expect(page.locator('h1')).toContainText('Dashboard');
+    await expect(page.locator('h1')).toContainText('Hello, Alif Reza');
 
     // Posts
     await page.click('text=Posts');
