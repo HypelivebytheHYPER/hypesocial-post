@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PostForMeWebhook } from "@/types/webhooks";
 
 const API_BASE = process.env.POSTFORME_API_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POSTFORME_API_KEY;
+const API_KEY = process.env.POST_FOR_ME_API_KEY;
 
 /**
  * GET /api/webhooks/[id]

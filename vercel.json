@@ -6,7 +6,7 @@
   "installCommand": "pnpm install",
   "regions": ["iad1"],
   "env": {
-    "POSTFORME_API_URL": "https://api.postforme.dev",
+    "POST_FOR_ME_BASE_URL": "https://api.postforme.dev",
     "NEXT_PUBLIC_APP_URL": "https://hypesocial-post.vercel.app"
   },
   "functions": {
