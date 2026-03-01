@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   addWeeks,
   subWeeks,
@@ -167,11 +168,12 @@ export default function ProjectMoodboardPage() {
   );
 
   const handleFileDrop = useCallback(
-    (columnId: string, files: File[]) => {
+    async (columnId: string, files: File[]) => {
       const column = columns.find((c) => c.id === columnId);
       if (!column) return;
 
-      files.forEach(async (file, idx) => {
+      for (let idx = 0; idx < files.length; idx++) {
+        const file = files[idx];
         const isVideo = file.type.startsWith("video/");
         const type = isVideo ? "video" : "image";
 
@@ -181,7 +183,7 @@ export default function ProjectMoodboardPage() {
             projectId,
           });
 
-          createItem.mutate({
+          await createItem.mutateAsync({
             project_id: projectId,
             column_date: column.isoDate,
             sort_order: column.items.length + idx,
@@ -198,8 +200,9 @@ export default function ProjectMoodboardPage() {
           });
         } catch (err) {
           console.error("Upload failed:", err);
+          toast.error(`Failed to upload ${file.name}`);
         }
-      });
+      }
     },
     [columns, projectId, uploadMedia, createItem],
   );

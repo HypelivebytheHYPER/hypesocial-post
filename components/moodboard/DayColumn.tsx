@@ -57,7 +57,7 @@ export function DayColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-h-[400px] rounded-3xl transition-colors ${
+      className={`group/col flex flex-col min-h-[400px] rounded-3xl transition-colors ${
         isOver ? "bg-slate-100/50 ring-2 ring-slate-200" : ""
       }`}
     >
@@ -97,7 +97,7 @@ export function DayColumn({
       </div>
 
       {/* Add buttons */}
-      <div className="flex items-center justify-center gap-1 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center justify-center gap-1 p-2 opacity-0 group-hover/col:opacity-100 transition-opacity">
         <button
           onClick={() => onAddItem(column.id, "image")}
           className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
