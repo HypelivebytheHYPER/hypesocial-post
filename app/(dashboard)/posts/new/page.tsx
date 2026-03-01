@@ -984,10 +984,10 @@ export default function NewPostPage() {
 
       <motion.div variants={itemVariants} className="divider-soft" />
 
-      {/* 50:50 Layout */}
+      {/* 50:50 Layout - Preview first on mobile */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* LEFT SIDE - Editor */}
-        <motion.div variants={containerVariants} className="space-y-6">
+        <motion.div variants={containerVariants} className="space-y-6 order-2 lg:order-1">
           {/* Content Editor */}
           <motion.section variants={itemVariants} className="card-premium p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1379,8 +1379,8 @@ export default function NewPostPage() {
           </motion.section>
         </motion.div>
 
-        {/* RIGHT SIDE - Preview */}
-        <motion.div variants={containerVariants} className="space-y-6">
+        {/* RIGHT SIDE - Preview (first on mobile) */}
+        <motion.div variants={containerVariants} className="space-y-6 order-1 lg:order-2">
           {/* Live Preview */}
           <motion.section variants={itemVariants} className="card-premium p-6">
             <div className="flex items-center justify-between mb-4">
