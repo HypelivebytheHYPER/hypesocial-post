@@ -34,17 +34,14 @@ export function Navigation() {
       <nav className="nav-floating">
         <div className="flex items-center gap-1">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 px-3 py-1.5 mr-2">
+          <Link href="/" className="flex items-center px-1 py-0.5 mr-1">
             <Image
               src="https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png"
               alt="HypePost"
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-xl shadow-sm"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl"
             />
-            <span className="hidden sm:inline-block text-sm font-semibold text-slate-700">
-              HypePost
-            </span>
           </Link>
 
           {/* Desktop Nav - Single Line */}
