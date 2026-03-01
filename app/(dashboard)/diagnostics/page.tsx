@@ -35,7 +35,7 @@ export default function DiagnosticsPage() {
     {
       id: "api-key",
       name: "API Key Configuration",
-      description: "Check if POSTFORME_API_KEY is set",
+      description: "Check if POST_FOR_ME_API_KEY is set",
       status: "pending",
       icon: <Key className="w-5 h-5" />,
     },
@@ -92,13 +92,13 @@ export default function DiagnosticsPage() {
 
     // Test 1: API Key
     await delay(500);
-    const apiKey = process.env.POSTFORME_API_KEY;
+    const apiKey = process.env.POST_FOR_ME_API_KEY;
     updateTest(
       "api-key",
       apiKey ? "success" : "error",
       apiKey
         ? "API key is configured"
-        : "POSTFORME_API_KEY not found in environment",
+        : "POST_FOR_ME_API_KEY not found in environment",
     );
 
     // Test 2: API Connection
@@ -401,7 +401,7 @@ export default function DiagnosticsPage() {
               <li className="flex items-start gap-2">
                 <ChevronRight className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                 <span>
-                  <strong>API Key:</strong> Set POSTFORME_API_KEY in your
+                  <strong>API Key:</strong> Set POST_FOR_ME_API_KEY in your
                   environment or .env.local file
                 </span>
               </li>

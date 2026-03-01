@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const webhookSecret =
       request.headers.get("Post-For-Me-Webhook-Secret") ||
       request.headers.get("post-for-me-webhook-secret");
-    const expectedSecret = process.env.POSTFORME_WEBHOOK_SECRET;
+    const expectedSecret = process.env.POST_FOR_ME_WEBHOOK_SECRET;
 
     console.log("[Webhook] Received request", {
       hasSecret: !!webhookSecret,

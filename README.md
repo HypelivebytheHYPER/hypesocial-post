@@ -40,7 +40,7 @@ This project uses the `post-for-me-mcp` package for social media API operations.
 
 3. Add your Post For Me API key to `.env.local`:
    ```
-   POSTFORME_API_KEY=your_api_key
+   POST_FOR_ME_API_KEY=your_api_key
    ```
 
 ### MCP Server Configuration
@@ -54,7 +54,7 @@ The MCP servers are configured in `.mcp.json`:
       "command": "npx",
       "args": ["-y", "post-for-me-mcp"],
       "env": {
-        "POSTFORME_API_KEY": "${POSTFORME_API_KEY}"
+        "POST_FOR_ME_API_KEY": "${POST_FOR_ME_API_KEY}"
       }
     },
     "shadcn_ui": {

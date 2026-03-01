@@ -135,8 +135,8 @@ Configured in `~/.claude/mcp.json`:
 
 ```bash
 # Required
-POSTFORME_API_KEY=pfm_live_...
-POSTFORME_API_URL=https://api.postforme.dev
+POST_FOR_ME_API_KEY=pfm_live_...
+POST_FOR_ME_BASE_URL=https://api.postforme.dev
 
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000
@@ -253,7 +253,7 @@ rm -rf .next && pnpm build
 
 ### API Issues
 
-- Check `POSTFORME_API_KEY` is set
+- Check `POST_FOR_ME_API_KEY` is set
 - Verify MCP server is configured in `~/.claude/mcp.json`
 - Check API status at https://api.postforme.dev/docs
 
