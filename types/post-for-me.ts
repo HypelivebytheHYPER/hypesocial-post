@@ -221,7 +221,12 @@ export interface TwitterConfigurationDto {
   /** Id of the tweet you want to quote */
   quote_tweet_id?: string;
   /** Who can reply to the tweet */
-  reply_settings?: "following" | "mentionedUsers" | "subscribers" | "verified" | null;
+  reply_settings?:
+    | "following"
+    | "mentionedUsers"
+    | "subscribers"
+    | "verified"
+    | null;
 }
 
 // https://api.postforme.dev/docs#model/youtubeconfigurationdto
@@ -385,7 +390,12 @@ export interface AccountConfigurationDetailsDto {
   /** Id of the tweet you want to quote */
   quote_tweet_id?: string;
   /** Who can reply to the tweet */
-  reply_settings?: "following" | "mentionedUsers" | "subscribers" | "verified" | null;
+  reply_settings?:
+    | "following"
+    | "mentionedUsers"
+    | "subscribers"
+    | "verified"
+    | null;
   /** Page id with a location that you want to tag the image or video with */
   location?: string | null;
   /** List of page ids or users to invite as collaborators */

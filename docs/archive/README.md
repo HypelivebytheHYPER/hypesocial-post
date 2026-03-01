@@ -4,10 +4,10 @@ These documents are kept for historical reference but are **OUTDATED**.
 
 ## Contents
 
-| File | Date | Status |
-|------|------|--------|
+| File                                | Date       | Status                                    |
+| ----------------------------------- | ---------- | ----------------------------------------- |
 | `COMPREHENSIVE_API_AUDIT_REPORT.md` | 2026-02-28 | ⚠️ Outdated - Issues listed are now fixed |
-| `DEEP_DIVE_FACEBOOK_TIKTOK.md` | 2026-02-28 | ⚠️ Outdated - Historical analysis |
+| `DEEP_DIVE_FACEBOOK_TIKTOK.md`      | 2026-02-28 | ⚠️ Outdated - Historical analysis         |
 
 ## Current Documentation
 

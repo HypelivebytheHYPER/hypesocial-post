@@ -215,7 +215,11 @@ function PreviewCard({
                 transition={{ delay: idx * 0.05 }}
                 className="aspect-square rounded-xl overflow-hidden bg-slate-100"
               >
-                <img src={mediaItem.url} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={mediaItem.url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               </motion.div>
             ))}
             {preview.media.length > 4 && (
@@ -1140,9 +1144,11 @@ export default function NewPostPage() {
                         exit={{ opacity: 0, scale: 0.8 }}
                         className={cn(
                           "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs",
-                          media.status === "uploading" && "bg-amber-50 text-amber-600",
-                          media.status === "success" && "bg-emerald-50 text-emerald-600",
-                          media.status === "error" && "bg-red-50 text-red-600"
+                          media.status === "uploading" &&
+                            "bg-amber-50 text-amber-600",
+                          media.status === "success" &&
+                            "bg-emerald-50 text-emerald-600",
+                          media.status === "error" && "bg-red-50 text-red-600",
                         )}
                       >
                         {media.status === "uploading" && (

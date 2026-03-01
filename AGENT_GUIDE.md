@@ -8,6 +8,7 @@
 ## 🎯 AGENT MANDATES
 
 ### DO ✅
+
 - **Read CLAUDE.md first** before making changes
 - **Check types/post-for-me.ts** for API type definitions
 - **Follow the SSOT** (Single Source of Truth in `docs/SINGLE_SOURCE_OF_TRUTH.md`)
@@ -16,6 +17,7 @@
 - **Import from @/** path aliases, never relative `../../`
 
 ### DON'T ❌
+
 - Don't guess API types - check OpenAPI JSON at `/Users/mdch/Downloads/api-post-for-me.json`
 - Don't create duplicate types - use existing ones from `types/post-for-me.ts`
 - Don't use `object` or `unknown` - define proper interfaces
@@ -26,20 +28,21 @@
 
 ## 📁 CRITICAL FILE REFERENCE
 
-| File | Purpose | When to Read |
-|------|---------|--------------|
-| `CLAUDE.md` | Project guide | **Before ANY work** |
-| `types/post-for-me.ts` | API types | When working with data models |
-| `lib/hooks/usePostForMe.ts` | API hooks | When adding API calls |
-| `lib/social-platforms.ts` | Platform config | When working with platforms |
-| `docs/SINGLE_SOURCE_OF_TRUTH.md` | Type reference | To verify type sources |
-| `/Users/mdch/Downloads/api-post-for-me.json` | **OpenAPI SSOT** | To verify API types |
+| File                                         | Purpose          | When to Read                  |
+| -------------------------------------------- | ---------------- | ----------------------------- |
+| `CLAUDE.md`                                  | Project guide    | **Before ANY work**           |
+| `types/post-for-me.ts`                       | API types        | When working with data models |
+| `lib/hooks/usePostForMe.ts`                  | API hooks        | When adding API calls         |
+| `lib/social-platforms.ts`                    | Platform config  | When working with platforms   |
+| `docs/SINGLE_SOURCE_OF_TRUTH.md`             | Type reference   | To verify type sources        |
+| `/Users/mdch/Downloads/api-post-for-me.json` | **OpenAPI SSOT** | To verify API types           |
 
 ---
 
 ## 🔧 COMMON TASKS
 
 ### Adding a New API Hook
+
 ```typescript
 // lib/hooks/usePostForMe.ts
 export function useNewFeature() {
@@ -51,6 +54,7 @@ export function useNewFeature() {
 ```
 
 ### Adding a New Type
+
 1. Check OpenAPI JSON first:
    ```bash
    grep -A 10 '"NewTypeDto"' /Users/mdch/Downloads/api-post-for-me.json
@@ -60,6 +64,7 @@ export function useNewFeature() {
 4. Run `pnpm type-check`
 
 ### Creating a New Page
+
 ```typescript
 // app/(dashboard)/new-page/page.tsx
 import { Metadata } from "next";
@@ -82,6 +87,7 @@ export default function NewPage() {
 ## 🧪 TESTING REQUIREMENTS
 
 ### Before Committing Changes:
+
 ```bash
 # 1. Type check
 pnpm type-check
@@ -94,6 +100,7 @@ pnpm build
 ```
 
 ### If Adding New Features:
+
 - Write unit tests in `tests/unit/`
 - Write integration tests in `tests/integration/`
 - Add E2E tests for user flows in `tests/e2e/`
@@ -103,6 +110,7 @@ pnpm build
 ## 🐛 TROUBLESHOOTING
 
 ### Type Errors
+
 ```bash
 # Regenerate SSOT
 pnpm update:ssot
@@ -112,12 +120,15 @@ pnpm type-check
 ```
 
 ### API Mismatch
+
 Check the OpenAPI spec:
+
 ```bash
 grep -B 2 -A 10 '"fieldName"' /Users/mdch/Downloads/api-post-for-me.json
 ```
 
 ### Build Failures
+
 ```bash
 # Clean build
 rm -rf .next && pnpm build
@@ -128,12 +139,14 @@ rm -rf .next && pnpm build
 ## 📝 DOCUMENTATION
 
 ### What to Document:
+
 - New API hooks
 - New components
 - Configuration changes
 - Environment variables
 
 ### Where to Document:
+
 - `CLAUDE.md` - Project-wide changes
 - `TESTING.md` - Test procedures
 - Inline comments - Complex logic
@@ -143,6 +156,7 @@ rm -rf .next && pnpm build
 ## 🎨 CODE PATTERNS
 
 ### API Route Pattern
+
 ```typescript
 // app/api/resource/route.ts
 import { NextRequest, NextResponse } from "next/server";
@@ -153,15 +167,13 @@ export async function GET() {
     const data = await fetchFromAPI();
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
   }
 }
 ```
 
 ### Component Pattern
+
 ```typescript
 "use client";
 
@@ -182,21 +194,25 @@ export function PostCard({ post }: Props) {
 ## 🔄 WORKFLOW
 
 ### 1. Start Task
+
 - Read `CLAUDE.md`
 - Understand the current state
 - Identify relevant files
 
 ### 2. Implement
+
 - Make changes
 - Follow existing patterns
 - Run `pnpm type-check`
 
 ### 3. Verify
+
 - Test manually if needed
 - Run build: `pnpm build`
 - Check for errors
 
 ### 4. Document
+
 - Update relevant docs
 - Add comments for complex logic
 
@@ -205,6 +221,7 @@ export function PostCard({ post }: Props) {
 ## 🆘 ESCALATION
 
 If stuck or confused:
+
 1. Check `CLAUDE.md` again
 2. Check `docs/SINGLE_SOURCE_OF_TRUTH.md`
 3. Verify against OpenAPI JSON

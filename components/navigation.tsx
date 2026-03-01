@@ -23,7 +23,8 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname();
-  const isNewPostActive = pathname === "/posts/new" || pathname.startsWith("/posts/new");
+  const isNewPostActive =
+    pathname === "/posts/new" || pathname.startsWith("/posts/new");
 
   return (
     <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-3rem)] max-w-4xl">
@@ -40,7 +41,10 @@ export function Navigation() {
           </Link>
 
           {/* Desktop Nav - Single Line */}
-          <div className="hidden md:flex items-center gap-1" data-testid="desktop-nav">
+          <div
+            className="hidden md:flex items-center gap-1"
+            data-testid="desktop-nav"
+          >
             {/* New Post - First Tab with Premium Gradient */}
             <Link
               href="/posts/new"
@@ -49,13 +53,13 @@ export function Navigation() {
                 "relative px-4 py-2 text-xs font-semibold rounded-full transition-all duration-300 flex items-center gap-1.5",
                 isNewPostActive
                   ? "text-white shadow-lg shadow-blue-500/30"
-                  : "text-white hover:shadow-lg hover:shadow-blue-500/20"
+                  : "text-white hover:shadow-lg hover:shadow-blue-500/20",
               )}
             >
               <span
                 className={cn(
                   "absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400",
-                  isNewPostActive && "ring-2 ring-blue-400/40 ring-offset-1"
+                  isNewPostActive && "ring-2 ring-blue-400/40 ring-offset-1",
                 )}
               />
               <span className="relative flex items-center gap-1.5 whitespace-nowrap">
@@ -113,7 +117,7 @@ export function Navigation() {
                 "flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-full text-white transition-all duration-300",
                 isNewPostActive
                   ? "shadow-lg shadow-violet-500/30"
-                  : "shadow-md hover:shadow-lg hover:shadow-violet-500/20"
+                  : "shadow-md hover:shadow-lg hover:shadow-violet-500/20",
               )}
             >
               <span className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500" />
@@ -134,7 +138,7 @@ export function Navigation() {
               "p-3 rounded-full transition-all duration-300 flex items-center justify-center text-white",
               isNewPostActive
                 ? "shadow-lg shadow-violet-500/30 scale-110"
-                : "shadow-md hover:scale-110"
+                : "shadow-md hover:scale-110",
             )}
           >
             <span className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500" />

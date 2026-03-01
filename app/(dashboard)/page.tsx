@@ -402,7 +402,10 @@ export default function HomePage() {
           </div>
 
           {/* Platform Selector */}
-          <div className="flex flex-wrap items-center gap-2" data-testid="platform-selector">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            data-testid="platform-selector"
+          >
             <span className="text-xs text-slate-400 font-medium mr-2">
               Platforms:
             </span>
@@ -537,7 +540,9 @@ export default function HomePage() {
               label: "Scheduled",
               href: "/posts",
               icon: Clock,
-              count: posts.filter((p) => p.status === "scheduled").length.toString(),
+              count: posts
+                .filter((p) => p.status === "scheduled")
+                .length.toString(),
             },
             {
               label: "Analytics",
@@ -581,7 +586,11 @@ export default function HomePage() {
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div key={stat.label} className="stat-card" data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
+              <div
+                key={stat.label}
+                className="stat-card"
+                data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <div
                     className={`w-8 h-8 rounded-xl ${stat.bg} flex items-center justify-center`}
@@ -634,7 +643,10 @@ export default function HomePage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto" data-testid="posts-list">
+            <div
+              className="space-y-3 max-h-80 overflow-y-auto"
+              data-testid="posts-list"
+            >
               {recentPosts.map((post) => (
                 <div
                   key={post.id}

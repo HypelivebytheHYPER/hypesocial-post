@@ -74,6 +74,7 @@ types/
 This is the machine-readable source of truth for all API types. All TypeScript types in `types/post-for-me.ts` are derived from this specification.
 
 **Verification command:**
+
 ```bash
 grep -A 10 '"SocialPostMediaDto"' /Users/mdch/Downloads/api-post-for-me.json
 ```
@@ -84,12 +85,12 @@ Updated automatically on every build via `prebuild` hook.
 
 ### Key Files
 
-| File | Purpose | Derived From |
-|------|---------|--------------|
-| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec** | Original |
-| `types/post-for-me.ts` | TypeScript types | OpenAPI JSON |
-| `lib/hooks/usePostForMe.ts` | TanStack Query hooks | - |
-| `lib/social-platforms.ts` | Platform icons & config | - |
+| File                                         | Purpose                 | Derived From |
+| -------------------------------------------- | ----------------------- | ------------ |
+| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec** | Original     |
+| `types/post-for-me.ts`                       | TypeScript types        | OpenAPI JSON |
+| `lib/hooks/usePostForMe.ts`                  | TanStack Query hooks    | -            |
+| `lib/social-platforms.ts`                    | Platform icons & config | -            |
 
 ### Type Imports
 
@@ -225,12 +226,12 @@ claude mcp use post-for-me
 
 ## Documentation
 
-| Document                                 | Purpose                            |
-| ---------------------------------------- | ---------------------------------- |
+| Document                                     | Purpose                                   |
+| -------------------------------------------- | ----------------------------------------- |
 | `/Users/mdch/Downloads/api-post-for-me.json` | **OpenAPI Spec - Single Source of Truth** |
-| `docs/SINGLE_SOURCE_OF_TRUTH.md`         | Auto-generated types reference     |
-| `docs/archive/`                          | Historical audit reports (outdated)|
-| `CLAUDE.md`                              | This file - project guide          |
+| `docs/SINGLE_SOURCE_OF_TRUTH.md`             | Auto-generated types reference            |
+| `docs/archive/`                              | Historical audit reports (outdated)       |
+| `CLAUDE.md`                                  | This file - project guide                 |
 
 ---
 

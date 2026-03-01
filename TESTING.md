@@ -24,6 +24,7 @@ tests/
 ## 🚀 Quick Start
 
 ### Run All Tests
+
 ```bash
 # Unit tests
 pnpm test
@@ -48,23 +49,26 @@ pnpm test:e2e:ui
 ### 1. Unit Tests (Vitest)
 
 **What to test:**
+
 - Hooks (`usePostForMe`)
 - Utility functions
 - Type validators
 - Formatters
 
 **Run:**
+
 ```bash
 pnpm test
 ```
 
 **Example:**
+
 ```typescript
 // tests/unit/lib/hooks/usePostForMe.test.ts
-import { renderHook, waitFor } from '@testing-library/react';
-import { usePosts } from '@/lib/hooks/usePostForMe';
+import { renderHook, waitFor } from "@testing-library/react";
+import { usePosts } from "@/lib/hooks/usePostForMe";
 
-test('should fetch posts', async () => {
+test("should fetch posts", async () => {
   const { result } = renderHook(() => usePosts());
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
   expect(result.current.data).toBeDefined();
@@ -76,22 +80,26 @@ test('should fetch posts', async () => {
 ### 2. Integration Tests (API)
 
 **What to test:**
+
 - API routes (`/api/posts`, `/api/accounts`)
 - Database operations
 - External API calls (mocked)
 
 **Prerequisites:**
+
 ```bash
 # Start dev server
 pnpm dev
 ```
 
 **Run:**
+
 ```bash
 pnpm test:integration
 ```
 
 **Environment Variables:**
+
 ```bash
 TEST_API_URL=http://localhost:3000/api pnpm test:integration
 ```
@@ -101,12 +109,14 @@ TEST_API_URL=http://localhost:3000/api pnpm test:integration
 ### 3. E2E Tests (Playwright)
 
 **What to test:**
+
 - User flows (create post, connect account)
 - Navigation
 - UI interactions
 - Cross-browser compatibility
 
 **Prerequisites:**
+
 ```bash
 # Install Playwright browsers
 pnpm exec playwright install
@@ -116,18 +126,20 @@ pnpm build
 ```
 
 **Run:**
+
 ```bash
 pnpm test:e2e
 ```
 
 **Happy Path Test Example:**
+
 ```typescript
 // tests/e2e/posts/create-post.spec.ts
-test('should create a draft post', async ({ page }) => {
-  await page.goto('/posts/new');
-  await page.fill('[data-testid="post-caption"]', 'Test post');
+test("should create a draft post", async ({ page }) => {
+  await page.goto("/posts/new");
+  await page.fill('[data-testid="post-caption"]', "Test post");
   await page.click('[data-testid="save-draft"]');
-  await expect(page.locator('text=Draft saved')).toBeVisible();
+  await expect(page.locator("text=Draft saved")).toBeVisible();
 });
 ```
 
@@ -136,6 +148,7 @@ test('should create a draft post', async ({ page }) => {
 ## ✅ Happy Flow Test Checklist
 
 ### API Happy Flow
+
 - [ ] Create draft post → 200 OK
 - [ ] List posts → Returns array
 - [ ] Get single post → Returns post
@@ -145,6 +158,7 @@ test('should create a draft post', async ({ page }) => {
 - [ ] Generate preview → Returns preview data
 
 ### UI Happy Flow (E2E)
+
 - [ ] Navigate to dashboard
 - [ ] Create new post (draft)
 - [ ] Schedule post
@@ -157,9 +171,10 @@ test('should create a draft post', async ({ page }) => {
 ## 🎯 Writing Good Tests
 
 ### Unit Test Principles
+
 ```typescript
 // ✅ Good: Test behavior, not implementation
-test('returns posts on success', async () => {
+test("returns posts on success", async () => {
   // Mock API response
   fetch.mockResolvedValueOnce({ ok: true, json: () => posts });
 
@@ -171,23 +186,24 @@ test('returns posts on success', async () => {
 });
 
 // ❌ Bad: Testing implementation details
-test('calls fetch with correct URL', () => {
+test("calls fetch with correct URL", () => {
   // Don't test this - test the outcome instead
 });
 ```
 
 ### E2E Test Principles
+
 ```typescript
 // ✅ Good: Test user-visible behavior
-test('user can create a post', async ({ page }) => {
-  await page.goto('/posts/new');
-  await page.fill('textarea[name="caption"]', 'Hello world');
+test("user can create a post", async ({ page }) => {
+  await page.goto("/posts/new");
+  await page.fill('textarea[name="caption"]', "Hello world");
   await page.click('button:has-text("Save Draft")');
-  await expect(page.locator('text=Draft saved')).toBeVisible();
+  await expect(page.locator("text=Draft saved")).toBeVisible();
 });
 
 // ❌ Bad: Testing internal state
-test('sets isDraft to true', async () => {
+test("sets isDraft to true", async () => {
   // Don't test internal state - test what user sees
 });
 ```
@@ -197,10 +213,12 @@ test('sets isDraft to true', async () => {
 ## 🔧 CI/CD Integration
 
 Tests run automatically on:
+
 - Push to `main` or `develop`
 - Pull requests to `main`
 
 **Workflow:**
+
 1. Code Quality (lint, type-check, format)
 2. Unit Tests
 3. Build
@@ -212,6 +230,7 @@ Tests run automatically on:
 ## 🐛 Debugging Tests
 
 ### Unit Tests
+
 ```bash
 # Debug specific test
 pnpm test -- --reporter=verbose --testNamePattern="usePosts"
@@ -224,6 +243,7 @@ pnpm test:coverage
 ```
 
 ### E2E Tests
+
 ```bash
 # Run with UI for debugging
 pnpm test:e2e:ui
@@ -242,11 +262,11 @@ pnpm test:e2e -- --slow-mo 1000
 
 ## 📊 Coverage Goals
 
-| Category | Target | Current |
-|----------|--------|---------|
-| Unit Tests | 80% | 0% |
-| Integration | 70% | 0% |
-| E2E | Critical paths | 0% |
+| Category    | Target         | Current |
+| ----------- | -------------- | ------- |
+| Unit Tests  | 80%            | 0%      |
+| Integration | 70%            | 0%      |
+| E2E         | Critical paths | 0%      |
 
 ---
 
