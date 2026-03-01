@@ -78,14 +78,6 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test -- --run
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 7
-
   # Job 3: Build
   build:
     name: Build Application
@@ -115,6 +107,9 @@ jobs:
           POSTFORME_API_URL: https://api.postforme.dev
           NEXTAUTH_SECRET: dummy_secret_for_build
           NEXTAUTH_URL: http://localhost:3000
+
+      - name: List build output
+        run: ls -la .next/ 2>/dev/null || echo "No .next directory found"; ls -la
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
