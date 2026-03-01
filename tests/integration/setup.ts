@@ -15,7 +15,7 @@ beforeAll(async () => {
   } catch (error) {
     console.error(`❌ Cannot connect to API at ${apiUrl}`);
     console.error('Make sure to run: pnpm dev');
-    throw new Error('API not accessible');
+    throw new Error('API not accessible', { cause: error });
   }
 });
 

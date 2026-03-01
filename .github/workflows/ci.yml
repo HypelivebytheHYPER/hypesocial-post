@@ -47,9 +47,8 @@ jobs:
       - name: Type Check
         run: pnpm type-check
 
-      # TODO: Fix lint configuration for Next.js 16
-      # - name: Lint
-      #   run: pnpm lint
+      - name: Lint
+        run: npx eslint . --max-warnings=100
 
       # TODO: Re-enable after fixing prettier config
       # - name: Format Check

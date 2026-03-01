@@ -37,9 +37,8 @@ export interface PostCreatedData {
   updated_at?: string;
 }
 
-export interface PostUpdatedData extends PostCreatedData {
-  // Same as PostCreatedData but triggered on updates
-}
+// Same as PostCreatedData but triggered on updates
+export type PostUpdatedData = PostCreatedData;
 
 export interface PostDeletedData {
   id: string;
