@@ -1,0 +1,16 @@
+name = "hypesocial-webhook"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+account_id = "0619ecb52e87d3d344645d271da236ee"
+workers_dev = true
+
+[vars]
+NEXTJS_APP_URL = "https://hypesocial-post.vercel.app"
+
+# Custom domain - api.hypelive.app (handles all paths, worker routes internally)
+[[routes]]
+pattern = "api.hypelive.app"
+custom_domain = true
+
+# Secrets (set via wrangler secret put)
+# POST_FOR_ME_WEBHOOK_SECRET

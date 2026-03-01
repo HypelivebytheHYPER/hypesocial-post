@@ -3,7 +3,7 @@
  * TanStack Query (React Query) integration for Post For Me API
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   useQuery,
   useMutation,
@@ -65,6 +65,11 @@ async function apiClient<T>(
     throw new Error(
       error.error || `API error: ${response.status} ${response.statusText}`,
     );
+  }
+
+  // 204 No Content has no body
+  if (response.status === 204) {
+    return {} as T;
   }
 
   return response.json();
@@ -402,15 +407,17 @@ export function usePostResultsList(params?: {
  */
 export function useUploadMedia() {
   return useMutation<
-    { url: string; key: string },
+    { url: string },
     Error,
     { file: File; onProgress?: (progress: number) => void }
   >({
     mutationFn: async ({ file, onProgress }) => {
-      // Step 1: Get presigned URL
-      const { upload_url, key } = await apiClient<{
+      // Step 1: Get presigned upload URL and public media URL
+      console.log("[Upload] Step 1: Requesting upload URL for", file.name, `(${(file.size / 1024 / 1024).toFixed(2)}MB, ${file.type})`);
+
+      const { upload_url, media_url } = await apiClient<{
         upload_url: string;
-        key: string;
+        media_url: string;
       }>("/api/media", {
         method: "POST",
         body: JSON.stringify({
@@ -419,6 +426,8 @@ export function useUploadMedia() {
           size: file.size,
         }),
       });
+
+      console.log("[Upload] Step 2: Uploading to signed URL...");
 
       // Step 2: Upload file to presigned URL
       const response = await fetch(upload_url, {
@@ -430,11 +439,15 @@ export function useUploadMedia() {
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        const errorText = await response.text().catch(() => "");
+        console.error("[Upload] Failed:", response.status, errorText);
+        throw new Error(`Upload failed: ${response.status} ${errorText || response.statusText}`);
       }
 
-      // Step 3: Return the final URL
-      return { url: upload_url.split("?")[0], key };
+      console.log("[Upload] Step 3: Success! media_url:", media_url);
+
+      // Step 3: Return the public media URL (for use in posts)
+      return { url: media_url };
     },
   });
 }
@@ -448,7 +461,7 @@ export function useUploadMedia() {
  */
 export function useUploadThumbnail() {
   return useMutation<
-    { url: string; key: string },
+    { url: string },
     Error,
     { dataUrl: string; filename?: string }
   >({
@@ -460,10 +473,10 @@ export function useUploadThumbnail() {
       // Create a File from the blob
       const file = new File([blob], filename, { type: "image/jpeg" });
 
-      // Step 1: Get presigned URL
-      const { upload_url, key } = await apiClient<{
+      // Step 1: Get presigned upload URL and public media URL
+      const { upload_url, media_url } = await apiClient<{
         upload_url: string;
-        key: string;
+        media_url: string;
       }>("/api/media", {
         method: "POST",
         body: JSON.stringify({
@@ -486,8 +499,8 @@ export function useUploadThumbnail() {
         throw new Error("Thumbnail upload failed");
       }
 
-      // Step 3: Return the final URL
-      return { url: upload_url.split("?")[0], key };
+      // Step 3: Return the public media URL (for use in posts)
+      return { url: media_url };
     },
   });
 }
@@ -627,7 +640,7 @@ export function useConnectAccount() {
     }
   >({
     mutationFn: ({ platform, redirectUrlOverride }) =>
-      apiClient<{ auth_url: string }>("/api/accounts", {
+      apiClient<{ auth_url: string }>("/api/accounts/auth-url", {
         method: "POST",
         body: JSON.stringify({
           platform,
@@ -704,14 +717,18 @@ export function usePostPreview() {
     SocialPostPreviewRequest
   >({
     mutationFn: async (data) => {
+      console.log("[Preview Hook] Sending:", JSON.stringify(data, null, 2));
       const response = await fetch("/api/social-post-previews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
+      console.log("[Preview Hook] Response status:", response.status);
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
+        console.error("[Preview Hook] Error:", error);
         throw new Error(error.error || "Failed to generate preview");
       }
 
@@ -724,35 +741,52 @@ export function usePostPreview() {
 
 /**
  * Register app webhook helper
+ * Uses a ref to ensure registration is only attempted once per mount,
+ * preventing infinite retry loops on auth errors (401).
  */
 export function useRegisterAppWebhook() {
   const createWebhook = useCreateWebhook();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const webhookUrl = `${appUrl}/api/webhooks/post-for-me`;
+  const attempted = useRef(false);
 
   // Query webhooks filtered by our app URL to check if already registered
-  const { data: existingWebhooks } = useWebhooks({ url: [webhookUrl] });
+  // retry: false prevents TanStack Query from retrying 401 errors
+  const { data: existingWebhooks, isLoading: isChecking } = useWebhooks(
+    { url: [webhookUrl] },
+    { retry: false, staleTime: Infinity },
+  );
 
-  const register = async (eventTypes?: PostForMeEventType[]) => {
-    // Check if webhook already exists
-    const exists = existingWebhooks?.data.some((w) => w.url === webhookUrl);
+  const register = useCallback(
+    async (eventTypes?: PostForMeEventType[]) => {
+      // Only attempt once per app mount
+      if (attempted.current) return;
+      attempted.current = true;
 
-    if (exists) {
-      console.log("[Webhook] Already registered");
-      return existingWebhooks?.data.find((w) => w.url === webhookUrl);
-    }
+      // Wait for existing webhook check to complete
+      if (isChecking) return;
 
-    return createWebhook.mutateAsync({
-      url: webhookUrl,
-      eventTypes: eventTypes || [
-        "social.post.created",
-        "social.post.updated",
-        "social.post.result.created",
-        "social.account.created",
-        "social.account.updated",
-      ],
-    });
-  };
+      // Check if webhook already exists
+      const exists = existingWebhooks?.data?.some((w) => w.url === webhookUrl);
+      if (exists) {
+        return existingWebhooks?.data.find((w) => w.url === webhookUrl);
+      }
+
+      return createWebhook.mutateAsync({
+        url: webhookUrl,
+        eventTypes: eventTypes || [
+          "social.post.created",
+          "social.post.updated",
+          "social.post.deleted",
+          "social.post.result.created",
+          "social.account.created",
+          "social.account.updated",
+        ],
+      });
+    },
+    // Only re-create when data is actually ready (not on every error/refetch)
+    [existingWebhooks, isChecking, webhookUrl, createWebhook],
+  );
 
   return {
     register,

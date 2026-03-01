@@ -1,49 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PostForMeWebhook } from "@/types/webhooks";
-
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POST_FOR_ME_API_KEY;
+import { pfm } from "@/lib/post-for-me";
+import { APIError } from "post-for-me";
+import type { PostForMeError } from "@/types/post-for-me";
 
 /**
  * GET /api/webhooks/[id]
  * Get a single webhook by ID
+ * Official API: GET /v1/webhooks/{id}
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
-      );
-    }
-
     const { id } = await params;
-
-    const response = await fetch(`${API_BASE}/v1/webhooks/${id}`, {
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      next: { revalidate: 0 },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json(
-        { error: `Post For Me API error: ${error}` },
-        { status: response.status },
-      );
-    }
-
-    const data: PostForMeWebhook = await response.json();
+    const data = await pfm.get(`/v1/webhooks/${id}`);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
+      );
+    }
     console.error("[API] Error fetching webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -52,45 +34,48 @@ export async function GET(
 /**
  * PATCH /api/webhooks/[id]
  * Update a webhook
+ * Official API: PATCH /v1/webhooks/{id}
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
-      );
-    }
-
     const { id } = await params;
-    const body = await request.json();
 
-    const response = await fetch(`${API_BASE}/v1/webhooks/${id}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json(
-        { error: `Post For Me API error: ${error}` },
-        { status: response.status },
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json<PostForMeError>(
+        { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
+        { status: 400 },
       );
     }
 
-    const data: PostForMeWebhook = await response.json();
+    if (Object.keys(body).length === 0) {
+      return NextResponse.json<PostForMeError>(
+        {
+          error: "Validation Error",
+          message: "Request body cannot be empty. Provide at least one field to update.",
+          statusCode: 400,
+        },
+        { status: 400 },
+      );
+    }
+
+    const data = await pfm.patch(`/v1/webhooks/${id}`, { body });
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof APIError) {
+      return NextResponse.json(
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
+      );
+    }
     console.error("[API] Error updating webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -99,42 +84,26 @@ export async function PATCH(
 /**
  * DELETE /api/webhooks/[id]
  * Delete a webhook
+ * Official API: DELETE /v1/webhooks/{id}
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
-      );
-    }
-
     const { id } = await params;
-
-    const response = await fetch(`${API_BASE}/v1/webhooks/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
+    await pfm.delete(`/v1/webhooks/${id}`);
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof APIError) {
       return NextResponse.json(
-        { error: `Post For Me API error: ${error}` },
-        { status: response.status },
+        { error: "API Error", message: error.message, statusCode: error.status },
+        { status: error.status || 500 },
       );
     }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
     console.error("[API] Error deleting webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
       { status: 500 },
     );
   }

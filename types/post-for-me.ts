@@ -639,8 +639,7 @@ export interface CreateUploadUrlDto {
 }
 
 export interface CreateUploadUrlResponse {
-  upload_url: string; // Signed URL for uploading
-  media_url: string; // Public URL after upload
+  upload_url: string; // Signed URL for uploading - media URL is upload_url without query params
 }
 
 // https://api.postforme.dev/docs#model/createuploadurlresponsedto
@@ -1581,7 +1580,7 @@ export interface BlueskyPostMetricsDto {
 
 // https://api.postforme.dev/docs#model/socialaccountpreview
 export interface SocialPostPreviewAccount {
-  /** ID of the social account, ex: spc_12312 */
+  /** ID of the social account (Post For Me internal ID) */
   id: string;
   /** Platform of the social account */
   platform: string;
