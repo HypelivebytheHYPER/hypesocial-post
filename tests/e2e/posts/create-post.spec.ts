@@ -17,17 +17,17 @@ test.describe('Create Post Flow - E2E Happy Path', () => {
     await page.goto('/posts/new');
     await expect(page).toHaveURL('/posts/new');
 
-    // Verify form elements exist - use first() to handle multiple matches
+    // Verify form elements exist - page has "Create Post" heading
     await expect(page.locator('[data-testid="post-caption-input"]')).toBeVisible();
-    await expect(page.locator('h1').filter({ hasText: 'New Post' })).toBeVisible();
+    await expect(page.locator('h1').filter({ hasText: 'Create Post' })).toBeVisible();
   });
 
   test('should display posts list page', async ({ page }) => {
     await page.goto('/posts');
 
-    // Verify page loaded - use h1 for specific match
+    // Verify page loaded - use title class for greeting-title
     await expect(page).toHaveURL('/posts');
-    await expect(page.locator('h1').filter({ hasText: 'Posts' })).toBeVisible();
+    await expect(page.locator('h1.greeting-title')).toHaveText('Posts');
   });
 
   test('should display accounts connect page', async ({ page }) => {
