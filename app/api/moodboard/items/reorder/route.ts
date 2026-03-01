@@ -4,6 +4,7 @@ import {
   larkUpdateRecords,
   filterAnd,
   eq,
+  larkText,
 } from "@/lib/lark";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Map item_id -> record_id
     const idMap = new Map<string, string>();
     for (const r of records) {
-      idMap.set(r.fields.item_id as string, r.record_id);
+      idMap.set(larkText(r.fields.item_id), r.record_id);
     }
 
     const now = Date.now();

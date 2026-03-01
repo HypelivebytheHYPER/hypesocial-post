@@ -5,6 +5,7 @@ import {
   filterAnd,
   eq,
   larkDateToISO,
+  larkText,
 } from "@/lib/lark";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
@@ -36,16 +37,22 @@ export async function GET(
       );
     }
 
+    const weekNotesRaw = larkText(record.fields.week_notes);
+    let weekNotes = {};
+    try {
+      weekNotes = weekNotesRaw ? JSON.parse(weekNotesRaw) : {};
+    } catch {
+      weekNotes = {};
+    }
+
     return NextResponse.json({
-      id: record.fields.project_id as string,
+      id: larkText(record.fields.project_id),
       record_id: record.record_id,
-      name: record.fields.name as string,
-      description: (record.fields.description as string) || "",
+      name: larkText(record.fields.name),
+      description: larkText(record.fields.description),
       created_at: larkDateToISO(record.fields.created_at),
       updated_at: larkDateToISO(record.fields.updated_at),
-      week_notes: record.fields.week_notes
-        ? JSON.parse(record.fields.week_notes as string)
-        : {},
+      week_notes: weekNotes,
     });
   } catch (error) {
     console.error("[API] Get project error:", error);
@@ -127,7 +134,7 @@ export async function DELETE(
     await larkUpdateRecords(TABLE_ID, [
       {
         record_id: record.record_id,
-        fields: { archived: true, updated_at: new Date().toISOString() },
+        fields: { archived: true, updated_at: Date.now() },
       },
     ]);
 
