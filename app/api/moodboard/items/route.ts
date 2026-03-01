@@ -7,6 +7,8 @@ import {
   larkDateToISO,
   larkText,
   larkNumber,
+  larkUrl,
+  toLarkUrl,
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
 
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
       sort_order: larkNumber(r.fields.sort_order),
       type: larkText(r.fields.type),
       content: larkText(r.fields.content),
-      media_url: larkText(r.fields.media_url),
+      media_url: larkUrl(r.fields.media_url),
       platform: larkText(r.fields.platform),
       video_ratio: larkText(r.fields.video_ratio),
       author: larkText(r.fields.author),
@@ -109,9 +111,6 @@ export async function POST(request: NextRequest) {
       sort_order: body.sort_order ?? 0,
       type: body.type,
       content: body.content || "",
-      media_url: body.media_url || "",
-      platform: body.platform || "",
-      video_ratio: body.video_ratio || "",
       author: body.author || "",
       tags: body.tags ? JSON.stringify(body.tags) : "[]",
       likes: body.likes || "",
@@ -120,6 +119,14 @@ export async function POST(request: NextRequest) {
       created_at: now,
       updated_at: now,
     };
+
+    // URL field requires {text, link} object format
+    const mediaUrl = toLarkUrl(body.media_url || "");
+    if (mediaUrl) fields.media_url = mediaUrl;
+
+    // SingleSelect fields: only set if truthy (avoids empty string errors)
+    if (body.platform) fields.platform = body.platform;
+    if (body.video_ratio) fields.video_ratio = body.video_ratio;
 
     const records = await larkCreateRecords(TABLE_ID, [fields]);
 
