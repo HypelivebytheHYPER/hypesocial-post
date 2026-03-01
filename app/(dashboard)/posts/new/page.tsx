@@ -17,6 +17,7 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
@@ -32,9 +33,15 @@ import {
   usePausedAccounts,
   usePostPreview,
 } from "@/lib/hooks/usePostForMe";
-import type { PlatformConfig, SocialPostPreview } from "@/types/post-for-me";
+import type {
+  PlatformConfig,
+  SocialPostPreview,
+  AccountConfigurationDetailsDto,
+  AccountConfigurationDto,
+  AccountConfig,
+} from "@/types/post-for-me";
 import { platformIconsMap } from "@/lib/social-platforms";
-import { cn } from "@/lib/utils";
+import { cn, proxyMediaUrl } from "@/lib/utils";
 import {
   getMostRestrictiveLimit,
   getWarningThreshold,
@@ -82,6 +89,113 @@ const slideInVariants = {
     x: 0,
     transition: { type: "spring", stiffness: 400, damping: 30 },
   },
+};
+
+// Per-account override fields by platform
+type OverrideFieldConfig = {
+  key: keyof AccountConfigurationDetailsDto;
+  label: string;
+  type: "select" | "boolean";
+  options?: { value: string; label: string }[];
+};
+
+const PLATFORM_OVERRIDE_FIELDS: Record<string, OverrideFieldConfig[]> = {
+  tiktok: [
+    {
+      key: "privacy_status",
+      label: "Privacy",
+      type: "select",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+      ],
+    },
+    { key: "allow_duet", label: "Allow Duet", type: "boolean" },
+    { key: "allow_stitch", label: "Allow Stitch", type: "boolean" },
+    { key: "allow_comment", label: "Comments", type: "boolean" },
+    { key: "auto_add_music", label: "Auto Music", type: "boolean" },
+    { key: "is_draft", label: "Save as Draft", type: "boolean" },
+    { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
+  ],
+  tiktok_business: [
+    {
+      key: "privacy_status",
+      label: "Privacy",
+      type: "select",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+      ],
+    },
+    { key: "allow_duet", label: "Allow Duet", type: "boolean" },
+    { key: "allow_stitch", label: "Allow Stitch", type: "boolean" },
+    { key: "allow_comment", label: "Comments", type: "boolean" },
+    { key: "auto_add_music", label: "Auto Music", type: "boolean" },
+    { key: "is_draft", label: "Save as Draft", type: "boolean" },
+    { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
+  ],
+  instagram: [
+    {
+      key: "placement",
+      label: "Placement",
+      type: "select",
+      options: [
+        { value: "timeline", label: "Feed Post" },
+        { value: "reels", label: "Reels" },
+        { value: "stories", label: "Stories" },
+      ],
+    },
+  ],
+  youtube: [
+    {
+      key: "privacy_status",
+      label: "Privacy",
+      type: "select",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "unlisted", label: "Unlisted" },
+        { value: "private", label: "Private" },
+      ],
+    },
+    { key: "made_for_kids", label: "Made for Kids", type: "boolean" },
+  ],
+  x: [
+    {
+      key: "reply_settings",
+      label: "Who can reply",
+      type: "select",
+      options: [
+        { value: "following", label: "Everyone" },
+        { value: "mentionedUsers", label: "People you follow" },
+        { value: "subscribers", label: "Only subscribers" },
+        { value: "verified", label: "Only verified" },
+      ],
+    },
+  ],
+  twitter: [
+    {
+      key: "reply_settings",
+      label: "Who can reply",
+      type: "select",
+      options: [
+        { value: "following", label: "Everyone" },
+        { value: "mentionedUsers", label: "People you follow" },
+        { value: "subscribers", label: "Only subscribers" },
+        { value: "verified", label: "Only verified" },
+      ],
+    },
+  ],
+  facebook: [
+    {
+      key: "placement",
+      label: "Placement",
+      type: "select",
+      options: [
+        { value: "timeline", label: "Timeline" },
+        { value: "reels", label: "Reels" },
+      ],
+    },
+  ],
 };
 
 function getPlatformIcon(platform: string) {
@@ -218,7 +332,7 @@ function PreviewCard({
                   className="aspect-square rounded-xl overflow-hidden bg-slate-100 relative group"
                 >
                   <img
-                    src={mediaItem.url}
+                    src={proxyMediaUrl(mediaItem.url)}
                     alt=""
                     className="w-full h-full object-cover"
                   />
@@ -362,6 +476,211 @@ function PlatformOptions({
   );
 }
 
+// Single override field row with toggle switch
+function OverrideField({
+  field,
+  isEnabled,
+  value,
+  platformValue,
+  onToggle,
+  onChange,
+}: {
+  field: OverrideFieldConfig;
+  isEnabled: boolean;
+  value: unknown;
+  platformValue: unknown;
+  onToggle: (enabled: boolean) => void;
+  onChange: (value: unknown) => void;
+}) {
+  const displayValue = isEnabled ? value : platformValue;
+
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <button
+        type="button"
+        onClick={() => onToggle(!isEnabled)}
+        className={cn(
+          "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+          isEnabled ? "bg-slate-700" : "bg-slate-200",
+        )}
+      >
+        <span
+          className={cn(
+            "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform",
+            isEnabled ? "translate-x-3" : "translate-x-0",
+          )}
+        />
+      </button>
+      <span
+        className={cn(
+          "text-xs min-w-[80px]",
+          isEnabled ? "text-slate-700 font-medium" : "text-slate-400",
+        )}
+      >
+        {field.label}
+      </span>
+      {field.type === "select" ? (
+        <select
+          value={String(displayValue ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!isEnabled}
+          className={cn(
+            "flex-1 px-2 py-1 rounded text-xs border border-slate-200",
+            isEnabled
+              ? "bg-white text-slate-700"
+              : "bg-slate-50 text-slate-400 cursor-not-allowed",
+          )}
+        >
+          {field.options?.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type="checkbox"
+          checked={Boolean(displayValue)}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={!isEnabled}
+          className={cn(
+            "rounded border-slate-300 text-slate-800 focus:ring-slate-200",
+            !isEnabled && "opacity-40 cursor-not-allowed",
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+// Container for per-account overrides within a platform accordion
+function AccountOverrides({
+  platform,
+  accountIds,
+  accounts,
+  accountOverrides,
+  onSetOverride,
+  onClearOverride,
+  onClearAll,
+  platformValues,
+}: {
+  platform: string;
+  accountIds: string[];
+  accounts: { id: string; platform: string; username: string | null }[];
+  accountOverrides: Record<string, Partial<AccountConfigurationDetailsDto>>;
+  onSetOverride: (
+    accountId: string,
+    field: keyof AccountConfigurationDetailsDto,
+    value: AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+  ) => void;
+  onClearOverride: (
+    accountId: string,
+    field: keyof AccountConfigurationDetailsDto,
+  ) => void;
+  onClearAll: (accountId: string) => void;
+  platformValues: Record<string, unknown>;
+}) {
+  const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
+  const fields = PLATFORM_OVERRIDE_FIELDS[platform];
+  const platformAccountIds = accountIds.filter((id) => {
+    const account = accounts.find((a) => a.id === id);
+    return account?.platform === platform || (platform === "x" && account?.platform === "twitter");
+  });
+
+  if (!fields || platformAccountIds.length < 2) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-200">
+      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        Account Overrides
+      </div>
+      <div className="space-y-1">
+        {platformAccountIds.map((accountId) => {
+          const account = accounts.find((a) => a.id === accountId);
+          const overrides = accountOverrides[accountId] || {};
+          const overrideCount = Object.keys(overrides).length;
+          const isExpanded = expandedAccounts.includes(accountId);
+
+          return (
+            <div key={accountId} className="rounded-lg bg-white border border-slate-100">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedAccounts((prev) =>
+                    prev.includes(accountId)
+                      ? prev.filter((id) => id !== accountId)
+                      : [...prev, accountId],
+                  )
+                }
+                className="w-full flex items-center justify-between p-2 text-xs hover:bg-slate-50 rounded-lg transition-colors"
+              >
+                <span className="text-slate-600 font-medium truncate">
+                  @{account?.username || accountId.slice(0, 8)}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {overrideCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-slate-700 text-white rounded-full text-[10px] font-medium">
+                      {overrideCount}
+                    </span>
+                  )}
+                  {isExpanded ? (
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-slate-400" />
+                  )}
+                </div>
+              </button>
+              {isExpanded && (
+                <div className="px-2 pb-2 space-y-0.5">
+                  {fields.map((field) => {
+                    const isEnabled = field.key in overrides;
+                    return (
+                      <OverrideField
+                        key={field.key}
+                        field={field}
+                        isEnabled={isEnabled}
+                        value={overrides[field.key]}
+                        platformValue={platformValues[field.key]}
+                        onToggle={(enabled) => {
+                          if (enabled) {
+                            onSetOverride(
+                              accountId,
+                              field.key,
+                              platformValues[field.key] as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                            );
+                          } else {
+                            onClearOverride(accountId, field.key);
+                          }
+                        }}
+                        onChange={(value) =>
+                          onSetOverride(
+                            accountId,
+                            field.key,
+                            value as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                          )
+                        }
+                      />
+                    );
+                  })}
+                  {overrideCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onClearAll(accountId)}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 mt-1 transition-colors"
+                    >
+                      Reset all
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function NewPostPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -418,6 +737,51 @@ export default function NewPostPage() {
   >("following");
   const [pinterestBoardId, setPinterestBoardId] = useState("");
   const [pinterestLink, setPinterestLink] = useState("");
+
+  // Per-account configuration overrides (keyed by account ID)
+  const [accountOverrides, setAccountOverrides] = useState<
+    Record<string, Partial<AccountConfigurationDetailsDto>>
+  >({});
+
+  const setAccountOverride = useCallback(
+    (
+      accountId: string,
+      field: keyof AccountConfigurationDetailsDto,
+      value: AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+    ) => {
+      setAccountOverrides((prev) => ({
+        ...prev,
+        [accountId]: { ...prev[accountId], [field]: value },
+      }));
+    },
+    [],
+  );
+
+  const clearAccountOverride = useCallback(
+    (accountId: string, field: keyof AccountConfigurationDetailsDto) => {
+      setAccountOverrides((prev) => {
+        const updated = { ...prev };
+        if (updated[accountId]) {
+          const { [field]: _, ...rest } = updated[accountId];
+          if (Object.keys(rest).length === 0) {
+            delete updated[accountId];
+          } else {
+            updated[accountId] = rest;
+          }
+        }
+        return updated;
+      });
+    },
+    [],
+  );
+
+  const clearAllAccountOverrides = useCallback((accountId: string) => {
+    setAccountOverrides((prev) => {
+      const updated = { ...prev };
+      delete updated[accountId];
+      return updated;
+    });
+  }, []);
 
   const hasUploadingMedia = mediaFiles.some((f) => f.status === "uploading");
   const hasUploadErrors = mediaFiles.some((f) => f.status === "error");
@@ -494,6 +858,7 @@ export default function NewPostPage() {
             youtube: { youtubePrivacy, youtubeMadeForKids },
             x: { xReplySettings },
           },
+          accountOverrides,
           timestamp: Date.now(),
         };
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
@@ -524,6 +889,7 @@ export default function NewPostPage() {
     youtubePrivacy,
     youtubeMadeForKids,
     xReplySettings,
+    accountOverrides,
   ]);
 
   // Restore draft on mount
@@ -539,7 +905,7 @@ export default function NewPostPage() {
           if (draft.scheduledTime) setScheduledTime(draft.scheduledTime);
           if (draft.selectedAccountIds?.length > 0)
             setSelectedAccountIds(draft.selectedAccountIds);
-          // Platform configs restoration would go here
+          if (draft.accountOverrides) setAccountOverrides(draft.accountOverrides);
           toast.info("Restored your previous draft");
         } else {
           localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -550,13 +916,20 @@ export default function NewPostPage() {
     }
   }, []); // Empty deps - only on mount
 
-  const toggleAccount = useCallback((accountId: string) => {
-    setSelectedAccountIds((prev) =>
-      prev.includes(accountId)
-        ? prev.filter((id) => id !== accountId)
-        : [...prev, accountId],
-    );
-  }, []);
+  const toggleAccount = useCallback(
+    (accountId: string) => {
+      setSelectedAccountIds((prev) => {
+        const isDeselecting = prev.includes(accountId);
+        if (isDeselecting) {
+          clearAllAccountOverrides(accountId);
+        }
+        return isDeselecting
+          ? prev.filter((id) => id !== accountId)
+          : [...prev, accountId];
+      });
+    },
+    [clearAllAccountOverrides],
+  );
 
   const togglePlatformSection = (platform: string) => {
     setExpandedPlatforms((prev) =>
@@ -643,6 +1016,13 @@ export default function NewPostPage() {
           };
         }
 
+        const previewAccountConfigs = Object.entries(accountOverrides)
+          .filter(([, config]) => Object.keys(config).length > 0)
+          .map(([accountId, config]) => ({
+            social_account_id: accountId,
+            configuration: config as AccountConfigurationDetailsDto,
+          }));
+
         const result = await postPreviewRef.current.mutateAsync({
           caption: content,
           preview_social_accounts: previewAccounts,
@@ -653,6 +1033,10 @@ export default function NewPostPage() {
           media:
             uploadedMedia.length > 0
               ? uploadedMedia.map((m) => ({ url: m.url, skip_processing: m.skip_processing }))
+              : undefined,
+          account_configurations:
+            previewAccountConfigs.length > 0
+              ? (previewAccountConfigs as unknown as AccountConfig[])
               : undefined,
         });
 
@@ -696,6 +1080,7 @@ export default function NewPostPage() {
     pinterestBoardId,
     pinterestLink,
     previewRefreshTrigger,
+    accountOverrides,
   ]);
 
   const handleMediaSelect = useCallback(
@@ -852,6 +1237,10 @@ export default function NewPostPage() {
       toast.error("Please wait for media uploads to complete");
       return;
     }
+    if (isGeneratingPreview) {
+      toast.error("Please wait for preview to finish syncing");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -913,6 +1302,15 @@ export default function NewPostPage() {
         skip_processing: f.skipProcessing || false,
       }));
 
+    const accountConfigs: AccountConfigurationDto[] = Object.entries(
+      accountOverrides,
+    )
+      .filter(([, config]) => Object.keys(config).length > 0)
+      .map(([accountId, config]) => ({
+        social_account_id: accountId,
+        configuration: config as AccountConfigurationDetailsDto,
+      }));
+
     try {
       await createPost.mutateAsync({
         caption: content,
@@ -925,6 +1323,8 @@ export default function NewPostPage() {
           mediaForPost.length > 0 ? mediaForPost : undefined,
         platform_configurations:
           Object.keys(platformConfigs).length > 0 ? platformConfigs : undefined,
+        account_configurations:
+          accountConfigs.length > 0 ? accountConfigs : undefined,
       });
 
       // Clear draft on success
@@ -946,6 +1346,7 @@ export default function NewPostPage() {
     content,
     selectedAccountIds,
     hasUploadingMedia,
+    isGeneratingPreview,
     accounts,
     createPost,
     router,
@@ -968,6 +1369,7 @@ export default function NewPostPage() {
     xReplySettings,
     pinterestBoardId,
     pinterestLink,
+    accountOverrides,
   ]);
 
   const canSubmit =
@@ -975,7 +1377,8 @@ export default function NewPostPage() {
     selectedAccountIds.length > 0 &&
     !hasUploadingMedia &&
     !hasUploadErrors &&
-    !isOverLimit;
+    !isOverLimit &&
+    !isGeneratingPreview;
 
   return (
     <motion.div
@@ -1010,6 +1413,11 @@ export default function NewPostPage() {
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
               {scheduledDate ? "Scheduling..." : "Posting..."}
+            </>
+          ) : isGeneratingPreview ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Syncing...
             </>
           ) : (
             <>
@@ -1573,6 +1981,24 @@ export default function NewPostPage() {
                         </label>
                       ))}
                     </div>
+                    <AccountOverrides
+                      platform="tiktok"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        privacy_status: tiktokPrivacy,
+                        allow_duet: tiktokAllowDuet,
+                        allow_stitch: tiktokAllowStitch,
+                        allow_comment: tiktokAllowComment,
+                        auto_add_music: tiktokAutoAddMusic,
+                        is_draft: tiktokIsDraft,
+                        is_ai_generated: tiktokIsAIGenerated,
+                      }}
+                    />
                   </PlatformOptions>
                 )}
 
@@ -1597,6 +2023,18 @@ export default function NewPostPage() {
                       <option value="reels">Reels</option>
                       <option value="stories">Stories</option>
                     </select>
+                    <AccountOverrides
+                      platform="instagram"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        placement: instagramPlacement,
+                      }}
+                    />
                   </PlatformOptions>
                 )}
 
@@ -1632,6 +2070,19 @@ export default function NewPostPage() {
                       />
                       <span className="text-slate-600">Made for Kids</span>
                     </label>
+                    <AccountOverrides
+                      platform="youtube"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        privacy_status: youtubePrivacy,
+                        made_for_kids: youtubeMadeForKids,
+                      }}
+                    />
                   </PlatformOptions>
                 )}
 
@@ -1665,6 +2116,18 @@ export default function NewPostPage() {
                       <option value="subscribers">Only subscribers</option>
                       <option value="verified">Only verified</option>
                     </select>
+                    <AccountOverrides
+                      platform="x"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        reply_settings: xReplySettings,
+                      }}
+                    />
                   </PlatformOptions>
                 )}
               </div>

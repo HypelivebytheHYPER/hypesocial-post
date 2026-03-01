@@ -12,7 +12,6 @@ import {
   AlertCircle,
   FileEdit,
   ImageIcon,
-  Video,
   MoreHorizontal,
   ExternalLink,
   Trash2,
@@ -22,6 +21,7 @@ import {
   List,
 } from "lucide-react";
 import { platformIconsMap } from "@/lib/social-platforms";
+import { proxyMediaUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 
@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LazyVideo } from "@/components/ui/lazy-video";
 
 import {
   usePosts,
@@ -147,7 +148,7 @@ function PostCard({
         <div className="flex items-center gap-2">
           {account ? (
             <Avatar className="w-6 h-6">
-              <AvatarImage src={account.profile_photo_url || ""} />
+              <AvatarImage src={account.profile_photo_url ? proxyMediaUrl(account.profile_photo_url) : ""} />
               <AvatarFallback className="text-[10px] bg-slate-100">
                 {account.username?.[0]?.toUpperCase()}
               </AvatarFallback>
@@ -178,15 +179,21 @@ function PostCard({
       {/* Media Preview */}
       {post.media && post.media.length > 0 && (
         <div className="relative rounded-xl overflow-hidden mb-3 bg-slate-100">
-          {post.media[0].url.match(/\.(mp4|mov|avi)/i) ? (
-            <div className="aspect-video flex items-center justify-center">
-              <Video className="w-8 h-8 text-slate-300" />
-            </div>
+          {post.media[0].url.match(/\.(mp4|mov|avi|webm)/i) ? (
+            <LazyVideo
+              src={post.media[0].url}
+              className="w-full h-32"
+              controls
+              preload="metadata"
+            />
           ) : (
             <img
-              src={post.media[0].url}
+              src={proxyMediaUrl(post.media[0].url)}
               alt="Post media"
               className="w-full h-32 object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
             />
           )}
           {post.media.length > 1 && (
@@ -259,31 +266,14 @@ function PostCard({
             <Clock className="w-3.5 h-3.5" />
             <span>
               {post.status === "scheduled"
-                ? formatDistanceToNow(new Date(post.scheduled_at), {
-                    addSuffix: true,
-                  })
+                ? formatDistanceToNow(new Date(post.scheduled_at), { addSuffix: true })
                 : format(new Date(post.scheduled_at), "MMM d, h:mm a")}
             </span>
           </>
-        ) : post.status === "processed" && !hasError ? (
-          <>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Published</span>
-          </>
-        ) : post.status === "processed" && hasError ? (
-          <>
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>Failed</span>
-          </>
-        ) : post.status === "draft" ? (
-          <>
-            <FileEdit className="w-3.5 h-3.5" />
-            <span>Draft</span>
-          </>
         ) : (
           <>
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Processing</span>
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{format(new Date(post.created_at), "MMM d, h:mm a")}</span>
           </>
         )}
       </div>

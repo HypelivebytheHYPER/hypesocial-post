@@ -8,6 +8,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "HypePostSocial - Social Media Management",
   description: "Manage your social media posts across multiple platforms",
+  icons: {
+    icon: "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png",
+    apple: "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png",
+  },
 };
 
 export default function RootLayout({

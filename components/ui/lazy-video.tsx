@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { cn, proxyMediaUrl } from "@/lib/utils";
 import { Loader2, Play, Volume2, VolumeX } from "lucide-react";
 
 interface LazyVideoProps {
@@ -93,9 +93,10 @@ export function LazyVideo({
     }
   };
 
-  // Validate URL is from Post For Me storage
+  // Validate URL is from Post For Me storage or already proxied
   const isValidUrl = src.includes("data.postforme.dev") ||
-    src.includes("cjsgitiiwhrsfolwmtby.supabase.co");
+    src.includes("cjsgitiiwhrsfolwmtby.supabase.co") ||
+    src.startsWith("/api/media/proxy");
 
   if (!isValidUrl) {
     return (
@@ -115,6 +116,10 @@ export function LazyVideo({
       </div>
     );
   }
+
+  // Use proxy for media URLs
+  const proxiedSrc = proxyMediaUrl(src);
+  const proxiedPoster = poster ? proxyMediaUrl(poster) : undefined;
 
   return (
     <div
@@ -147,8 +152,8 @@ export function LazyVideo({
       {isInView && (
         <video
           ref={videoRef}
-          src={src}
-          poster={poster}
+          src={proxiedSrc}
+          poster={proxiedPoster}
           className="w-full h-full object-cover"
           autoPlay={autoPlay}
           muted={isMuted}
@@ -190,9 +195,9 @@ export function LazyVideo({
       )}
 
       {/* Placeholder before load */}
-      {!isInView && poster && (
+      {!isInView && proxiedPoster && (
         <img
-          src={poster}
+          src={proxiedPoster}
           alt="Video thumbnail"
           className="w-full h-full object-cover"
           loading="lazy"

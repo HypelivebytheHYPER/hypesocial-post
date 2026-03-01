@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   useQuery,
+  useQueries,
   useMutation,
   useQueryClient,
   UseQueryOptions,
@@ -21,6 +22,7 @@ import {
   SocialAccount,
   SocialAccountListResponse,
   SocialAccountFeedResponse,
+  SocialAccountFeedItem,
   SocialPostResultListResponse,
   SocialPostResult,
   CreateSocialPostDto,
@@ -631,25 +633,47 @@ export function useConnectAccount() {
   const queryClient = useQueryClient();
 
   return useMutation<
-    { auth_url: string },
+    { url: string },
     Error,
     {
       platform: string;
       /** For white-label OAuth interception. Your domain must be registered with social platform. */
       redirectUrlOverride?: string;
+      /** Permissions to request. Defaults to ["posts", "feeds"] for posting + analytics. */
+      permissions?: ("posts" | "feeds")[];
     }
   >({
-    mutationFn: ({ platform, redirectUrlOverride }) =>
-      apiClient<{ auth_url: string }>("/api/accounts/auth-url", {
+    mutationFn: ({ platform, redirectUrlOverride, permissions }) =>
+      apiClient<{ url: string }>("/api/accounts/auth-url", {
         method: "POST",
         body: JSON.stringify({
           platform,
           redirect_url_override: redirectUrlOverride,
+          permissions: permissions || ["posts", "feeds"],
         }),
       }),
     onSuccess: (data) => {
       // Redirect to OAuth URL
-      window.location.href = data.auth_url;
+      window.location.href = data.url;
+    },
+  });
+}
+
+/**
+ * Disconnect account mutation
+ * Disconnects a social account by ID
+ * API: POST /api/accounts/{id}/disconnect
+ */
+export function useDisconnectAccount() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SocialAccount, Error, string>({
+    mutationFn: (id) =>
+      apiClient<SocialAccount>(`/api/accounts/${id}/disconnect`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: pfmKeys.accounts() });
     },
   });
 }
@@ -699,6 +723,48 @@ export function useAccountFeed(
     },
     enabled: !!accountId,
   });
+}
+
+/**
+ * Fetch feeds for all accounts in parallel using useQueries.
+ * Used by the analytics page to aggregate metrics across all connected accounts.
+ */
+export function useAllAccountFeeds(
+  accountIds: string[],
+  options?: { limit?: number; expand?: string },
+) {
+  const { limit = 50, expand = "metrics" } = options || {};
+
+  const queries = useQueries({
+    queries: accountIds.map((accountId) => ({
+      queryKey: pfmKeys.feed(accountId),
+      queryFn: () => {
+        const params = new URLSearchParams();
+        params.set("limit", limit.toString());
+        if (expand) params.set("expand", expand);
+        return apiClient<SocialAccountFeedResponse>(
+          `/api/account-feeds/${accountId}?${params.toString()}`,
+        );
+      },
+      enabled: !!accountId,
+    })),
+  });
+
+  const isLoading = queries.some((q) => q.isLoading);
+  const isAllLoaded = queries.every((q) => !q.isLoading);
+  const loadingAccountIds = accountIds.filter((_, i) => queries[i]?.isLoading);
+
+  const data = new Map<string, SocialAccountFeedItem[]>();
+  const errors = new Map<string, Error>();
+  queries.forEach((q, i) => {
+    if (q.data) data.set(accountIds[i], q.data.data);
+    if (q.error) errors.set(accountIds[i], q.error as Error);
+  });
+
+  const allItems: SocialAccountFeedItem[] = [];
+  data.forEach((items) => allItems.push(...items));
+
+  return { data, allItems, isLoading, isAllLoaded, loadingAccountIds, errors, queries };
 }
 
 // ==================== Social Post Previews ====================
