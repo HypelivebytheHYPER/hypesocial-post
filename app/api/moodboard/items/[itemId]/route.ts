@@ -45,7 +45,7 @@ export async function PATCH(
     }
 
     const fields: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
+      updated_at: Date.now(),
     };
 
     const allowedFields = [

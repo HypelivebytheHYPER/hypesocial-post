@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       idMap.set(r.fields.item_id as string, r.record_id);
     }
 
-    const now = new Date().toISOString();
+    const now = Date.now();
     const updates = reorderItems
       .filter((item) => idMap.has(item.item_id))
       .map((item) => ({

@@ -237,4 +237,13 @@ export async function larkDeleteRecords(
   });
 }
 
+// ==================== Helpers ====================
+
+/** Convert a Lark DateTime field (ms timestamp) to ISO string. Returns "" if falsy. */
+export function larkDateToISO(val: unknown): string {
+  if (!val) return "";
+  const n = typeof val === "number" ? val : Number(val);
+  return isNaN(n) ? "" : new Date(n).toISOString();
+}
+
 export type { LarkField, LarkRecord };

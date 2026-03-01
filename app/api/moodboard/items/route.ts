@@ -4,6 +4,7 @@ import {
   larkCreateRecords,
   filterAnd,
   eq,
+  larkDateToISO,
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
 
@@ -59,8 +60,8 @@ export async function GET(request: NextRequest) {
       likes: (r.fields.likes as string) || "",
       comments: (r.fields.comments as string) || "",
       linked_post_id: (r.fields.linked_post_id as string) || "",
-      created_at: r.fields.created_at as string,
-      updated_at: r.fields.updated_at as string,
+      created_at: larkDateToISO(r.fields.created_at),
+      updated_at: larkDateToISO(r.fields.updated_at),
     }));
 
     // Sort by sort_order
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const now = new Date().toISOString();
+    const now = Date.now();
     const itemId = randomUUID();
 
     const fields: Record<string, unknown> = {
@@ -119,8 +120,8 @@ export async function POST(request: NextRequest) {
         id: itemId,
         record_id: records[0]?.record_id,
         ...body,
-        created_at: now,
-        updated_at: now,
+        created_at: new Date(now).toISOString(),
+        updated_at: new Date(now).toISOString(),
       },
       { status: 201 },
     );
