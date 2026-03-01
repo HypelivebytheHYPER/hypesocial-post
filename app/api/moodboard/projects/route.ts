@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { larkSearchRecords, larkCreateRecords, filterAnd, eq } from "@/lib/lark";
+import { larkSearchRecords, larkCreateRecords, filterAnd, eq, larkDateToISO } from "@/lib/lark";
 import { randomUUID } from "crypto";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
@@ -20,8 +20,8 @@ export async function GET() {
       record_id: r.record_id,
       name: r.fields.name as string,
       description: (r.fields.description as string) || "",
-      created_at: r.fields.created_at as string,
-      updated_at: r.fields.updated_at as string,
+      created_at: larkDateToISO(r.fields.created_at),
+      updated_at: larkDateToISO(r.fields.updated_at),
       week_notes: r.fields.week_notes
         ? JSON.parse(r.fields.week_notes as string)
         : {},
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const now = new Date().toISOString();
+    const now = Date.now();
     const projectId = randomUUID();
 
     const records = await larkCreateRecords(TABLE_ID, [
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
         record_id: records[0]?.record_id,
         name: body.name,
         description: body.description || "",
-        created_at: now,
-        updated_at: now,
+        created_at: new Date(now).toISOString(),
+        updated_at: new Date(now).toISOString(),
       },
       { status: 201 },
     );

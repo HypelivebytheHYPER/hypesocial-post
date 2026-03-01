@@ -4,6 +4,7 @@ import {
   larkUpdateRecords,
   filterAnd,
   eq,
+  larkDateToISO,
 } from "@/lib/lark";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
@@ -40,8 +41,8 @@ export async function GET(
       record_id: record.record_id,
       name: record.fields.name as string,
       description: (record.fields.description as string) || "",
-      created_at: record.fields.created_at as string,
-      updated_at: record.fields.updated_at as string,
+      created_at: larkDateToISO(record.fields.created_at),
+      updated_at: larkDateToISO(record.fields.updated_at),
       week_notes: record.fields.week_notes
         ? JSON.parse(record.fields.week_notes as string)
         : {},
@@ -82,7 +83,7 @@ export async function PATCH(
     }
 
     const fields: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
+      updated_at: Date.now(),
     };
     if (body.name !== undefined) fields.name = body.name;
     if (body.description !== undefined) fields.description = body.description;
