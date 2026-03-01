@@ -274,4 +274,23 @@ export function larkBool(val: unknown): boolean {
   return val === true;
 }
 
+/** Extract URL string from a Lark URL field ({text, link} object). */
+export function larkUrl(val: unknown): string {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "object" && val !== null) {
+    const obj = val as { link?: string; text?: string };
+    return obj.link || obj.text || "";
+  }
+  return "";
+}
+
+/** Convert a plain URL string to Lark URL field format. Returns undefined if empty. */
+export function toLarkUrl(
+  url: string,
+): { text: string; link: string } | undefined {
+  if (!url) return undefined;
+  return { text: url, link: url };
+}
+
 export type { LarkField, LarkRecord };

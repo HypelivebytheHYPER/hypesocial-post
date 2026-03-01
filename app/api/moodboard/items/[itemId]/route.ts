@@ -5,6 +5,7 @@ import {
   larkDeleteRecords,
   filterAnd,
   eq,
+  toLarkUrl,
 } from "@/lib/lark";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
@@ -48,22 +49,29 @@ export async function PATCH(
       updated_at: Date.now(),
     };
 
-    const allowedFields = [
+    const textFields = [
       "column_date",
       "sort_order",
       "content",
-      "media_url",
-      "platform",
-      "video_ratio",
       "author",
       "likes",
       "comments",
       "linked_post_id",
     ];
 
-    for (const field of allowedFields) {
+    for (const field of textFields) {
       if (body[field] !== undefined) fields[field] = body[field];
     }
+
+    // URL field requires {text, link} object format
+    if (body.media_url !== undefined) {
+      const url = toLarkUrl(body.media_url);
+      if (url) fields.media_url = url;
+    }
+
+    // SingleSelect fields
+    if (body.platform !== undefined) fields.platform = body.platform;
+    if (body.video_ratio !== undefined) fields.video_ratio = body.video_ratio;
 
     if (body.tags !== undefined) {
       fields.tags = JSON.stringify(body.tags);
