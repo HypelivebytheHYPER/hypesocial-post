@@ -53,7 +53,7 @@ describe('usePostForMe Hooks - Happy Path', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data).toEqual(mockPosts);
-      expect(global.fetch).toHaveBeenCalledWith('/api/posts');
+      expect(global.fetch).toHaveBeenCalledWith('/api/posts', expect.any(Object));
     });
   });
 
