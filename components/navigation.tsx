@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -11,6 +12,7 @@ import {
   Plus,
   Newspaper,
   LayoutGrid,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +20,7 @@ const navItems = [
   { name: "Feed", href: "/feed", icon: Newspaper },
   { name: "Moodboard", href: "/moodboard", icon: LayoutGrid },
   { name: "Posts", href: "/posts", icon: FileText },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Accounts", href: "/accounts/connect", icon: Users },
 ];
 
@@ -32,9 +35,13 @@ export function Navigation() {
         <div className="flex items-center gap-1">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 px-3 py-1.5 mr-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shadow-sm">
-              <span className="text-xs font-bold text-white">H</span>
-            </div>
+            <Image
+              src="https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png"
+              alt="HypePost"
+              width={32}
+              height={32}
+              className="w-8 h-8 rounded-xl shadow-sm"
+            />
             <span className="hidden sm:inline-block text-sm font-semibold text-slate-700">
               HypePost
             </span>
@@ -146,7 +153,7 @@ export function Navigation() {
           </Link>
 
           {/* Other Items */}
-          {navItems.slice(0, 4).map((item) => {
+          {navItems.slice(0, 5).map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
