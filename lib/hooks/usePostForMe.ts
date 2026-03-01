@@ -215,10 +215,11 @@ export function usePosts(params?: { offset?: number; limit?: number }) {
       apiClient<SocialPostListResponse>(
         `/api/posts${query ? `?${query}` : ""}`,
       ),
-    // Poll every 10 seconds to catch webhook updates in real-time
-    refetchInterval: 10000,
+    // Poll every 30 seconds to catch webhook updates (reduced from 10s to prevent flashing)
+    refetchInterval: 30000,
     refetchIntervalInBackground: false, // Pause when tab is not active
     refetchOnWindowFocus: true, // Refresh immediately when user returns to tab
+    staleTime: 10000, // Consider data fresh for 10 seconds to prevent rapid refetching
   });
 }
 
