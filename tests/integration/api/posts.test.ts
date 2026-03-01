@@ -12,11 +12,9 @@ describe('Posts API - Happy Path Integration', () => {
       const payload: CreateSocialPostDto = {
         caption: 'Integration test post',
         isDraft: true,
-        socialAccountIds: [],
+        social_accounts: [],
         media: [],
-        scheduledAt: null,
-        platformConfigurations: {},
-        tags: [],
+        platform_configurations: {},
       };
 
       const response = await fetch(`${API_BASE}/posts`, {

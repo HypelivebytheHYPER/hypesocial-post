@@ -113,7 +113,7 @@ describe('usePostForMe Hooks - Happy Path', () => {
       await result.current.mutateAsync({
         caption: 'New post',
         isDraft: true,
-        socialAccountIds: [],
+        social_accounts: [],
       });
 
       expect(global.fetch).toHaveBeenCalledWith('/api/posts', {
@@ -122,7 +122,7 @@ describe('usePostForMe Hooks - Happy Path', () => {
         body: JSON.stringify({
           caption: 'New post',
           isDraft: true,
-          socialAccountIds: [],
+          social_accounts: [],
         }),
       });
     });
