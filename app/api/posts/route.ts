@@ -19,7 +19,7 @@ const ALLOWED_MEDIA_DOMAINS = [
  * Validate that media URLs are from allowed Post For Me storage
  * Rejects external URLs to prevent "All media failed to process" errors
  */
-function validateMediaUrls(media?: { url: string }[]): { valid: boolean; error?: string } {
+function validateMediaUrls(media?: { url: string }[]): { valid: true } | { valid: false; error: string } {
   if (!media || media.length === 0) return { valid: true };
 
   for (const item of media) {
@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json<PostForMeError>(
         {
           error: "Validation Error",
-          message: mediaValidation.error,
+          message: mediaValidation.error || "Invalid media URL",
           statusCode: 400,
           details: {
             allowed_domains: ALLOWED_MEDIA_DOMAINS,
