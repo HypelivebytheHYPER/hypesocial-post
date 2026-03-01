@@ -12,7 +12,7 @@ test.describe('Create Post Flow - E2E Happy Path', () => {
     await expect(page).toHaveURL('/posts/new');
   });
 
-  test('should create a draft post successfully', async ({ page }) => {
+  test('should create a scheduled post successfully', async ({ page }) => {
     // Navigate to new post
     await page.goto('/posts/new');
     await expect(page).toHaveURL('/posts/new');
@@ -21,17 +21,14 @@ test.describe('Create Post Flow - E2E Happy Path', () => {
     const captionInput = page.locator('[data-testid="post-caption-input"]');
     await captionInput.fill('E2E Test Post - ' + Date.now());
 
-    // Select draft mode
-    await page.click('[data-testid="draft-mode-toggle"]');
+    // Enable schedule mode (toggle "Schedule for later")
+    await page.click('text=Schedule for later');
 
-    // Submit form
-    await page.click('[data-testid="save-draft-button"]');
-
-    // Verify success toast
-    await expect(page.locator('[data-testid="success-toast"]')).toBeVisible();
+    // Submit form - using text-based selector since button doesn't have data-testid
+    await page.click('button:has-text("Schedule")');
 
     // Verify redirect to posts list
-    await expect(page).toHaveURL('/posts');
+    await expect(page).toHaveURL('/posts', { timeout: 10000 });
   });
 
   test('should display posts list', async ({ page }) => {

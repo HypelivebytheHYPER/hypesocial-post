@@ -1044,6 +1044,7 @@ export default function NewPostPage() {
 
             <div className="relative">
               <textarea
+                data-testid="post-caption-input"
                 className={cn(
                   "min-h-[180px] w-full resize-none p-4 bg-slate-50 rounded-2xl text-slate-700 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all",
                   isOverLimit && "ring-2 ring-red-200 focus:ring-red-300",

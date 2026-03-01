@@ -142,7 +142,7 @@ export default function ConnectAccountsPage() {
 
       {/* Platforms - Premium Cards */}
       {!accountsLoading && (
-        <section className="space-y-3">
+        <section className="space-y-3" data-testid="accounts-list">
           {platforms.map((platform) => {
             const Icon = platform.Icon;
             const isExpiringSoon =
