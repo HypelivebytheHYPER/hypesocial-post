@@ -109,14 +109,20 @@ jobs:
           NEXTAUTH_URL: http://localhost:3000
 
       - name: List build output
-        run: ls -la .next/ 2>/dev/null || echo "No .next directory found"; ls -la
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents of .next:"
+          ls -la .next/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-output
-          path: .next/
+          path: |
+            .next/**
+            !.next/cache/**
           retention-days: 7
+          if-no-files-found: error
 
   # Job 4: E2E Tests
   e2e-tests:
