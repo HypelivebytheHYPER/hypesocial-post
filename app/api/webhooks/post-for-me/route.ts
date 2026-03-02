@@ -23,12 +23,19 @@ function secureCompare(a: string, b: string): boolean {
  * POST /api/webhooks/post-for-me
  * Receive webhook events from Post For Me API
  *
+ * Per docs: Must respond 2XX within 1 second.
+ * We return 200 immediately — revalidatePath is non-blocking.
+ *
  * Authentication:
  * - Verifies Post-For-Me-Webhook-Secret header using timing-safe comparison
  *
  * Expected Headers:
  * - Post-For-Me-Webhook-Secret: string (required)
  * - Content-Type: application/json
+ *
+ * Payload envelope:
+ * - event_type: string (required)
+ * - data: object (required)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -65,6 +72,7 @@ export async function POST(request: NextRequest) {
     const result = PostForMeWebhookPayloadSchema.safeParse(body);
 
     if (!result.success) {
+      console.error("[Webhook] Validation failed:", JSON.stringify(result.error.format()));
       return NextResponse.json(
         { error: "Invalid payload", details: result.error.format() },
         { status: 400 },
@@ -75,25 +83,26 @@ export async function POST(request: NextRequest) {
 
     switch (payload.event_type) {
       case "social.post.created":
-        await handlePostCreated(payload.data, payload.event_id);
+        handlePostCreated(payload.data);
         break;
       case "social.post.updated":
-        await handlePostUpdated(payload.data, payload.event_id);
+        handlePostUpdated(payload.data);
         break;
       case "social.post.deleted":
-        await handlePostDeleted(payload.data, payload.event_id);
+        handlePostDeleted(payload.data);
         break;
       case "social.post.result.created":
-        await handlePostResultCreated(payload.data, payload.event_id);
+        handlePostResultCreated(payload.data);
         break;
       case "social.account.created":
-        await handleAccountCreated(payload.data, payload.event_id);
+        handleAccountCreated(payload.data);
         break;
       case "social.account.updated":
-        await handleAccountUpdated(payload.data, payload.event_id);
+        handleAccountUpdated(payload.data);
         break;
     }
 
+    // Return 200 immediately per docs (must respond within 1 second)
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Webhook] Error processing webhook:", error);
@@ -104,44 +113,35 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function handlePostCreated(data: PostCreatedData, eventId: string) {
+function handlePostCreated(data: PostCreatedData) {
   revalidatePath("/");
   revalidatePath("/posts");
 }
 
-async function handlePostUpdated(data: PostUpdatedData, eventId: string) {
+function handlePostUpdated(data: PostUpdatedData) {
   revalidatePath(`/posts/${data.id}`);
   revalidatePath("/");
   revalidatePath("/posts");
 }
 
-async function handlePostDeleted(data: PostDeletedData, eventId: string) {
+function handlePostDeleted(data: PostDeletedData) {
   revalidatePath("/");
   revalidatePath("/posts");
 }
 
-async function handlePostResultCreated(
-  data: PostResultCreatedData,
-  eventId: string,
-) {
+function handlePostResultCreated(data: PostResultCreatedData) {
   revalidatePath(`/posts/${data.post_id}`);
   revalidatePath("/");
   revalidatePath("/posts");
   revalidatePath("/analytics");
 }
 
-async function handleAccountCreated(
-  data: AccountCreatedData,
-  eventId: string,
-) {
+function handleAccountCreated(data: AccountCreatedData) {
   revalidatePath("/accounts/connect");
   revalidatePath("/");
 }
 
-async function handleAccountUpdated(
-  data: AccountUpdatedData,
-  eventId: string,
-) {
+function handleAccountUpdated(data: AccountUpdatedData) {
   revalidatePath("/accounts/connect");
   revalidatePath("/");
 }
