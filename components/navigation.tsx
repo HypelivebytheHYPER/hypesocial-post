@@ -118,7 +118,7 @@ export function Navigation() {
             <Link
               href="/posts/new"
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-full text-white transition-all duration-300",
+                "relative flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-full text-white transition-all duration-300",
                 isNewPostActive
                   ? "shadow-lg shadow-violet-500/30"
                   : "shadow-md hover:shadow-lg hover:shadow-violet-500/20",
@@ -133,13 +133,13 @@ export function Navigation() {
       </nav>
 
       {/* Mobile Bottom Nav - Single Line */}
-      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 nav-floating">
+      <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 nav-floating">
         <div className="flex items-center gap-1">
           {/* New Post - Prominent on Mobile */}
           <Link
             href="/posts/new"
             className={cn(
-              "p-3 rounded-full transition-all duration-300 flex items-center justify-center text-white",
+              "relative p-3 rounded-full transition-all duration-300 flex items-center justify-center text-white",
               isNewPostActive
                 ? "shadow-lg shadow-violet-500/30 scale-110"
                 : "shadow-md hover:scale-110",
