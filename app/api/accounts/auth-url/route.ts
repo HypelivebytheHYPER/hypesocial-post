@@ -57,6 +57,21 @@ export async function POST(request: NextRequest) {
     if (body.permissions) params.permissions = body.permissions;
     if (body.platform_data) params.platform_data = body.platform_data;
 
+    // Auto-inject required platform_data for platforms that need it
+    const platform = params.platform;
+    if (platform === "instagram" && !params.platform_data?.instagram?.connection_type) {
+      params.platform_data = {
+        ...params.platform_data,
+        instagram: { connection_type: body.connection_type || "instagram", ...params.platform_data?.instagram },
+      };
+    }
+    if (platform === "linkedin" && !params.platform_data?.linkedin?.connection_type) {
+      params.platform_data = {
+        ...params.platform_data,
+        linkedin: { connection_type: body.connection_type || "personal", ...params.platform_data?.linkedin },
+      };
+    }
+
     if (body.redirect_url_override) {
       params.redirect_url_override = body.redirect_url_override;
     }

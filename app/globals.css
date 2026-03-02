@@ -124,7 +124,6 @@
    * FLOATING NAV - Pill style
    */
   .nav-floating {
-    @apply fixed top-6 left-1/2 -translate-x-1/2 z-50;
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
