@@ -211,6 +211,13 @@ export default function ConnectAccountsPage() {
                   <span className="text-sm font-medium text-slate-600">
                     {platform.name}
                   </span>
+                  <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                    {platform.supportsImage && platform.supportsVideo
+                      ? "Image & Video"
+                      : platform.supportsVideo
+                        ? "Video only"
+                        : "Image only"}
+                  </span>
                   <span className="text-xs text-slate-400">
                     {accounts.length} account{accounts.length > 1 ? "s" : ""}
                   </span>
@@ -387,7 +394,15 @@ export default function ConnectAccountsPage() {
                       <h3 className="text-slate-800 font-semibold">
                         {platform.name}
                       </h3>
-                      <p className="text-slate-400 text-sm">{platform.handle}</p>
+                      <p className="text-slate-400 text-xs">
+                        {platform.handle}
+                        {" · "}
+                        {platform.supportsImage && platform.supportsVideo
+                          ? "Image & Video"
+                          : platform.supportsVideo
+                            ? "Video only"
+                            : "Image only"}
+                      </p>
                     </div>
                   </div>
 
