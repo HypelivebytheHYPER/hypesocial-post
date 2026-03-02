@@ -111,7 +111,14 @@ export default function ConnectAccountsPage() {
   );
 
   const handleConnect = (platformId: string) => {
-    connectAccount.mutate({ platform: platformId });
+    connectAccount.mutate(
+      { platform: platformId },
+      {
+        onError: (error) => {
+          toast.error(`Failed to connect: ${error.message}`);
+        },
+      },
+    );
   };
 
   const handleDisconnect = (account: SocialAccount) => {

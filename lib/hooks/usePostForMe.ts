@@ -65,7 +65,7 @@ async function apiClient<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.error || `API error: ${response.status} ${response.statusText}`,
+      error.message || error.error || `API error: ${response.status} ${response.statusText}`,
     );
   }
 
