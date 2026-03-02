@@ -737,6 +737,13 @@ export default function NewPostPage() {
   >("following");
   const [pinterestBoardId, setPinterestBoardId] = useState("");
   const [pinterestLink, setPinterestLink] = useState("");
+  const [instagramShareToFeed, setInstagramShareToFeed] = useState(true);
+  const [instagramTrialReelType, setInstagramTrialReelType] = useState<
+    "manual" | "performance" | ""
+  >("");
+  const [instagramCollaborators, setInstagramCollaborators] = useState("");
+  const [youtubeTitle, setYoutubeTitle] = useState("");
+  const [xQuoteTweetId, setXQuoteTweetId] = useState("");
 
   // Per-account configuration overrides (keyed by account ID)
   const [accountOverrides, setAccountOverrides] = useState<
@@ -853,10 +860,16 @@ export default function NewPostPage() {
               tiktokAutoAddMusic,
               tiktokIsDraft,
             },
-            instagram: { instagramPlacement },
+            instagram: {
+              instagramPlacement,
+              instagramShareToFeed,
+              instagramTrialReelType,
+              instagramCollaborators,
+            },
             facebook: { facebookPlacement },
-            youtube: { youtubePrivacy, youtubeMadeForKids },
-            x: { xReplySettings },
+            youtube: { youtubePrivacy, youtubeMadeForKids, youtubeTitle },
+            x: { xReplySettings, xQuoteTweetId },
+            pinterest: { pinterestBoardId, pinterestLink },
           },
           accountOverrides,
           timestamp: Date.now(),
@@ -885,10 +898,17 @@ export default function NewPostPage() {
     tiktokAutoAddMusic,
     tiktokIsDraft,
     instagramPlacement,
+    instagramShareToFeed,
+    instagramTrialReelType,
+    instagramCollaborators,
     facebookPlacement,
     youtubePrivacy,
     youtubeMadeForKids,
+    youtubeTitle,
     xReplySettings,
+    xQuoteTweetId,
+    pinterestBoardId,
+    pinterestLink,
     accountOverrides,
   ]);
 
@@ -906,6 +926,25 @@ export default function NewPostPage() {
           if (draft.selectedAccountIds?.length > 0)
             setSelectedAccountIds(draft.selectedAccountIds);
           if (draft.accountOverrides) setAccountOverrides(draft.accountOverrides);
+          // Restore platform configs
+          const pc = draft.platformConfigs;
+          if (pc?.instagram) {
+            if (pc.instagram.instagramShareToFeed !== undefined)
+              setInstagramShareToFeed(pc.instagram.instagramShareToFeed);
+            if (pc.instagram.instagramTrialReelType)
+              setInstagramTrialReelType(pc.instagram.instagramTrialReelType);
+            if (pc.instagram.instagramCollaborators)
+              setInstagramCollaborators(pc.instagram.instagramCollaborators);
+          }
+          if (pc?.youtube?.youtubeTitle)
+            setYoutubeTitle(pc.youtube.youtubeTitle);
+          if (pc?.x?.xQuoteTweetId) setXQuoteTweetId(pc.x.xQuoteTweetId);
+          if (pc?.pinterest) {
+            if (pc.pinterest.pinterestBoardId)
+              setPinterestBoardId(pc.pinterest.pinterestBoardId);
+            if (pc.pinterest.pinterestLink)
+              setPinterestLink(pc.pinterest.pinterestLink);
+          }
           toast.info("Restored your previous draft");
         } else {
           localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -1000,15 +1039,30 @@ export default function NewPostPage() {
           };
         }
         if (hasInstagram)
-          platformConfigs.instagram = { placement: instagramPlacement };
+          platformConfigs.instagram = {
+            placement: instagramPlacement,
+            share_to_feed:
+              instagramPlacement === "reels"
+                ? instagramShareToFeed
+                : undefined,
+            trial_reel_type: instagramTrialReelType || undefined,
+            collaborators: instagramCollaborators
+              ? instagramCollaborators.split(",").map((s) => s.trim()).filter(Boolean)
+              : undefined,
+          };
         if (hasFacebook)
           platformConfigs.facebook = { placement: facebookPlacement };
         if (hasYouTube)
           platformConfigs.youtube = {
             privacy_status: youtubePrivacy,
             made_for_kids: youtubeMadeForKids,
+            title: youtubeTitle || undefined,
           };
-        if (hasX) platformConfigs.x = { reply_settings: xReplySettings };
+        if (hasX)
+          platformConfigs.x = {
+            reply_settings: xReplySettings,
+            quote_tweet_id: xQuoteTweetId || undefined,
+          };
         if (hasPinterest) {
           platformConfigs.pinterest = {
             board_ids: pinterestBoardId ? [pinterestBoardId] : undefined,
@@ -1073,10 +1127,15 @@ export default function NewPostPage() {
     tiktokDiscloseBrandedContent,
     tiktokIsAIGenerated,
     instagramPlacement,
+    instagramShareToFeed,
+    instagramTrialReelType,
+    instagramCollaborators,
     facebookPlacement,
     youtubePrivacy,
     youtubeMadeForKids,
+    youtubeTitle,
     xReplySettings,
+    xQuoteTweetId,
     pinterestBoardId,
     pinterestLink,
     previewRefreshTrigger,
@@ -1127,11 +1186,11 @@ export default function NewPostPage() {
 
         setMediaFiles((prev) => [...prev, ...newFiles]);
 
-        // Check if any images are being uploaded for TikTok-only selection
+        // Inform user about TikTok photo post behavior
         const hasImages = newFiles.some((f) => !f.file.type.startsWith("video/"));
         const hasOnlyTikTok = selectedPlatforms.length === 1 && selectedPlatforms[0] === "tiktok";
         if (hasImages && hasOnlyTikTok) {
-          toast.warning("TikTok only supports video posts. Images will not be posted to TikTok.");
+          toast.info("TikTok will convert images into a photo slideshow. Toggle 'Auto Add Music' to control background music.");
         }
 
         // Upload files sequentially to avoid overwhelming the server
@@ -1279,15 +1338,30 @@ export default function NewPostPage() {
       };
     }
     if (hasInstagram)
-      platformConfigs.instagram = { placement: instagramPlacement };
+      platformConfigs.instagram = {
+        placement: instagramPlacement,
+        share_to_feed:
+          instagramPlacement === "reels"
+            ? instagramShareToFeed
+            : undefined,
+        trial_reel_type: instagramTrialReelType || undefined,
+        collaborators: instagramCollaborators
+          ? instagramCollaborators.split(",").map((s) => s.trim()).filter(Boolean)
+          : undefined,
+      };
     if (hasFacebook)
       platformConfigs.facebook = { placement: facebookPlacement };
     if (hasYouTube)
       platformConfigs.youtube = {
         privacy_status: youtubePrivacy,
         made_for_kids: youtubeMadeForKids,
+        title: youtubeTitle || undefined,
       };
-    if (hasX) platformConfigs.x = { reply_settings: xReplySettings };
+    if (hasX)
+      platformConfigs.x = {
+        reply_settings: xReplySettings,
+        quote_tweet_id: xQuoteTweetId || undefined,
+      };
     if (hasPinterest) {
       platformConfigs.pinterest = {
         board_ids: pinterestBoardId ? [pinterestBoardId] : undefined,
@@ -1363,10 +1437,15 @@ export default function NewPostPage() {
     tiktokDiscloseBrandedContent,
     tiktokIsAIGenerated,
     instagramPlacement,
+    instagramShareToFeed,
+    instagramTrialReelType,
+    instagramCollaborators,
     facebookPlacement,
     youtubePrivacy,
     youtubeMadeForKids,
+    youtubeTitle,
     xReplySettings,
+    xQuoteTweetId,
     pinterestBoardId,
     pinterestLink,
     accountOverrides,
@@ -1966,6 +2045,26 @@ export default function NewPostPage() {
                           checked: tiktokIsDraft,
                           onChange: setTiktokIsDraft,
                         },
+                        {
+                          label: "Auto Add Music",
+                          checked: tiktokAutoAddMusic,
+                          onChange: setTiktokAutoAddMusic,
+                        },
+                        {
+                          label: "Disclose Brand",
+                          checked: tiktokDiscloseBrand,
+                          onChange: setTiktokDiscloseBrand,
+                        },
+                        {
+                          label: "Branded Content",
+                          checked: tiktokDiscloseBrandedContent,
+                          onChange: setTiktokDiscloseBrandedContent,
+                        },
+                        {
+                          label: "AI Generated",
+                          checked: tiktokIsAIGenerated,
+                          onChange: setTiktokIsAIGenerated,
+                        },
                       ].map(({ label, checked, onChange }) => (
                         <label
                           key={label}
@@ -2023,6 +2122,47 @@ export default function NewPostPage() {
                       <option value="reels">Reels</option>
                       <option value="stories">Stories</option>
                     </select>
+                    {instagramPlacement === "reels" && (
+                      <label className="flex items-center gap-2 cursor-pointer text-xs hover:bg-slate-100 p-1.5 rounded transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={instagramShareToFeed}
+                          onChange={(e) =>
+                            setInstagramShareToFeed(e.target.checked)
+                          }
+                          className="rounded border-slate-300 text-slate-800 focus:ring-slate-200"
+                        />
+                        <span className="text-slate-600">Share to Feed</span>
+                      </label>
+                    )}
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Trial Reel Type
+                    </label>
+                    <select
+                      value={instagramTrialReelType}
+                      onChange={(e) =>
+                        setInstagramTrialReelType(
+                          e.target.value as "manual" | "performance" | "",
+                        )
+                      }
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    >
+                      <option value="">None</option>
+                      <option value="manual">Manual</option>
+                      <option value="performance">Performance</option>
+                    </select>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Collaborators
+                    </label>
+                    <input
+                      type="text"
+                      value={instagramCollaborators}
+                      onChange={(e) =>
+                        setInstagramCollaborators(e.target.value)
+                      }
+                      placeholder="username1, username2"
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    />
                     <AccountOverrides
                       platform="instagram"
                       accountIds={selectedAccountIds}
@@ -2033,6 +2173,47 @@ export default function NewPostPage() {
                       onClearAll={clearAllAccountOverrides}
                       platformValues={{
                         placement: instagramPlacement,
+                        ...(instagramPlacement === "reels"
+                          ? { share_to_feed: instagramShareToFeed }
+                          : {}),
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* Facebook */}
+                {selectedPlatforms.includes("facebook") && (
+                  <PlatformOptions
+                    title="Facebook"
+                    platform="facebook"
+                    isOpen={expandedPlatforms.includes("facebook")}
+                    onToggle={() => togglePlatformSection("facebook")}
+                  >
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Placement
+                    </label>
+                    <select
+                      value={facebookPlacement}
+                      onChange={(e) =>
+                        setFacebookPlacement(
+                          e.target.value as "timeline" | "reels",
+                        )
+                      }
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    >
+                      <option value="timeline">Timeline</option>
+                      <option value="reels">Reels</option>
+                    </select>
+                    <AccountOverrides
+                      platform="facebook"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        placement: facebookPlacement,
                       }}
                     />
                   </PlatformOptions>
@@ -2046,6 +2227,19 @@ export default function NewPostPage() {
                     isOpen={expandedPlatforms.includes("youtube")}
                     onToggle={() => togglePlatformSection("youtube")}
                   >
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={youtubeTitle}
+                      onChange={(e) => setYoutubeTitle(e.target.value)}
+                      placeholder="Video title (optional)"
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    />
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Privacy
+                    </label>
                     <select
                       value={youtubePrivacy}
                       onChange={(e) =>
@@ -2116,6 +2310,16 @@ export default function NewPostPage() {
                       <option value="subscribers">Only subscribers</option>
                       <option value="verified">Only verified</option>
                     </select>
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Quote Tweet ID
+                    </label>
+                    <input
+                      type="text"
+                      value={xQuoteTweetId}
+                      onChange={(e) => setXQuoteTweetId(e.target.value)}
+                      placeholder="Tweet ID to quote (optional)"
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    />
                     <AccountOverrides
                       platform="x"
                       accountIds={selectedAccountIds}
@@ -2127,6 +2331,47 @@ export default function NewPostPage() {
                       platformValues={{
                         reply_settings: xReplySettings,
                       }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* Pinterest */}
+                {selectedPlatforms.includes("pinterest") && (
+                  <PlatformOptions
+                    title="Pinterest"
+                    platform="pinterest"
+                    isOpen={expandedPlatforms.includes("pinterest")}
+                    onToggle={() => togglePlatformSection("pinterest")}
+                  >
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Board ID
+                    </label>
+                    <input
+                      type="text"
+                      value={pinterestBoardId}
+                      onChange={(e) => setPinterestBoardId(e.target.value)}
+                      placeholder="Pinterest board ID"
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    />
+                    <label className="text-xs text-slate-500 mb-1 block">
+                      Destination Link
+                    </label>
+                    <input
+                      type="text"
+                      value={pinterestLink}
+                      onChange={(e) => setPinterestLink(e.target.value)}
+                      placeholder="https://example.com"
+                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                    />
+                    <AccountOverrides
+                      platform="pinterest"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{}}
                     />
                   </PlatformOptions>
                 )}
