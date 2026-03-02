@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -13,6 +13,7 @@ import {
   FileText,
   Link as LinkIcon,
   Upload,
+  Plus,
 } from "lucide-react";
 import { SortableMoodboardCard } from "./SortableMoodboardCard";
 import type { MoodboardItem, DayColumnType } from "@/lib/hooks/useMoodboard";
@@ -35,6 +36,8 @@ export function DayColumn({
     data: { column },
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const itemIds = column.items.map((item) => item.id);
 
   const onDrop = useCallback(
@@ -53,6 +56,19 @@ export function DayColumn({
     noClick: true,
     noKeyboard: true,
   });
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      onFileDrop?.(column.id, Array.from(files));
+    }
+    // Reset so the same file can be re-selected
+    e.target.value = "";
+  };
 
   return (
     <div
@@ -74,6 +90,15 @@ export function DayColumn({
       {/* Sortable Items + File Drop Zone */}
       <div {...getRootProps()} className="flex-1 relative">
         <input {...getInputProps()} />
+        {/* Hidden file input for click-to-upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
         {isDragActive && (
           <div className="absolute inset-0 bg-blue-50/80 border-2 border-dashed border-blue-300 rounded-2xl flex items-center justify-center z-30">
             <div className="text-center">
@@ -94,31 +119,41 @@ export function DayColumn({
             ))}
           </div>
         </SortableContext>
+
+        {/* Empty state — click to upload */}
+        {column.items.length === 0 && !isDragActive && (
+          <button
+            onClick={handleUploadClick}
+            className="w-full p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
+          >
+            <Upload className="w-6 h-6 text-slate-300 mx-auto mb-2" />
+            <p className="text-xs text-slate-400 font-medium">
+              Tap to upload or drag files
+            </p>
+          </button>
+        )}
       </div>
 
-      {/* Add buttons */}
-      <div className="flex items-center justify-center gap-1 p-2 opacity-0 group-hover/col:opacity-100 transition-opacity">
+      {/* Add buttons — always visible */}
+      <div className="flex items-center justify-center gap-1.5 p-2">
         <button
-          onClick={() => onAddItem(column.id, "image")}
-          className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          onClick={handleUploadClick}
+          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
+          title="Upload image or video"
         >
-          <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-        </button>
-        <button
-          onClick={() => onAddItem(column.id, "video")}
-          className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
-        >
-          <Video className="w-3.5 h-3.5 text-slate-500" />
+          <Upload className="w-3.5 h-3.5 text-slate-500" />
         </button>
         <button
           onClick={() => onAddItem(column.id, "note")}
-          className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-amber-100 flex items-center justify-center transition-colors"
+          title="Add note"
         >
           <FileText className="w-3.5 h-3.5 text-slate-500" />
         </button>
         <button
           onClick={() => onAddItem(column.id, "link")}
-          className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
+          title="Add link"
         >
           <LinkIcon className="w-3.5 h-3.5 text-slate-500" />
         </button>
