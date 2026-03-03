@@ -62,10 +62,10 @@ interface StatItem {
 
 export default function HomePage() {
   // Data fetching
-  const { data: accountsData, isLoading: accountsLoading } = useAccounts();
-  const { data: postsData, isLoading: postsLoading } = usePosts();
-  const { data: resultsData, isLoading: resultsLoading } = usePostResultsList({
-    limit: 100,
+  const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useAccounts();
+  const { data: postsData, isLoading: postsLoading, error: postsError } = usePosts();
+  const { data: resultsData, isLoading: resultsLoading, error: resultsError } = usePostResultsList({
+    limit: 20,
   });
 
   const accounts = accountsData?.data || [];
@@ -176,6 +176,8 @@ export default function HomePage() {
       .slice(0, 5);
   }, [results, accounts]);
 
+  const fetchError = accountsError || postsError || resultsError;
+
   if (isLoading) {
     return (
       <div className="space-y-6 pb-8" data-testid="dashboard-loading">
@@ -202,6 +204,20 @@ export default function HomePage() {
     );
   }
 
+  if (fetchError) {
+    return (
+      <div className="space-y-6 pb-8">
+        <h1 className="greeting-title">
+          Welcome to <span>HypePost</span>
+        </h1>
+        <div className="card-premium p-12 text-center border-red-200">
+          <p className="text-red-500 mb-2">{fetchError.message || "Failed to load dashboard"}</p>
+          <p className="text-xs text-slate-400">Please try refreshing the page</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-8" data-testid="dashboard">
       {/* Header */}
@@ -221,7 +237,7 @@ export default function HomePage() {
         </div>
 
         <Link href="/posts/new">
-          <Button className="btn-gradient gap-2">
+          <Button variant="gradient">
             <Plus className="w-4 h-4" />
             Create Post
           </Button>
