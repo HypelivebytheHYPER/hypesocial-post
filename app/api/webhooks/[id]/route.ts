@@ -69,6 +69,7 @@ export async function PATCH(
     if (!parsed.success) return parsed.response;
 
     const data = await pfm.patch(`/v1/webhooks/${id}`, { body: parsed.data });
+    console.log("[API] PATCH /webhooks", { id });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {
@@ -99,7 +100,8 @@ export async function DELETE(
     const idError = validateId(id, "webhook");
     if (idError) return idError;
     await pfm.delete(`/v1/webhooks/${id}`);
-    return new NextResponse(null, { status: 204 });
+    console.log("[API] DELETE /webhooks", { id });
+    return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(

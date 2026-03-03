@@ -29,10 +29,15 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const hasError = searchParams.has("error");
 
-    // Log the interception
+    // Log the interception (redact sensitive OAuth params)
+    const SENSITIVE_PARAMS = new Set(["code", "access_token", "refresh_token", "token"]);
+    const redactedParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => {
+      redactedParams[key] = SENSITIVE_PARAMS.has(key) ? `[REDACTED ${value.length}chars]` : value;
+    });
     console.log("[Callback] OAuth redirect intercepted", {
       platform,
-      params: Object.fromEntries(searchParams.entries()),
+      params: redactedParams,
       hasError,
       timestamp: new Date().toISOString(),
     });

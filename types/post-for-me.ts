@@ -453,7 +453,7 @@ export interface SocialPostListResponse {
     total: number;
     offset: number;
     limit: number;
-    next?: string;
+    next: string | null;
   };
 }
 
@@ -632,7 +632,7 @@ export interface SocialAccountListResponse {
     total: number;
     offset: number;
     limit: number;
-    next?: string;
+    next: string | null;
   };
 }
 
@@ -719,7 +719,7 @@ export interface SocialPostResultListResponse {
     total: number;
     offset: number;
     limit: number;
-    next?: string;
+    next: string | null;
   };
 }
 

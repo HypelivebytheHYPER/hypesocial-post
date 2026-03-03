@@ -34,11 +34,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         const tableId = process.env.LARK_USERS_TABLE_ID;
-        if (!tableId) return null; // auth disabled if no table configured
+        if (!tableId) {
+          console.warn("[Auth] LARK_USERS_TABLE_ID not configured — auth disabled");
+          return null;
+        }
 
         const inputEmail = (credentials?.email as string)?.trim().toLowerCase();
         const inputPassword = credentials?.password as string;
-        if (!inputEmail || !inputPassword) return null;
+        if (!inputEmail || !inputPassword) {
+          console.log("[Auth] Login attempt with missing credentials");
+          return null;
+        }
 
         // Query Lark for user by email
         const result = await larkSearchRecords(
@@ -47,17 +53,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           1,
         );
         const record = result.items?.[0];
-        if (!record) return null;
+        if (!record) {
+          console.log("[Auth] Login failed — user not found", { email: inputEmail });
+          return null;
+        }
 
         const fields = record.fields;
 
         // Check active status
-        if (!larkBool(fields["Is Active"])) return null;
+        if (!larkBool(fields["Is Active"])) {
+          console.log("[Auth] Login failed — account inactive", { email: inputEmail });
+          return null;
+        }
 
         // Verify password
         const storedHash = larkText(fields["Password Hash"]);
-        if (!verifyPassword(inputPassword, storedHash)) return null;
+        if (!verifyPassword(inputPassword, storedHash)) {
+          console.log("[Auth] Login failed — invalid password", { email: inputEmail });
+          return null;
+        }
 
+        console.log("[Auth] Login success", { email: inputEmail, role: larkText(fields["Role"]) });
         return {
           id: record.record_id,
           email: larkText(fields["Email"]),

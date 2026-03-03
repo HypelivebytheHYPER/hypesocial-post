@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Webhook,
@@ -17,11 +17,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useWebhooks, pfmKeys } from "@/lib/hooks/usePostForMe";
+import { useWebhooks, useDeleteWebhook, pfmKeys } from "@/lib/hooks/usePostForMe";
 import type { PostForMeEventType } from "@/lib/validations/webhooks";
 
 const WEBHOOK_ENDPOINT =
@@ -134,6 +135,21 @@ function ConnectionLine({
 export default function WebhooksPage() {
   const queryClient = useQueryClient();
   const { data: webhooksResponse, isLoading, error } = useWebhooks();
+  const deleteWebhook = useDeleteWebhook();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this webhook? Events will no longer be forwarded.")) return;
+    setDeletingId(id);
+    try {
+      await deleteWebhook.mutateAsync(id);
+      toast.success("Webhook deleted");
+    } catch {
+      toast.error("Failed to delete webhook");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   // Zod validation now runs in useWebhooks queryFn (once per fetch, not per render)
   const webhooks = useMemo(() => webhooksResponse?.data ?? [], [webhooksResponse?.data]);
@@ -357,11 +373,22 @@ export default function WebhooksPage() {
                           {webhook.id}
                         </span>
                       </div>
-                      {webhook.created_at && (
-                        <span className="text-[11px] text-slate-300">
-                          {format(new Date(webhook.created_at), "MMM d, yyyy")}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {webhook.created_at && (
+                          <span className="text-[11px] text-slate-300">
+                            {format(new Date(webhook.created_at), "MMM d, yyyy")}
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-slate-300 hover:text-red-500 hover:bg-red-50"
+                          onClick={() => handleDelete(webhook.id)}
+                          disabled={deletingId === webhook.id}
+                        >
+                          <Trash2 className={`h-3.5 w-3.5 ${deletingId === webhook.id ? "animate-spin" : ""}`} />
+                        </Button>
+                      </div>
                     </div>
 
                     <p className="text-sm text-slate-500 break-all font-mono bg-slate-50 px-3 py-2 rounded-lg">

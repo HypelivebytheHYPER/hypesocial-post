@@ -54,6 +54,7 @@ export default {
       !incomingSecret ||
       !(await timingSafeEqual(incomingSecret, env.POST_FOR_ME_WEBHOOK_SECRET))
     ) {
+      console.warn("[Webhook Relay] Rejected — invalid secret");
       return json({ error: "Unauthorized" }, 401);
     }
 
@@ -71,10 +72,12 @@ export default {
       !payload.data ||
       !VALID_EVENTS.has(payload.event_type)
     ) {
+      console.warn("[Webhook Relay] Rejected — invalid payload", { event_type: payload.event_type });
       return json({ error: "Invalid payload" }, 400);
     }
 
     // Return 200 immediately, forward async
+    console.log("[Webhook Relay] Received", { event_type: payload.event_type });
     ctx.waitUntil(forwardToNextJs(payload, env));
 
     return json({ success: true }, 200);

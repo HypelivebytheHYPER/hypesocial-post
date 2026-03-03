@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return parsed.response;
 
     const data = await pfm.socialAccounts.create(parsed.data as any);
+    console.log("[API] POST /accounts", { id: data.id, platform: parsed.data.platform });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

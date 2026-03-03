@@ -21,7 +21,12 @@ const CreatePostSchema = z.object({
   media: z.array(MediaItemSchema).optional(),
   scheduled_at: z.string().datetime().optional(),
   isDraft: z.boolean().optional(),
-  platform_configs: z.record(z.any()).optional(),
+  platform_configurations: z.record(z.any()).optional(),
+  account_configurations: z.array(z.object({
+    social_account_id: z.string(),
+    configuration: z.record(z.any()),
+  })).optional(),
+  external_id: z.string().optional(),
 });
 
 const ListPostsQuerySchema = z.object({
@@ -187,6 +192,7 @@ export async function POST(request: NextRequest) {
       social_accounts: body.social_accounts || [],
     });
 
+    console.log("[API] POST /posts", { id: data.id, status: data.status, accounts: body.social_accounts?.length ?? 0 });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

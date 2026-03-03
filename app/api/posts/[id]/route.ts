@@ -74,6 +74,7 @@ export async function PUT(
     }
 
     const data = await pfm.socialPosts.update(id, body as any);
+    console.log("[API] PUT /posts", { id });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {
@@ -104,7 +105,8 @@ export async function DELETE(
     const idError = validateId(id, "post");
     if (idError) return idError;
     await pfm.socialPosts.delete(id);
-    return new NextResponse(null, { status: 204 });
+    console.log("[API] DELETE /posts", { id });
+    return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(

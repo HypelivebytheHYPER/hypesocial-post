@@ -243,6 +243,32 @@ export function useCreatePost() {
 }
 
 /**
+ * Update post mutation
+ * API: PUT /v1/social-posts/{id}
+ */
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    SocialPost,
+    Error,
+    { id: string; data: Partial<CreateSocialPostDto> }
+  >({
+    mutationFn: ({ id, data }) =>
+      apiClient<SocialPost>(`/api/posts/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
+      queryClient.invalidateQueries({
+        queryKey: pfmKeys.post(variables.id),
+      });
+    },
+  });
+}
+
+/**
  * Delete post mutation
  */
 export function useDeletePost() {

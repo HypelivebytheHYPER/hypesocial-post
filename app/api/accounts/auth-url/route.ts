@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await pfm.socialAccounts.createAuthURL(params as any);
+    console.log("[API] POST /accounts/auth-url", { platform: params.platform });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

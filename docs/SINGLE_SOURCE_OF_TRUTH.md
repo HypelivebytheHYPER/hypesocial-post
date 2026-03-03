@@ -226,6 +226,7 @@ All TanStack Query hooks for Post For Me API.
 | `usePosts()` | Hook |
 | `usePost()` | Hook |
 | `useCreatePost()` | Hook |
+| `useUpdatePost()` | Hook |
 | `useDeletePost()` | Hook |
 | `useRetryPost()` | Hook |
 | `usePostResults()` | Hook |
