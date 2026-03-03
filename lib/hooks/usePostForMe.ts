@@ -848,7 +848,8 @@ function getInvalidationKeys(eventType: string): readonly (readonly string[])[] 
     return [pfmKeys.posts()];
   }
   if (eventType.startsWith("social.account.")) {
-    return [pfmKeys.accounts()];
+    // Account changes may affect webhook registrations too
+    return [pfmKeys.accounts(), pfmKeys.webhooks()];
   }
   // Unknown event — invalidate everything under post-for-me
   return [pfmKeys.all];
