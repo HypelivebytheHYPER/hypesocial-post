@@ -52,8 +52,10 @@ app/
     media/              # Media upload
     social-post-previews/  # Post previews
     post-results/       # Post results
+    webhooks/post-for-me/ # Webhook receiver (from CF Worker)
 components/ui/          # shadcn/ui components
 lib/
+  api-client.ts         # Shared fetch wrapper (SSOT)
   hooks/usePostForMe.ts # All API hooks
   social-platforms.ts   # Platform config
 scripts/
@@ -85,12 +87,14 @@ Updated automatically on every build via `prebuild` hook.
 
 ### Key Files
 
-| File                                         | Purpose                 | Derived From |
-| -------------------------------------------- | ----------------------- | ------------ |
-| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec** | Original     |
-| `types/post-for-me.ts`                       | TypeScript types        | OpenAPI JSON |
-| `lib/hooks/usePostForMe.ts`                  | TanStack Query hooks    | -            |
-| `lib/social-platforms.ts`                    | Platform icons & config | -            |
+| File                                         | Purpose                        | Derived From |
+| -------------------------------------------- | ------------------------------ | ------------ |
+| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec**        | Original     |
+| `types/post-for-me.ts`                       | TypeScript types               | OpenAPI JSON |
+| `lib/api-client.ts`                          | **SSOT - Shared fetch wrapper** | -            |
+| `lib/hooks/usePostForMe.ts`                  | TanStack Query hooks           | -            |
+| `lib/validations/webhooks.ts`               | Zod schemas (event types)      | OpenAPI JSON |
+| `lib/social-platforms.ts`                    | Platform icons & config        | -            |
 
 ### Type Imports
 
@@ -138,6 +142,10 @@ Configured in `~/.claude/mcp.json`:
 POST_FOR_ME_API_KEY=pfm_live_...
 POST_FOR_ME_BASE_URL=https://api.postforme.dev
 
+# Webhooks
+POST_FOR_ME_WEBHOOK_SECRET=...           # Verifies CF Worker → Vercel forwarding
+NEXT_PUBLIC_WEBHOOK_URL=https://api.hypelive.app/webhooks/post-for-me  # Auto-registration target
+
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=...
@@ -156,6 +164,34 @@ DATABASE_URL=...
 | `/v1/social-post-previews`    | POST     | Generate previews       |
 | `/v1/media/create-upload-url` | POST     | Get upload URL          |
 | `/v1/webhooks`                | GET/POST | Manage webhooks         |
+
+---
+
+## Webhook & Real-Time Architecture
+
+Webhook events flow: **Post For Me API → Cloudflare Worker → Vercel → React Query Polling**
+
+```
+Post For Me API          Cloudflare Worker           Vercel
+─────────────      webhook     ─────────────      forward     ──────────────────
+ social.post.  ──────────────> api.hypelive.app  ──────────> /api/webhooks/
+ updated       (webhook_url)   /webhooks/         (NEXTJS_    post-for-me
+                               post-for-me         WEBHOOK_       │
+                               ✓ Verify secret     SECRET)        ▼
+                                                            Log event type
+                                                            Return 200
+
+Browser (React Query polling)
+─────────────────────────────
+ usePosts()         → refetchInterval: 30s
+ usePostResults()   → refetchInterval: 5s (while processing)
+ refetchOnWindowFocus: true (default)
+```
+
+- **Two-hop webhook relay**: Post For Me → CF Worker (verifies `POST_FOR_ME_WEBHOOK_SECRET`) → Vercel (verifies `NEXTJS_WEBHOOK_SECRET`)
+- **Smart polling** at 30s (posts) / 5s (processing results) — primary update mechanism
+- **Auto-registration**: `WebhookRegistration` component registers webhook URL on startup via `NEXT_PUBLIC_WEBHOOK_URL`
+- **Future upgrade**: Add Upstash Redis pub/sub for instant SSE push notifications
 
 ---
 

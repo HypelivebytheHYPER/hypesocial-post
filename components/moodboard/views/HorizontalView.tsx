@@ -94,7 +94,7 @@ export function HorizontalView({
       const overCol = prev.find((c) => c.id === overContainer)!;
       const activeIndex = activeCol.items.findIndex((i) => i.id === activeId);
       const overIndex = overCol.items.findIndex((i) => i.id === overId);
-      const item = activeCol.items[activeIndex];
+      const item = activeCol.items[activeIndex]!;
 
       let newIndex;
       if (prev.find((col) => col.id === overId)) {

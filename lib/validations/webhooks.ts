@@ -121,3 +121,42 @@ export type PostResultCreatedData = z.infer<typeof PostResultCreatedDataSchema>;
 export type AccountCreatedData = z.infer<typeof AccountCreatedDataSchema>;
 export type AccountUpdatedData = z.infer<typeof AccountUpdatedDataSchema>;
 export type PostForMeEventType = z.infer<typeof PostForMeEventTypeSchema>;
+
+// --- Webhook registration DTOs ---
+
+export const WebhookDtoSchema = z.object({
+  // Required per API: id, url, secret, event_types
+  id: z.string(),
+  url: z.string().url(),
+  secret: z.string(),
+  event_types: z.array(PostForMeEventTypeSchema),
+  // Optional — API may or may not return these
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  deleted_at: z.string().nullable().optional(),
+});
+
+export const WebhookListResponseSchema = z.object({
+  data: z.array(WebhookDtoSchema),
+  meta: z.object({
+    total: z.number(),
+    offset: z.number(),
+    limit: z.number(),
+    next: z.string().nullable(),
+  }),
+});
+
+export const CreateWebhookDtoSchema = z.object({
+  url: z.string().url(),
+  event_types: z.array(PostForMeEventTypeSchema),
+});
+
+export const UpdateWebhookDtoSchema = z.object({
+  url: z.string().url().optional(),
+  event_types: z.array(PostForMeEventTypeSchema).optional(),
+});
+
+export type WebhookDto = z.infer<typeof WebhookDtoSchema>;
+export type WebhookListResponse = z.infer<typeof WebhookListResponseSchema>;
+export type CreateWebhookDto = z.infer<typeof CreateWebhookDtoSchema>;
+export type UpdateWebhookDto = z.infer<typeof UpdateWebhookDtoSchema>;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
@@ -9,15 +10,35 @@ const ALLOWED_MEDIA_DOMAINS = [
   "cjsgitiiwhrsfolwmtby.supabase.co",
 ];
 
+// Zod schemas for validation
+const MediaItemSchema = z.object({
+  url: z.string().url(),
+});
+
+const CreatePostSchema = z.object({
+  caption: z.string(),
+  social_accounts: z.array(z.string()),
+  media: z.array(MediaItemSchema).optional(),
+  scheduled_at: z.string().datetime().optional(),
+  isDraft: z.boolean().optional(),
+  platform_configs: z.record(z.any()).optional(),
+});
+
+const ListPostsQuerySchema = z.object({
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.array(z.enum(["draft", "scheduled", "processing", "processed"])).optional(),
+  platform: z.array(z.enum(["facebook", "instagram", "tiktok", "youtube", "x", "bluesky", "linkedin", "pinterest", "threads"])).optional(),
+  external_id: z.array(z.string()).optional(),
+  social_account_id: z.array(z.string()).optional(),
+});
+
 function validateMediaUrls(
   media?: { url: string }[],
 ): { valid: true } | { valid: false; error: string } {
   if (!media || media.length === 0) return { valid: true };
 
   for (const item of media) {
-    if (!item.url || typeof item.url !== "string") {
-      return { valid: false, error: "Media item must have a valid URL string" };
-    }
     try {
       const url = new URL(item.url);
       const isAllowed = ALLOWED_MEDIA_DOMAINS.some(
@@ -45,14 +66,28 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const data = await pfm.socialPosts.list({
-      offset: Number(searchParams.get("offset") || 0),
-      limit: Number(searchParams.get("limit") || 20),
-      status: searchParams.getAll("status") as any,
-      platform: searchParams.getAll("platform") as any,
+    const queryResult = ListPostsQuerySchema.safeParse({
+      offset: searchParams.get("offset") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      status: searchParams.getAll("status"),
+      platform: searchParams.getAll("platform"),
       external_id: searchParams.getAll("external_id"),
       social_account_id: searchParams.getAll("social_account_id"),
     });
+
+    if (!queryResult.success) {
+      const issues = queryResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+      return NextResponse.json<PostForMeError>(
+        {
+          error: "Validation Error",
+          message: `Invalid query parameters: ${issues.join(", ")}`,
+          statusCode: 400,
+        },
+        { status: 400 },
+      );
+    }
+
+    const data = await pfm.socialPosts.list(queryResult.data);
 
     return NextResponse.json(data);
   } catch (error) {
@@ -76,10 +111,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    let body: Record<string, any>;
+    let jsonBody: unknown;
 
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -87,13 +122,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate with Zod
+    const parseResult = CreatePostSchema.safeParse(jsonBody);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+      return NextResponse.json<PostForMeError>(
+        {
+          error: "Validation Error",
+          message: issues.join("; "),
+          statusCode: 400,
+          details: { fields: issues }
+        },
+        { status: 400 },
+      );
+    }
+
+    const body = parseResult.data;
+
     // Validate required fields (skip for drafts)
     if (!body.isDraft) {
       const errors: string[] = [];
-      if (!body.caption || typeof body.caption !== "string" || body.caption.trim() === "") {
+      if (!body.caption || body.caption.trim() === "") {
         errors.push("caption is required and must be a non-empty string");
       }
-      if (!body.social_accounts || !Array.isArray(body.social_accounts) || body.social_accounts.length === 0) {
+      if (!body.social_accounts || body.social_accounts.length === 0) {
         errors.push("social_accounts is required and must be a non-empty array");
       }
       if (errors.length > 0) {
@@ -105,13 +157,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate media URLs
-    if (body.media && !Array.isArray(body.media)) {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: "media must be an array of { url: string } objects", statusCode: 400 },
-        { status: 400 },
-      );
-    }
-
     const mediaValidation = validateMediaUrls(body.media);
     if (!mediaValidation.valid) {
       return NextResponse.json<PostForMeError>(
@@ -125,16 +170,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate scheduled_at
-    if (body.scheduled_at) {
+    // Validate scheduled_at is in the future (skip for drafts)
+    if (body.scheduled_at && !body.isDraft) {
       const scheduledDate = new Date(body.scheduled_at);
-      if (isNaN(scheduledDate.getTime())) {
-        return NextResponse.json<PostForMeError>(
-          { error: "Validation Error", message: "scheduled_at must be a valid ISO 8601 datetime string", statusCode: 400 },
-          { status: 400 },
-        );
-      }
-      if (!body.isDraft && scheduledDate < new Date()) {
+      if (scheduledDate < new Date()) {
         return NextResponse.json<PostForMeError>(
           { error: "Validation Error", message: "scheduled_at must be in the future", statusCode: 400 },
           { status: 400 },
@@ -143,9 +182,9 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await pfm.socialPosts.create({
+      ...body,
       caption: body.caption || "",
       social_accounts: body.social_accounts || [],
-      ...body,
     });
 
     return NextResponse.json(data, { status: 201 });

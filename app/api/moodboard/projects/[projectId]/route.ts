@@ -7,6 +7,8 @@ import {
   larkDateToISO,
   larkText,
 } from "@/lib/lark";
+import { parseBody } from "@/lib/validations";
+import { UpdateProjectSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
 
@@ -32,7 +34,7 @@ export async function GET(
 
     if (!record) {
       return NextResponse.json(
-        { error: "Project not found" },
+        { error: "Not Found", message: "Project not found", statusCode: 404 },
         { status: 404 },
       );
     }
@@ -57,7 +59,7 @@ export async function GET(
   } catch (error) {
     console.error("[API] Get project error:", error);
     return NextResponse.json(
-      { error: "Failed to get project" },
+      { error: "Internal Server Error", message: "Failed to get project", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -76,19 +78,17 @@ export async function PATCH(
 
     if (!record) {
       return NextResponse.json(
-        { error: "Project not found" },
+        { error: "Not Found", message: "Project not found", statusCode: 404 },
         { status: 404 },
       );
     }
 
-    const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
+    const parsed = parseBody(UpdateProjectSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const body = parsed.data;
     const fields: Record<string, unknown> = {
       updated_at: Date.now(),
     };
@@ -106,7 +106,7 @@ export async function PATCH(
   } catch (error) {
     console.error("[API] Update project error:", error);
     return NextResponse.json(
-      { error: "Failed to update project" },
+      { error: "Internal Server Error", message: "Failed to update project", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -126,7 +126,7 @@ export async function DELETE(
 
     if (!record) {
       return NextResponse.json(
-        { error: "Project not found" },
+        { error: "Not Found", message: "Project not found", statusCode: 404 },
         { status: 404 },
       );
     }
@@ -138,11 +138,11 @@ export async function DELETE(
       },
     ]);
 
-    return new Response(null, { status: 204 });
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("[API] Delete project error:", error);
     return NextResponse.json(
-      { error: "Failed to delete project" },
+      { error: "Internal Server Error", message: "Failed to delete project", statusCode: 500 },
       { status: 500 },
     );
   }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody } from "@/lib/validations";
+import { CreatePreviewSchema } from "@/lib/validations/social-post-previews";
 
 /**
  * POST /api/social-post-previews
@@ -10,10 +12,10 @@ import type { PostForMeError } from "@/types/post-for-me";
  */
 export async function POST(request: NextRequest) {
   try {
-    let body: Record<string, unknown>;
+    let jsonBody: unknown;
 
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -21,30 +23,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate required fields
-    if (!body.caption || typeof body.caption !== "string") {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: "caption is required and must be a string", statusCode: 400 },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(CreatePreviewSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
 
-    if (
-      !body.preview_social_accounts ||
-      !Array.isArray(body.preview_social_accounts) ||
-      body.preview_social_accounts.length === 0
-    ) {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: "preview_social_accounts is required and must be a non-empty array",
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
-    }
-
-    const data = await pfm.post("/v1/social-post-previews", { body });
+    const data = await pfm.post("/v1/social-post-previews", { body: parsed.data });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {

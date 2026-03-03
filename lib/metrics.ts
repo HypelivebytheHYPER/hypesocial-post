@@ -5,8 +5,10 @@
 
 import type {
   SocialAccountFeedItemMetrics,
+  SocialAccountFeedItem,
   XMetrics,
   TikTokMetrics,
+  TikTokBusinessMetrics,
   InstagramMetrics,
   YouTubeMetrics,
   FacebookMetrics,
@@ -14,6 +16,10 @@ import type {
   BlueskyMetrics,
   PinterestMetrics,
   ThreadsMetrics,
+  VideoViewRetentionPoint,
+  ImpressionSource,
+  AudienceGender,
+  AudienceCountry,
 } from "@/types/post-for-me";
 
 export interface NormalizedMetrics {
@@ -21,6 +27,104 @@ export interface NormalizedMetrics {
   comments: number;
   shares: number;
   views: number;
+}
+
+export interface MetricAvailability {
+  likes: boolean;
+  comments: boolean;
+  shares: boolean;
+  views: boolean;
+}
+
+const METRIC_AVAILABILITY: Record<string, MetricAvailability> = {
+  instagram:       { likes: true,  comments: true,  shares: true,  views: true },
+  facebook:        { likes: true,  comments: true,  shares: true,  views: true },
+  tiktok:          { likes: true,  comments: true,  shares: true,  views: true },
+  tiktok_business: { likes: true,  comments: true,  shares: true,  views: true },
+  youtube:         { likes: true,  comments: true,  shares: false, views: true },
+  x:               { likes: true,  comments: true,  shares: true,  views: true },
+  linkedin:        { likes: true,  comments: true,  shares: true,  views: true },
+  bluesky:         { likes: true,  comments: true,  shares: true,  views: false },
+  threads:         { likes: true,  comments: true,  shares: true,  views: true },
+  pinterest:       { likes: true,  comments: true,  shares: true,  views: true },
+};
+
+const DEFAULT_AVAILABILITY: MetricAvailability = {
+  likes: true, comments: true, shares: true, views: true,
+};
+
+export function getMetricAvailability(platform: string): MetricAvailability {
+  return METRIC_AVAILABILITY[platform.toLowerCase()] || DEFAULT_AVAILABILITY;
+}
+
+export const PLATFORM_NOTES: Record<string, string[]> = {
+  instagram: [
+    "Metrics may take up to 48 hours to become accurate",
+    "Only organic interactions — ad metrics excluded",
+    "Views metric is in-development and may change",
+    "Data retained for 2 years only",
+  ],
+  facebook: [
+    "Views split into autoplayed, clicked-to-play, and unique segments",
+    "Demographics hidden below privacy thresholds",
+    "Only organic metrics — ad interactions excluded",
+    "Data retained for 2 years only",
+  ],
+  youtube: [
+    "Shares not available via API",
+    "Views include estimated/verified counts that may lag real-time",
+    "Premium (Red) views tracked separately",
+  ],
+  x: [
+    "Impressions include both organic and paid traffic",
+    "Organic metrics shown separately from promoted",
+  ],
+  linkedin: [
+    "Metrics only available for Company Pages",
+    "Personal profile analytics not supported",
+  ],
+  bluesky: [
+    "Views/impressions not available via API",
+  ],
+  tiktok: [],
+  tiktok_business: [
+    "Extended metrics: watch time, retention, demographics",
+  ],
+  threads: [],
+  pinterest: [
+    "90-day and lifetime metrics provided separately",
+  ],
+};
+
+export interface MetricsWithAvailability {
+  metrics: NormalizedMetrics;
+  availability: MetricAvailability;
+  platform: string;
+}
+
+export function extractMetricsWithAvailability(
+  rawMetrics: SocialAccountFeedItemMetrics | undefined,
+  platform: string,
+): MetricsWithAvailability {
+  return {
+    metrics: extractMetrics(rawMetrics),
+    availability: getMetricAvailability(platform),
+    platform: platform.toLowerCase(),
+  };
+}
+
+export interface ExtendedTikTokMetrics {
+  totalTimeWatched: number;
+  averageTimeWatched: number;
+  fullVideoWatchedRate: number;
+  newFollowers: number;
+  profileViews: number;
+  websiteClicks: number;
+  reach: number;
+  videoViewRetention: VideoViewRetentionPoint[];
+  impressionSources: ImpressionSource[];
+  audienceGenders: AudienceGender[];
+  audienceCountries: AudienceCountry[];
 }
 
 // Generic metrics fallback interface
@@ -50,6 +154,17 @@ export function extractMetrics(
       comments: xMetrics.public_metrics?.reply_count || 0,
       shares: xMetrics.public_metrics?.retweet_count || 0,
       views: xMetrics.public_metrics?.impression_count || 0,
+    };
+  }
+
+  // TikTok Business format - detect via video_view_retention (unique to TikTok Business)
+  if ("video_view_retention" in metrics) {
+    const tbMetrics = metrics as TikTokBusinessMetrics;
+    return {
+      likes: tbMetrics.likes || 0,
+      comments: tbMetrics.comments || 0,
+      shares: tbMetrics.shares || 0,
+      views: tbMetrics.video_views || 0,
     };
   }
 
@@ -163,4 +278,33 @@ export function formatNumber(num?: number): string {
 /** Sum likes + comments + shares for a single post's normalized metrics */
 export function totalEngagement(m: NormalizedMetrics): number {
   return m.likes + m.comments + m.shares;
+}
+
+/** Extract TikTok Business extended metrics from a feed item. Returns null for non-TikTok Business items. */
+export function extractExtendedMetrics(
+  item: SocialAccountFeedItem,
+): ExtendedTikTokMetrics | null {
+  if (!item.metrics || !("video_view_retention" in item.metrics)) return null;
+  const m = item.metrics as TikTokBusinessMetrics;
+  return {
+    totalTimeWatched: m.total_time_watched || 0,
+    averageTimeWatched: m.average_time_watched || 0,
+    fullVideoWatchedRate: m.full_video_watched_rate || 0,
+    newFollowers: m.new_followers || 0,
+    profileViews: m.profile_views || 0,
+    websiteClicks: m.website_clicks || 0,
+    reach: m.reach || 0,
+    videoViewRetention: m.video_view_retention || [],
+    impressionSources: m.impression_sources || [],
+    audienceGenders: m.audience_genders || [],
+    audienceCountries: m.audience_countries || [],
+  };
+}
+
+/** Format seconds to human-readable duration: 65 → "1m 5s" */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }

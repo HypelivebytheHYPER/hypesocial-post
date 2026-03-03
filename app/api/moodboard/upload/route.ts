@@ -2,21 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
-
-const ALLOWED_CONTENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-];
-
-const MAX_FILE_SIZES: Record<string, number> = {
-  image: 8 * 1024 * 1024, // 8MB
-  video: 512 * 1024 * 1024, // 512MB
-};
+import { ALLOWED_CONTENT_TYPES, getMaxFileSize } from "@/lib/media-constants";
+import { parseBody } from "@/lib/validations";
+import { MoodboardUploadSchema } from "@/lib/validations/moodboard";
 
 function getS3Client() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -40,40 +28,32 @@ function getS3Client() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
-    const { filename, content_type, size, project_id } = body;
+    const parsed = parseBody(MoodboardUploadSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
 
-    if (!filename || !content_type || !project_id) {
-      return NextResponse.json(
-        { error: "filename, content_type, and project_id are required" },
-        { status: 400 },
-      );
-    }
+    const { filename, content_type, size, project_id } = parsed.data;
 
-    if (!ALLOWED_CONTENT_TYPES.includes(content_type.toLowerCase())) {
+    if (!ALLOWED_CONTENT_TYPES.includes(content_type.toLowerCase() as typeof ALLOWED_CONTENT_TYPES[number])) {
       return NextResponse.json(
         {
-          error: `Invalid content_type. Allowed: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
+          error: "Validation Error",
+          message: `Invalid content_type. Allowed: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
+          statusCode: 400,
         },
         { status: 400 },
       );
     }
 
     if (size !== undefined) {
-      const maxSize = content_type.startsWith("video/")
-        ? MAX_FILE_SIZES.video
-        : MAX_FILE_SIZES.image;
+      const maxSize = getMaxFileSize(content_type as typeof ALLOWED_CONTENT_TYPES[number]);
       if (size > maxSize) {
         return NextResponse.json(
           {
-            error: `File too large. Max ${maxSize / (1024 * 1024)}MB for ${content_type.startsWith("video/") ? "videos" : "images"}`,
+            error: "Validation Error",
+          message: `File too large. Max ${maxSize / (1024 * 1024)}MB for ${content_type.startsWith("video/") ? "videos" : "images"}`,
+          statusCode: 400,
           },
           { status: 400 },
         );
@@ -84,12 +64,11 @@ export async function POST(request: NextRequest) {
     const publicUrl = process.env.R2_PUBLIC_URL;
     if (!bucketName || !publicUrl) {
       return NextResponse.json(
-        { error: "R2 bucket not configured" },
+        { error: "Internal Server Error", message: "R2 bucket not configured", statusCode: 500 },
         { status: 500 },
       );
     }
 
-    const ext = filename.split(".").pop() || "";
     const key = `moodboard/${project_id}/${randomUUID()}-${filename}`;
 
     const s3 = getS3Client();
@@ -106,7 +85,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Moodboard upload error:", error);
     return NextResponse.json(
-      { error: "Failed to generate upload URL" },
+      { error: "Internal Server Error", message: "Failed to generate upload URL", statusCode: 500 },
       { status: 500 },
     );
   }

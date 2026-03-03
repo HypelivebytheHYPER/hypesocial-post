@@ -4,6 +4,8 @@ import {
   larkCreateRecords,
   filterAnd,
   eq,
+  gte,
+  lte,
   larkDateToISO,
   larkText,
   larkNumber,
@@ -11,6 +13,8 @@ import {
   toLarkUrl,
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
+import { parseBody, parseQuery } from "@/lib/validations";
+import { ListItemsQuerySchema, CreateItemSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 
@@ -21,31 +25,27 @@ const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const projectId = searchParams.get("project_id");
-    const startDate = searchParams.get("start_date");
-    const endDate = searchParams.get("end_date");
 
-    if (!projectId) {
-      return NextResponse.json(
-        { error: "project_id is required" },
-        { status: 400 },
-      );
-    }
+    const q = parseQuery(ListItemsQuerySchema, {
+      project_id: searchParams.get("project_id"),
+      start_date: searchParams.get("start_date") || undefined,
+      end_date: searchParams.get("end_date") || undefined,
+    });
+    if (!q.success) return q.response;
 
-    // Fetch all items for this project, then filter by date in code
-    const allRecords = await larkSearchAllRecords(
+    const projectId = q.data.project_id;
+    const startDate = q.data.start_date;
+    const endDate = q.data.end_date;
+
+    // Build filter conditions — push date range to Lark when available
+    const conditions = [eq("project_id", projectId)];
+    if (startDate) conditions.push(gte("column_date", startDate));
+    if (endDate) conditions.push(lte("column_date", endDate));
+
+    const records = await larkSearchAllRecords(
       TABLE_ID,
-      filterAnd(eq("project_id", projectId)),
+      filterAnd(...conditions),
     );
-
-    // Filter by date range in code if provided
-    const records =
-      startDate && endDate
-        ? allRecords.filter((r) => {
-            const date = larkText(r.fields.column_date);
-            return date >= startDate && date <= endDate;
-          })
-        : allRecords;
 
     const items = records.map((r) => ({
       id: larkText(r.fields.item_id),
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[API] List items error:", error);
     return NextResponse.json(
-      { error: "Failed to list items" },
+      { error: "Internal Server Error", message: "Failed to list items", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -93,14 +93,12 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => null);
-    if (!body?.project_id || !body?.column_date || !body?.type) {
-      return NextResponse.json(
-        { error: "project_id, column_date, and type are required" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
+    const parsed = parseBody(CreateItemSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const body = parsed.data;
     const now = Date.now();
     const itemId = randomUUID();
 
@@ -143,7 +141,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Create item error:", error);
     return NextResponse.json(
-      { error: "Failed to create item" },
+      { error: "Internal Server Error", message: "Failed to create item", statusCode: 500 },
       { status: 500 },
     );
   }

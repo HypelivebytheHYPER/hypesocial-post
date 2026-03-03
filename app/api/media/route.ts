@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { ALLOWED_CONTENT_TYPES, getMaxFileSize } from "@/lib/media-constants";
 
-// Maximum file sizes per platform (in bytes)
-const MAX_FILE_SIZES: Record<string, number> = {
-  image: 8 * 1024 * 1024, // 8MB for images
-  video: 512 * 1024 * 1024, // 512MB for videos
-  default: 8 * 1024 * 1024, // 8MB default
-};
+// Create a typed array from allowed content types for Zod enum
+const ALLOWED_CONTENT_TYPES_ARRAY = [...ALLOWED_CONTENT_TYPES] as [string, ...string[]];
 
-// Allowed content types
-const ALLOWED_CONTENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-];
+// Zod schema for media upload request
+const MediaUploadSchema = z.object({
+  filename: z.string().regex(/\.[^.]+$/, "filename must include a file extension"),
+  content_type: z.enum(ALLOWED_CONTENT_TYPES_ARRAY).transform(val => val.toLowerCase() as typeof val),
+  size: z.number().int().positive().optional(),
+});
 
 /**
  * POST /api/media
@@ -28,10 +22,10 @@ const ALLOWED_CONTENT_TYPES = [
  */
 export async function POST(request: NextRequest) {
   try {
-    let body: Record<string, any>;
+    let jsonBody: unknown;
 
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -39,55 +33,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate required fields
-    const errors: string[] = [];
-
-    if (!body.filename || typeof body.filename !== "string") {
-      errors.push("filename is required and must be a string");
-    } else {
-      const hasExtension = /\.[^.]+$/.test(body.filename);
-      if (!hasExtension) {
-        errors.push("filename must include a file extension");
-      }
-    }
-
-    if (!body.content_type || typeof body.content_type !== "string") {
-      errors.push("content_type is required and must be a string (e.g., 'image/jpeg', 'video/mp4')");
-    }
-
-    if (errors.length > 0) {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: errors.join("; "), statusCode: 400, details: { fields: errors } },
-        { status: 400 },
-      );
-    }
-
-    // Validate content type
-    const contentType = body.content_type!.toLowerCase();
-    if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+    // Validate with Zod
+    const parseResult = MediaUploadSchema.safeParse(jsonBody);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
       return NextResponse.json<PostForMeError>(
         {
           error: "Validation Error",
-          message: `Invalid content_type '${contentType}'. Allowed types: ${ALLOWED_CONTENT_TYPES.join(", ")}`,
+          message: issues.join("; "),
           statusCode: 400,
-          details: { allowed_types: ALLOWED_CONTENT_TYPES },
+          details: { fields: issues }
         },
         { status: 400 },
       );
     }
 
+    const body = parseResult.data;
+    const contentType = body.content_type.toLowerCase();
+
     // Validate file size if provided
     if (body.size !== undefined) {
-      if (typeof body.size !== "number" || body.size < 0) {
-        return NextResponse.json<PostForMeError>(
-          { error: "Validation Error", message: "size must be a positive number (in bytes)", statusCode: 400 },
-          { status: 400 },
-        );
-      }
-
-      const maxSize = contentType.startsWith("video/")
-        ? MAX_FILE_SIZES.video
-        : MAX_FILE_SIZES.image;
+      const maxSize = getMaxFileSize(contentType);
 
       if (body.size > maxSize) {
         const maxSizeMB = maxSize / (1024 * 1024);

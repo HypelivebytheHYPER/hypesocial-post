@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { validateId } from "@/lib/validations";
 
 /**
  * POST /api/accounts/[id]/disconnect
@@ -14,6 +15,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "account");
+    if (idError) return idError;
     const data = await pfm.socialAccounts.disconnect(id);
     return NextResponse.json(data);
   } catch (error) {

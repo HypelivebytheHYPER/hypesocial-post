@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody } from "@/lib/validations";
+import { AuthUrlSchema } from "@/lib/validations/accounts";
 
 /**
  * POST /api/accounts/auth-url
@@ -10,10 +12,10 @@ import type { PostForMeError } from "@/types/post-for-me";
  */
 export async function POST(request: NextRequest) {
   try {
-    let body: Record<string, any>;
+    let jsonBody: unknown;
 
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -21,36 +23,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.platform || typeof body.platform !== "string") {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: "platform is required (e.g., 'facebook', 'instagram', 'tiktok')",
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(AuthUrlSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
 
-    const validPlatforms = [
-      "facebook", "instagram", "tiktok", "tiktok_business",
-      "x", "twitter", "linkedin", "youtube", "pinterest", "threads", "bluesky",
-    ];
-
-    if (!validPlatforms.includes(body.platform.toLowerCase())) {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: `Invalid platform '${body.platform}'. Must be one of: ${validPlatforms.join(", ")}`,
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
-    }
+    const body = parsed.data;
 
     // Build auth URL params
     const params: Record<string, any> = {
-      platform: body.platform.toLowerCase(),
+      platform: body.platform,
     };
 
     if (body.external_id) params.external_id = body.external_id;
@@ -70,6 +50,13 @@ export async function POST(request: NextRequest) {
         ...params.platform_data,
         linkedin: { connection_type: body.connection_type || "personal", ...params.platform_data?.linkedin },
       };
+    }
+
+    // Auto-inject redirect_url_override for forwarded account connection
+    const pfmRedirectUri = process.env.POST_FOR_ME_REDIRECT_URI;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (pfmRedirectUri && appUrl && !body.redirect_url_override) {
+      params.redirect_url_override = `${appUrl}/api/accounts/callback/${platform}`;
     }
 
     if (body.redirect_url_override) {

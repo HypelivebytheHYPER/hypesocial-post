@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody, validateId } from "@/lib/validations";
+import { UpdateAccountSchema } from "@/lib/validations/accounts";
 
 /**
  * GET /api/accounts/[id]
@@ -13,6 +15,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "account");
+    if (idError) return idError;
     const data = await pfm.socialAccounts.retrieve(id);
     return NextResponse.json(data);
   } catch (error) {
@@ -40,10 +44,12 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "account");
+    if (idError) return idError;
 
-    let body: Record<string, any>;
+    let jsonBody: unknown;
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -51,14 +57,10 @@ export async function PATCH(
       );
     }
 
-    if (Object.keys(body).length === 0) {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: "Request body cannot be empty. Provide at least one field to update.", statusCode: 400 },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(UpdateAccountSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
 
-    const data = await pfm.socialAccounts.update(id, body);
+    const data = await pfm.socialAccounts.update(id, parsed.data);
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {

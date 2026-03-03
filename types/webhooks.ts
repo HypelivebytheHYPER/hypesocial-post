@@ -11,6 +11,8 @@ export {
   AccountCreatedDataSchema,
   AccountUpdatedDataSchema,
   PostForMeWebhookPayloadSchema,
+  WebhookDtoSchema,
+  WebhookListResponseSchema,
 } from "@/lib/validations/webhooks";
 
 export type {
@@ -22,38 +24,13 @@ export type {
   AccountCreatedData,
   AccountUpdatedData,
   PostForMeWebhookPayload,
+  WebhookDto,
+  WebhookListResponse,
 } from "@/lib/validations/webhooks";
 
-// Additional types not in Zod schema
-export interface WebhookDto {
-  id: string;
-  url: string;
-  secret: string;
-  event_types: import("@/lib/validations/webhooks").PostForMeEventType[];
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
+// Legacy aliases
+export type PostForMeWebhook = import("@/lib/validations/webhooks").WebhookDto;
+export type PostForMeWebhookListResponse =
+  import("@/lib/validations/webhooks").WebhookListResponse;
 
-export interface CreateWebhookDto {
-  url: string;
-  event_types: import("@/lib/validations/webhooks").PostForMeEventType[];
-}
-
-export interface UpdateWebhookDto {
-  url?: string;
-  event_types?: import("@/lib/validations/webhooks").PostForMeEventType[];
-}
-
-export interface WebhookListResponse {
-  data: WebhookDto[];
-  meta: {
-    total: number;
-    offset: number;
-    limit: number;
-    next: string | null;
-  };
-}
-
-export type PostForMeWebhook = WebhookDto;
-export type PostForMeWebhookListResponse = WebhookListResponse;
+export type { CreateWebhookDto, UpdateWebhookDto } from "@/lib/validations/webhooks";

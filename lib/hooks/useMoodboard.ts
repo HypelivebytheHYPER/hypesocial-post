@@ -8,6 +8,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
 
 // ==================== Types ====================
 
@@ -57,34 +58,9 @@ export const moodboardKeys = {
   projects: () => [...moodboardKeys.all, "projects"] as const,
   project: (id: string) => [...moodboardKeys.projects(), id] as const,
   items: () => [...moodboardKeys.all, "items"] as const,
-  itemsByProject: (projectId: string, weekStart: string) =>
-    [...moodboardKeys.items(), projectId, weekStart] as const,
+  itemsByProject: (projectId: string, dateRangeStart: string) =>
+    [...moodboardKeys.items(), projectId, dateRangeStart] as const,
 };
-
-// ==================== API Client ====================
-
-async function apiClient<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const response = await fetch(endpoint, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(
-      error.error || `API error: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  if (response.status === 204) return {} as T;
-  return response.json();
-}
 
 // ==================== Project Hooks ====================
 
@@ -157,25 +133,19 @@ export function useDeleteProject() {
 
 // ==================== Item Hooks ====================
 
-export function useMoodboardItems(projectId: string, weekStart: string) {
-  // Calculate end date (7 days after start)
-  const startDate = new Date(weekStart);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 6);
-  const endDateStr = endDate.toISOString().split("T")[0];
-
+export function useMoodboardItems(projectId: string, startDate: string, endDate: string) {
   return useQuery<{ items: MoodboardItem[] }>({
-    queryKey: moodboardKeys.itemsByProject(projectId, weekStart),
+    queryKey: moodboardKeys.itemsByProject(projectId, startDate),
     queryFn: () =>
       apiClient(
-        `/api/moodboard/items?project_id=${projectId}&start_date=${weekStart}&end_date=${endDateStr}`,
+        `/api/moodboard/items?project_id=${projectId}&start_date=${startDate}&end_date=${endDate}`,
       ),
-    enabled: !!projectId && !!weekStart,
+    enabled: !!projectId && !!startDate && !!endDate,
     staleTime: 30000, // 30s to avoid refetch spam during DnD
   });
 }
 
-export function useCreateItem() {
+export function useCreateItem(projectId?: string, dateRangeStart?: string) {
   const queryClient = useQueryClient();
   return useMutation<
     MoodboardItem,
@@ -188,12 +158,18 @@ export function useCreateItem() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      if (projectId && dateRangeStart) {
+        queryClient.invalidateQueries({
+          queryKey: moodboardKeys.itemsByProject(projectId, dateRangeStart),
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      }
     },
   });
 }
 
-export function useUpdateItem() {
+export function useUpdateItem(projectId?: string, dateRangeStart?: string) {
   const queryClient = useQueryClient();
   return useMutation<
     { success: boolean },
@@ -206,12 +182,18 @@ export function useUpdateItem() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      if (projectId && dateRangeStart) {
+        queryClient.invalidateQueries({
+          queryKey: moodboardKeys.itemsByProject(projectId, dateRangeStart),
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      }
     },
   });
 }
 
-export function useDeleteItem() {
+export function useDeleteItem(projectId?: string, dateRangeStart?: string) {
   const queryClient = useQueryClient();
   return useMutation<unknown, Error, string>({
     mutationFn: (itemId) =>
@@ -219,7 +201,13 @@ export function useDeleteItem() {
         method: "DELETE",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      if (projectId && dateRangeStart) {
+        queryClient.invalidateQueries({
+          queryKey: moodboardKeys.itemsByProject(projectId, dateRangeStart),
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
+      }
     },
   });
 }
@@ -228,9 +216,9 @@ export function useDeleteItem() {
  * Batch reorder items after DnD — with optimistic update.
  * Updates the query cache immediately, then syncs to API in background.
  */
-export function useReorderItems(projectId: string, weekStart: string) {
+export function useReorderItems(projectId: string, dateRangeStart: string) {
   const queryClient = useQueryClient();
-  const queryKey = moodboardKeys.itemsByProject(projectId, weekStart);
+  const queryKey = moodboardKeys.itemsByProject(projectId, dateRangeStart);
 
   type ReorderContext = {
     previous: { items: MoodboardItem[] } | undefined;

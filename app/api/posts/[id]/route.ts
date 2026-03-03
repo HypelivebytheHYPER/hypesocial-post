@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody, validateId } from "@/lib/validations";
+import { UpdatePostSchema } from "@/lib/validations/posts";
 
 /**
  * GET /api/posts/[id]
@@ -13,6 +15,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "post");
+    if (idError) return idError;
     const data = await pfm.socialPosts.retrieve(id);
     return NextResponse.json(data);
   } catch (error) {
@@ -40,10 +44,12 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "post");
+    if (idError) return idError;
 
-    let body: Record<string, any>;
+    let jsonBody: unknown;
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -51,15 +57,15 @@ export async function PUT(
       );
     }
 
-    if (body.scheduled_at) {
+    const parsed = parseBody(UpdatePostSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const body = parsed.data;
+
+    // Validate scheduled_at is in the future (skip for drafts)
+    if (body.scheduled_at && !body.isDraft) {
       const scheduledDate = new Date(body.scheduled_at);
-      if (isNaN(scheduledDate.getTime())) {
-        return NextResponse.json<PostForMeError>(
-          { error: "Validation Error", message: "scheduled_at must be a valid ISO 8601 datetime string", statusCode: 400 },
-          { status: 400 },
-        );
-      }
-      if (!body.isDraft && scheduledDate < new Date()) {
+      if (scheduledDate < new Date()) {
         return NextResponse.json<PostForMeError>(
           { error: "Validation Error", message: "scheduled_at must be in the future", statusCode: 400 },
           { status: 400 },
@@ -95,6 +101,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "post");
+    if (idError) return idError;
     await pfm.socialPosts.delete(id);
     return new NextResponse(null, { status: 204 });
   } catch (error) {

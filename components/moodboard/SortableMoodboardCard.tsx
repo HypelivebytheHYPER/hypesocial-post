@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -34,7 +35,7 @@ const platformIcons = {
   linkedin: LinkedInIcon,
 };
 
-export function SortableMoodboardCard({
+export const SortableMoodboardCard = memo(function SortableMoodboardCard({
   item,
   onDelete,
   onUpdate,
@@ -109,6 +110,7 @@ export function SortableMoodboardCard({
                 src={imageUrl}
                 alt={item.content}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             ) : (
               <div className="w-full h-full bg-slate-100 flex items-center justify-center">
@@ -138,6 +140,7 @@ export function SortableMoodboardCard({
                 src={imageUrl}
                 alt="Video thumbnail"
                 className="w-full h-full object-cover opacity-60"
+                loading="lazy"
               />
             ) : (
               <div className="w-full h-full bg-slate-800" />
@@ -247,4 +250,4 @@ export function SortableMoodboardCard({
       </div>
     </div>
   );
-}
+});

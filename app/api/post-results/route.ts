@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
+import { parseQuery } from "@/lib/validations";
+import { ListPostResultsQuerySchema } from "@/lib/validations/post-results";
 
 /**
  * GET /api/post-results
@@ -10,13 +12,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const data = await pfm.socialPostResults.list({
-      offset: Number(searchParams.get("offset") || 0),
-      limit: Number(searchParams.get("limit") || 20),
+    const q = parseQuery(ListPostResultsQuerySchema, {
+      offset: searchParams.get("offset") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
       post_id: searchParams.getAll("post_id").length > 0 ? searchParams.getAll("post_id") : undefined,
       social_account_id: searchParams.getAll("social_account_id").length > 0 ? searchParams.getAll("social_account_id") : undefined,
       platform: searchParams.getAll("platform").length > 0 ? searchParams.getAll("platform") : undefined,
     });
+    if (!q.success) return q.response;
+
+    const data = await pfm.socialPostResults.list(q.data);
 
     return NextResponse.json(data);
   } catch (error) {

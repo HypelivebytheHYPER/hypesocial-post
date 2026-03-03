@@ -20,6 +20,8 @@ const buttonVariants = cva(
         premium:
           "bg-slate-800 text-white hover:bg-slate-700 shadow-md hover:shadow-lg hover:-translate-y-0.5",
         soft: "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm",
+        gradient:
+          "bg-gradient-to-r from-slate-800 to-slate-600 text-white hover:from-slate-700 hover:to-slate-500 shadow-md hover:shadow-lg hover:-translate-y-0.5",
       },
       size: {
         default: "h-10 px-5 py-2",

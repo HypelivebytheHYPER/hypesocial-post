@@ -14,13 +14,37 @@ import {
   Key,
   Webhook,
   Activity,
+  Users,
+  LogOut,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSession, signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { pfmKeys } from "@/lib/hooks/usePostForMe";
 
 const settingsSections = [
+  {
+    title: "Connected Accounts",
+    description: "Manage social channels",
+    icon: Users,
+    href: "/accounts/connect",
+  },
   {
     title: "Profile",
     description: "Account information",
@@ -71,7 +95,54 @@ const settingsSections = [
   },
 ];
 
+// Map settings routes to prefetch configs
+// Query keys must match exactly what the destination page's hooks produce
+// Note: accounts + posts are already server-side prefetched via layout HydrationBoundary
+const PREFETCH_MAP: Record<string, { queryKey: readonly unknown[]; endpoint: string }[]> = {
+  "/webhooks": [
+    {
+      queryKey: [...pfmKeys.webhooks(), undefined], // useWebhooks() appends filters (undefined when no filters)
+      endpoint: "/api/webhooks",
+    },
+  ],
+  "/diagnostics": [
+    {
+      // usePosts({ limit: 1 }) — not covered by server-side prefetch (different query key)
+      queryKey: [...pfmKeys.posts(), { limit: 1 }],
+      endpoint: "/api/posts?limit=1",
+    },
+    {
+      queryKey: [...pfmKeys.webhooks(), undefined],
+      endpoint: "/api/webhooks",
+    },
+  ],
+};
+
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const { theme, setTheme } = useTheme();
+
+  const userName = session?.user?.name || "Admin";
+  const userEmail = session?.user?.email || "";
+  const userInitials = userName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const handlePrefetch = (href: string) => {
+    const configs = PREFETCH_MAP[href];
+    if (!configs) return;
+    for (const config of configs) {
+      queryClient.prefetchQuery({
+        queryKey: config.queryKey,
+        queryFn: () => fetch(config.endpoint).then((r) => r.json()),
+      });
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -87,14 +158,37 @@ export default function SettingsPage() {
         <div className="flex items-center gap-4">
           <Avatar className="w-16 h-16 border-2 border-white shadow-sm">
             <AvatarFallback className="bg-slate-800 text-white text-lg font-semibold">
-              AR
+              {userInitials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h2 className="text-slate-800 font-semibold text-lg">Alif Reza</h2>
-            <p className="text-slate-400 text-sm">alif@hypelive.studio</p>
+            <h2 className="text-slate-800 font-semibold text-lg">{userName}</h2>
+            <p className="text-slate-400 text-sm">{userEmail}</p>
           </div>
-          <Badge className="badge-soft success">Pro Plan</Badge>
+          <Badge className="badge-soft success">Admin</Badge>
+        </div>
+      </section>
+
+      {/* Sign Out */}
+      <section className="card-premium p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+              <LogOut className="h-4 w-4 text-slate-500" />
+            </div>
+            <div>
+              <h3 className="text-slate-700 font-medium text-sm">Sign Out</h3>
+              <p className="text-slate-400 text-xs">End your current session</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Sign Out
+          </Button>
         </div>
       </section>
 
@@ -109,6 +203,7 @@ export default function SettingsPage() {
                 <Link
                   key={section.title}
                   href={section.href}
+                  onMouseEnter={() => handlePrefetch(section.href)}
                   className="card-premium p-4 text-left hover:scale-[1.02] transition-transform block"
                 >
                   <div className="flex items-center gap-3">
@@ -131,6 +226,7 @@ export default function SettingsPage() {
             return (
               <button
                 key={section.title}
+                onClick={() => toast.info("Coming soon")}
                 className="card-premium p-4 text-left hover:scale-[1.02] transition-transform w-full"
               >
                 <div className="flex items-center gap-3">
@@ -204,28 +300,35 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-slate-50 border-2 border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-800 text-sm font-medium">
-                  Light
-                </span>
-                <div className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                </div>
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-100 opacity-50">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-sm">Dark</span>
-                <div className="w-4 h-4 rounded-full border-2 border-slate-400" />
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-100 opacity-50">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 text-sm">System</span>
-                <div className="w-4 h-4 rounded-full border-2 border-slate-400" />
-              </div>
-            </div>
+            {(["light", "dark", "system"] as const).map((t) => {
+              const isActive = theme === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTheme(t)}
+                  className={`w-full p-3 rounded-xl text-left transition-colors ${
+                    isActive
+                      ? "bg-slate-50 border-2 border-accent"
+                      : "bg-slate-100 border-2 border-transparent hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-sm ${isActive ? "text-slate-800 font-medium" : "text-slate-600"}`}
+                    >
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </span>
+                    {isActive ? (
+                      <div className="w-4 h-4 rounded-full bg-accent flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-accent-foreground" />
+                      </div>
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-400" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
       </div>
@@ -248,13 +351,37 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-red-200 text-red-500 hover:bg-red-50"
-            >
-              Delete Account
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                >
+                  Delete Account
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete
+                    your account and remove all your data.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() =>
+                      toast.info("Account deletion is not available yet")
+                    }
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </section>

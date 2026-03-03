@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -11,7 +11,12 @@ import { toast } from "sonner";
 import {
   addWeeks,
   subWeeks,
+  addMonths,
+  subMonths,
   startOfWeek,
+  startOfMonth,
+  endOfMonth,
+  endOfWeek,
   eachDayOfInterval,
   format,
   addDays,
@@ -20,8 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/moodboard/ProjectSelector";
 import { HorizontalView } from "@/components/moodboard/views/HorizontalView";
-import { VerticalView } from "@/components/moodboard/views/VerticalView";
-import { ScheduleView } from "@/components/moodboard/views/ScheduleView";
+import { MonthlyView } from "@/components/moodboard/views/MonthlyView";
 import {
   useMoodboardItems,
   useProject,
@@ -30,25 +34,31 @@ import {
   useDeleteItem,
   useReorderItems,
   useUploadMoodboardMedia,
-  useUpdateProject,
   type MoodboardItem,
   type DayColumnType,
 } from "@/lib/hooks/useMoodboard";
 
 const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
+type ViewMode = "weekly" | "monthly";
+
+function resolveViewMode(param: string | null): ViewMode {
+  if (param === "monthly") return "monthly";
+  // backward compat: horizontal/vertical/schedule all map to weekly
+  return "weekly";
+}
+
 function getWeekStart(date: Date): Date {
   return startOfWeek(date, { weekStartsOn: 0 });
 }
 
+/** Build columns for an arbitrary date range */
 function buildColumns(
-  weekStart: Date,
+  rangeStart: Date,
+  rangeEnd: Date,
   items: MoodboardItem[],
 ): DayColumnType[] {
-  const days = eachDayOfInterval({
-    start: weekStart,
-    end: addDays(weekStart, 6),
-  });
+  const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
   return days.map((day) => {
     const isoDate = format(day, "yyyy-MM-dd");
@@ -58,7 +68,7 @@ function buildColumns(
 
     return {
       id: isoDate,
-      day: DAY_NAMES[day.getDay()],
+      day: DAY_NAMES[day.getDay()] ?? "",
       date: day.getDate(),
       fullDate: format(day, "MMMM d"),
       isoDate,
@@ -83,41 +93,60 @@ function getWeekNumber(date: Date): number {
   );
 }
 
+/** Get the calendar grid range for a month (startOfWeek of startOfMonth → endOfWeek of endOfMonth) */
+function getMonthCalendarRange(anchor: Date) {
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+  return { calStart, calEnd };
+}
+
 export default function ProjectMoodboardPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = params.projectId as string;
 
-  const viewMode = (searchParams.get("view") || "horizontal") as
-    | "horizontal"
-    | "vertical"
-    | "schedule";
+  const viewMode = resolveViewMode(searchParams.get("view"));
 
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
-  const weekStartStr = format(weekStart, "yyyy-MM-dd");
+  const [monthAnchor, setMonthAnchor] = useState(() => new Date());
 
-  const weekNotesRef = useRef<HTMLTextAreaElement>(null);
+  // Compute active date range based on view mode
+  const { rangeStart, rangeEnd } = useMemo(() => {
+    if (viewMode === "monthly") {
+      const { calStart, calEnd } = getMonthCalendarRange(monthAnchor);
+      return { rangeStart: calStart, rangeEnd: calEnd };
+    }
+    return { rangeStart: weekStart, rangeEnd: addDays(weekStart, 6) };
+  }, [viewMode, weekStart, monthAnchor]);
+
+  const rangeStartStr = format(rangeStart, "yyyy-MM-dd");
+  const rangeEndStr = format(rangeEnd, "yyyy-MM-dd");
 
   // Data hooks
   const { data: project } = useProject(projectId);
-  const { data: itemsData } = useMoodboardItems(projectId, weekStartStr);
-  const createItem = useCreateItem();
-  const updateItem = useUpdateItem();
-  const deleteItem = useDeleteItem();
-  const reorderItems = useReorderItems(projectId, weekStartStr);
+  const { data: itemsData } = useMoodboardItems(projectId, rangeStartStr, rangeEndStr);
+  const createItem = useCreateItem(projectId, rangeStartStr);
+  const updateItem = useUpdateItem(projectId, rangeStartStr);
+  const deleteItem = useDeleteItem(projectId, rangeStartStr);
+  const reorderItems = useReorderItems(projectId, rangeStartStr);
   const uploadMedia = useUploadMoodboardMedia();
-  const updateProject = useUpdateProject();
 
   const items = itemsData?.items || [];
   const columns = useMemo(
-    () => buildColumns(weekStart, items),
-    [weekStart, items],
+    () => buildColumns(rangeStart, rangeEnd, items),
+    [rangeStart, rangeEnd, items],
   );
 
-  const weekLabel = `Week ${getWeekNumber(weekStart)}`;
-  const dateRange = `${format(weekStart, "MMMM d")} - ${format(addDays(weekStart, 6), "MMMM d")}`;
-  const weekKey = format(weekStart, "yyyy-'W'II");
+  // Header labels
+  const headerLabel = viewMode === "monthly"
+    ? format(monthAnchor, "MMMM yyyy")
+    : `Week ${getWeekNumber(weekStart)}`;
+  const headerSub = viewMode === "monthly"
+    ? undefined
+    : `${format(weekStart, "MMMM d")} - ${format(addDays(weekStart, 6), "MMMM d")}`;
 
   const isSaving =
     createItem.isPending ||
@@ -173,7 +202,7 @@ export default function ProjectMoodboardPage() {
       if (!column) return;
 
       for (let idx = 0; idx < files.length; idx++) {
-        const file = files[idx];
+        const file = files[idx]!;
         const isVideo = file.type.startsWith("video/");
         const type = isVideo ? "video" : "image";
 
@@ -221,31 +250,35 @@ export default function ProjectMoodboardPage() {
     [reorderItems],
   );
 
-  // Week navigation
-  const goToPrevWeek = () => setWeekStart((w) => subWeeks(w, 1));
-  const goToNextWeek = () => setWeekStart((w) => addWeeks(w, 1));
+  // Navigation
+  const goToPrev = () => {
+    if (viewMode === "monthly") {
+      setMonthAnchor((m) => subMonths(m, 1));
+    } else {
+      setWeekStart((w) => subWeeks(w, 1));
+    }
+  };
+  const goToNext = () => {
+    if (viewMode === "monthly") {
+      setMonthAnchor((m) => addMonths(m, 1));
+    } else {
+      setWeekStart((w) => addWeeks(w, 1));
+    }
+  };
 
-  // View mode toggle
-  const setViewMode = (mode: "horizontal" | "vertical" | "schedule") => {
+  // View mode toggle — sync time context on switch
+  const setView = (mode: ViewMode) => {
+    if (mode === "monthly" && viewMode === "weekly") {
+      // Set month anchor from current week
+      setMonthAnchor(weekStart);
+    } else if (mode === "weekly" && viewMode === "monthly") {
+      // Set week start from current month anchor
+      setWeekStart(getWeekStart(monthAnchor));
+    }
     const p = new URLSearchParams(searchParams.toString());
     p.set("view", mode);
     router.replace(`?${p.toString()}`, { scroll: false });
   };
-
-  // Week notes
-  const currentWeekNotes = project?.week_notes?.[weekKey] || "";
-  const handleSaveNotes = useCallback(() => {
-    if (!project || !weekNotesRef.current) return;
-    const notes = weekNotesRef.current.value;
-    if (notes === currentWeekNotes) return;
-
-    updateProject.mutate({
-      projectId,
-      data: {
-        week_notes: { ...project.week_notes, [weekKey]: notes },
-      },
-    });
-  }, [project, projectId, weekKey, currentWeekNotes, updateProject]);
 
   const viewProps = {
     columns,
@@ -264,12 +297,16 @@ export default function ProjectMoodboardPage() {
           <div className="flex items-center gap-3">
             <ProjectSelector />
             <span className="text-slate-400">|</span>
-            <span className="text-slate-500 text-sm">{weekLabel}</span>
-            <span className="text-slate-400">|</span>
-            <span className="text-slate-600">{dateRange}</span>
+            <span className="text-slate-500 text-sm">{headerLabel}</span>
+            {headerSub && (
+              <>
+                <span className="text-slate-400">|</span>
+                <span className="text-slate-600">{headerSub}</span>
+              </>
+            )}
           </div>
           <p className="text-slate-400 text-sm mt-1">
-            Plan your weekly social content
+            Plan your {viewMode === "monthly" ? "monthly" : "weekly"} social content
           </p>
         </div>
 
@@ -291,10 +328,10 @@ export default function ProjectMoodboardPage() {
 
           {/* View toggle */}
           <div className="flex items-center bg-white rounded-full border border-slate-200 p-1">
-            {(["horizontal", "vertical", "schedule"] as const).map((mode) => (
+            {(["weekly", "monthly"] as const).map((mode) => (
               <button
                 key={mode}
-                onClick={() => setViewMode(mode)}
+                onClick={() => setView(mode)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                   viewMode === mode
                     ? "text-slate-800 bg-slate-100"
@@ -306,13 +343,13 @@ export default function ProjectMoodboardPage() {
             ))}
           </div>
 
-          {/* Week nav */}
+          {/* Date nav */}
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={goToPrevWeek}
+              onClick={goToPrev}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -320,7 +357,7 @@ export default function ProjectMoodboardPage() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={goToNextWeek}
+              onClick={goToNext}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -329,57 +366,10 @@ export default function ProjectMoodboardPage() {
       </div>
 
       {/* View */}
-      {viewMode === "horizontal" && <HorizontalView {...viewProps} />}
-      {viewMode === "vertical" && <VerticalView {...viewProps} />}
-      {viewMode === "schedule" && <ScheduleView {...viewProps} />}
-
-      {/* Video Dimensions Reference */}
-      <div className="card-premium p-4">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Video Dimensions Reference
-        </h3>
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
-            <div className="w-4 h-7 bg-slate-800 rounded flex items-center justify-center">
-              <span className="text-[8px] text-white">9:16</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-700">
-                Reels / TikTok / Stories
-              </p>
-              <p className="text-xs text-slate-400">1080x1920 (Vertical)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
-            <div className="w-7 h-4 bg-slate-800 rounded flex items-center justify-center">
-              <span className="text-[8px] text-white">16:9</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-700">
-                YouTube / Facebook / LinkedIn
-              </p>
-              <p className="text-xs text-slate-400">1920x1080 (Landscape)</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Week Notes */}
-      <div className="card-premium p-6">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-          WEEK NOTES
-        </h3>
-        <div className="bg-white rounded-2xl border border-slate-100 min-h-[200px] p-4">
-          <textarea
-            ref={weekNotesRef}
-            defaultValue={currentWeekNotes}
-            key={weekKey}
-            onBlur={handleSaveNotes}
-            className="w-full h-full min-h-[180px] resize-none text-sm text-slate-700 placeholder-slate-300 focus:outline-none"
-            placeholder="Write your weekly notes here..."
-          />
-        </div>
-      </div>
+      {viewMode === "weekly" && <HorizontalView {...viewProps} />}
+      {viewMode === "monthly" && (
+        <MonthlyView {...viewProps} monthAnchor={monthAnchor} />
+      )}
     </div>
   );
 }

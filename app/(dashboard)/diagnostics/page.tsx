@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -78,8 +78,20 @@ export default function DiagnosticsPage() {
     isLoading: accountsLoading,
     error: accountsError,
   } = useAccounts();
-  const { data: postsData, error: postsError } = usePosts({ limit: 1 });
-  const { data: webhooksData, error: webhooksError } = useWebhooks();
+  const {
+    data: postsData,
+    isLoading: postsLoading,
+    error: postsError,
+  } = usePosts({ limit: 1 });
+  const {
+    data: webhooksData,
+    isLoading: webhooksLoading,
+    error: webhooksError,
+  } = useWebhooks();
+
+  // Track whether all queries have settled (loaded or errored)
+  const queriesSettled =
+    !accountsLoading && !postsLoading && !webhooksLoading;
 
   const runDiagnostics = async () => {
     setIsRunning(true);
@@ -90,15 +102,26 @@ export default function DiagnosticsPage() {
       prev.map((test) => ({ ...test, status: "running", message: undefined })),
     );
 
-    // Test 1: API Key
+    // Test 1: API Key — inferred from whether API calls succeed
+    // POST_FOR_ME_API_KEY is server-side only (not NEXT_PUBLIC_), so we check
+    // if the accounts/posts queries succeeded as proof the key is configured.
     await delay(500);
-    const apiKey = process.env.POST_FOR_ME_API_KEY;
+    const apiWorking = !!(accountsData?.data || postsData);
+    const apiAuthError =
+      accountsError?.message?.includes("401") ||
+      postsError?.message?.includes("401");
     updateTest(
       "api-key",
-      apiKey ? "success" : "error",
-      apiKey
-        ? "API key is configured"
-        : "POST_FOR_ME_API_KEY not found in environment",
+      apiAuthError
+        ? "error"
+        : apiWorking
+          ? "success"
+          : "warning",
+      apiAuthError
+        ? "API key is invalid or expired (401)"
+        : apiWorking
+          ? "API key is configured and working"
+          : "Waiting for API response...",
     );
 
     // Test 2: API Connection
@@ -193,10 +216,14 @@ export default function DiagnosticsPage() {
   const delay = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Run diagnostics on page load
+  // Run diagnostics once all queries have settled (not while still fetching)
+  const autoRan = useRef(false);
   useEffect(() => {
-    runDiagnostics();
-  }, []);
+    if (queriesSettled && !autoRan.current) {
+      autoRan.current = true;
+      runDiagnostics();
+    }
+  }, [queriesSettled]);
 
   const getStatusIcon = (status: DiagnosticTest["status"]) => {
     switch (status) {
@@ -248,7 +275,7 @@ export default function DiagnosticsPage() {
           className="text-slate-400 hover:text-slate-600"
           asChild
         >
-          <Link href="/">
+          <Link href="/" aria-label="Back to dashboard">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -453,7 +480,7 @@ export default function DiagnosticsPage() {
           href="https://status.postforme.dev"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-slate-400 hover:text-slate-600 flex items-center gap-1"
+          className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
         >
           Check Status Page
           <ChevronRight className="w-3 h-3" />

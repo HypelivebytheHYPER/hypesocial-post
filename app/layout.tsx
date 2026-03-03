@@ -5,12 +5,41 @@ import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const LOGO_URL =
+  "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png";
+
 export const metadata: Metadata = {
-  title: "HypePostSocial - Social Media Management",
+  title: {
+    default: "HypePostSocial - Social Media Management",
+    template: "%s | HypePostSocial",
+  },
   description: "Manage your social media posts across multiple platforms",
+  metadataBase: new URL("https://hypesocial-post.vercel.app"),
   icons: {
-    icon: "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png",
-    apple: "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png",
+    icon: LOGO_URL,
+    apple: LOGO_URL,
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://hypesocial-post.vercel.app",
+    siteName: "HypePostSocial",
+    title: "HypePostSocial - Social Media Management",
+    description: "Manage your social media posts across multiple platforms",
+    images: [
+      {
+        url: LOGO_URL,
+        width: 512,
+        height: 512,
+        alt: "HypePostSocial Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "HypePostSocial - Social Media Management",
+    description: "Manage your social media posts across multiple platforms",
+    images: [LOGO_URL],
   },
 };
 

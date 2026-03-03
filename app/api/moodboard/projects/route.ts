@@ -8,6 +8,8 @@ import {
   larkText,
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
+import { parseBody } from "@/lib/validations";
+import { CreateProjectSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_PROJECTS_TABLE_ID!;
 
@@ -45,7 +47,7 @@ export async function GET() {
   } catch (error) {
     console.error("[API] List projects error:", error);
     return NextResponse.json(
-      { error: "Failed to list projects" },
+      { error: "Internal Server Error", message: "Failed to list projects", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -57,14 +59,12 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => null);
-    if (!body?.name) {
-      return NextResponse.json(
-        { error: "name is required" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
+    const parsed = parseBody(CreateProjectSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const body = parsed.data;
     const now = Date.now();
     const projectId = randomUUID();
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Create project error:", error);
     return NextResponse.json(
-      { error: "Failed to create project" },
+      { error: "Internal Server Error", message: "Failed to create project", statusCode: 500 },
       { status: 500 },
     );
   }
