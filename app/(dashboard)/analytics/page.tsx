@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   Heart,
   MessageCircle,
@@ -16,8 +17,35 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
+const TikTokInsightsCharts = dynamic(
+  () => import("./analytics-charts"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card-premium p-4 animate-pulse">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 mb-2" />
+              <div className="h-6 w-20 bg-slate-100 rounded mb-1" />
+              <div className="h-3 w-24 bg-slate-50 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card-premium p-4 animate-pulse">
+              <div className="h-4 w-32 bg-slate-100 rounded mb-3" />
+              <div className="h-48 bg-slate-50 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+);
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,9 +56,14 @@ import {
 } from "@/lib/hooks/usePostForMe";
 import {
   extractMetrics,
+  extractExtendedMetrics,
   formatNumber,
   totalEngagement,
+  getMetricAvailability,
+  PLATFORM_NOTES,
   type NormalizedMetrics,
+  type MetricAvailability,
+  type ExtendedTikTokMetrics,
 } from "@/lib/metrics";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { proxyMediaUrl } from "@/lib/utils";
@@ -154,6 +187,106 @@ export default function AnalyticsPage() {
 
   const maxPlatformEngagement = platformBreakdown[0]?.totalEngagement || 1;
 
+  // 7. TikTok Business extended insights
+  const tiktokBusinessInsights = useMemo(() => {
+    const tbItems = allItems
+      .filter((item) => item.platform?.toLowerCase() === "tiktok_business")
+      .map((item) => ({
+        item,
+        extended: extractExtendedMetrics(item),
+        metrics: extractMetrics(item.metrics),
+      }))
+      .filter((x) => x.extended !== null) as {
+      item: SocialAccountFeedItem;
+      extended: ExtendedTikTokMetrics;
+      metrics: NormalizedMetrics;
+    }[];
+
+    if (tbItems.length === 0) return null;
+
+    // Scalar totals
+    let totalWatchTime = 0;
+    let avgWatchTime = 0;
+    let totalNewFollowers = 0;
+    let totalReach = 0;
+    let totalWebsiteClicks = 0;
+    tbItems.forEach(({ extended }) => {
+      totalWatchTime += extended.totalTimeWatched;
+      avgWatchTime += extended.averageTimeWatched;
+      totalNewFollowers += extended.newFollowers;
+      totalReach += extended.reach;
+      totalWebsiteClicks += extended.websiteClicks;
+    });
+    avgWatchTime = tbItems.length > 0 ? avgWatchTime / tbItems.length : 0;
+
+    // Best retention curve (from most-viewed post)
+    const bestPost = tbItems.sort(
+      (a, b) => b.metrics.views - a.metrics.views,
+    )[0];
+    const retentionData = bestPost?.extended.videoViewRetention.map((p) => ({
+      second: p.second,
+      percentage: p.percentage,
+    })) || [];
+
+    // Averaged demographics
+    const genderMap = new Map<string, number>();
+    const countryMap = new Map<string, number>();
+    tbItems.forEach(({ extended }) => {
+      extended.audienceGenders.forEach((g) => {
+        genderMap.set(g.gender, (genderMap.get(g.gender) || 0) + g.percentage);
+      });
+      extended.audienceCountries.forEach((c) => {
+        countryMap.set(
+          c.country,
+          (countryMap.get(c.country) || 0) + c.percentage,
+        );
+      });
+    });
+    const genderData = [...genderMap.entries()]
+      .map(([gender, total]) => ({
+        gender,
+        percentage: Math.round(total / tbItems.length),
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+    const countryData = [...countryMap.entries()]
+      .map(([country, total]) => ({
+        country,
+        percentage: Math.round(total / tbItems.length),
+      }))
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 8);
+
+    // Averaged impression sources
+    const sourceMap = new Map<string, number>();
+    tbItems.forEach(({ extended }) => {
+      extended.impressionSources.forEach((s) => {
+        sourceMap.set(
+          s.impression_source,
+          (sourceMap.get(s.impression_source) || 0) + s.percentage,
+        );
+      });
+    });
+    const impressionData = [...sourceMap.entries()]
+      .map(([source, total]) => ({
+        source,
+        percentage: Math.round(total / tbItems.length),
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+
+    return {
+      postCount: tbItems.length,
+      totalWatchTime,
+      avgWatchTime,
+      totalNewFollowers,
+      totalReach,
+      totalWebsiteClicks,
+      retentionData,
+      genderData,
+      countryData,
+      impressionData,
+    };
+  }, [allItems]);
+
   // Refresh handler
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: pfmKeys.feeds() });
@@ -235,42 +368,57 @@ export default function AnalyticsPage() {
 
       {/* Section 2: Engagement Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <OverviewCard
-          label="Total Likes"
-          value={totals.likes}
-          icon={Heart}
-          color="text-pink-500"
-          bg="bg-pink-50"
-          isLoading={feedsLoading && allItems.length === 0}
-          isPartial={!isAllLoaded}
-        />
-        <OverviewCard
-          label="Total Comments"
-          value={totals.comments}
-          icon={MessageCircle}
-          color="text-blue-500"
-          bg="bg-blue-50"
-          isLoading={feedsLoading && allItems.length === 0}
-          isPartial={!isAllLoaded}
-        />
-        <OverviewCard
-          label="Total Shares"
-          value={totals.shares}
-          icon={Share2}
-          color="text-emerald-500"
-          bg="bg-emerald-50"
-          isLoading={feedsLoading && allItems.length === 0}
-          isPartial={!isAllLoaded}
-        />
-        <OverviewCard
-          label="Total Views"
-          value={totals.views}
-          icon={Eye}
-          color="text-purple-500"
-          bg="bg-purple-50"
-          isLoading={feedsLoading && allItems.length === 0}
-          isPartial={!isAllLoaded}
-        />
+        {(() => {
+          // Compute which platforms have unavailable metrics
+          const unavailShares = connectedAccounts
+            .filter((a) => !getMetricAvailability(a.platform).shares)
+            .map((a) => a.platform);
+          const unavailViews = connectedAccounts
+            .filter((a) => !getMetricAvailability(a.platform).views)
+            .map((a) => a.platform);
+          return (
+            <>
+              <OverviewCard
+                label="Total Likes"
+                value={totals.likes}
+                icon={Heart}
+                color="text-pink-500"
+                bg="bg-pink-50"
+                isLoading={feedsLoading && allItems.length === 0}
+                isPartial={!isAllLoaded}
+              />
+              <OverviewCard
+                label="Total Comments"
+                value={totals.comments}
+                icon={MessageCircle}
+                color="text-blue-500"
+                bg="bg-blue-50"
+                isLoading={feedsLoading && allItems.length === 0}
+                isPartial={!isAllLoaded}
+              />
+              <OverviewCard
+                label="Total Shares"
+                value={totals.shares}
+                icon={Share2}
+                color="text-emerald-500"
+                bg="bg-emerald-50"
+                isLoading={feedsLoading && allItems.length === 0}
+                isPartial={!isAllLoaded}
+                caveatNote={unavailShares.length > 0 ? `Shares not available for ${unavailShares.join(", ")}` : undefined}
+              />
+              <OverviewCard
+                label="Total Views"
+                value={totals.views}
+                icon={Eye}
+                color="text-purple-500"
+                bg="bg-purple-50"
+                isLoading={feedsLoading && allItems.length === 0}
+                isPartial={!isAllLoaded}
+                caveatNote={unavailViews.length > 0 ? `Views not available for ${unavailViews.join(", ")}` : undefined}
+              />
+            </>
+          );
+        })()}
       </div>
 
       <Separator className="divider-soft" />
@@ -326,6 +474,7 @@ export default function AnalyticsPage() {
               );
             }
 
+            const avail = getMetricAvailability(account.platform);
             return (
               <div key={account.id} className="card-premium p-4">
                 <div className="flex items-center gap-3 mb-3">
@@ -362,24 +511,28 @@ export default function AnalyticsPage() {
                     label="Likes"
                     value={metrics.likes}
                     color="text-pink-500"
+                    available={avail.likes}
                   />
                   <MiniStat
                     icon={MessageCircle}
                     label="Comments"
                     value={metrics.comments}
                     color="text-blue-500"
+                    available={avail.comments}
                   />
                   <MiniStat
                     icon={Share2}
                     label="Shares"
                     value={metrics.shares}
                     color="text-emerald-500"
+                    available={avail.shares}
                   />
                   <MiniStat
                     icon={Eye}
                     label="Views"
                     value={metrics.views}
                     color="text-purple-500"
+                    available={avail.views}
                   />
                 </div>
               </div>
@@ -531,6 +684,11 @@ export default function AnalyticsPage() {
                         {formatNumber(metrics.views)} views
                       </span>
                     </div>
+                    {(PLATFORM_NOTES[platform]?.length ?? 0) > 0 && (
+                      <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
+                        <Info className="w-3 h-3 flex-shrink-0" /> {PLATFORM_NOTES[platform]![0]}
+                      </p>
+                    )}
                   </div>
                 );
               },
@@ -539,49 +697,83 @@ export default function AnalyticsPage() {
         </div>
       )}
 
+      {/* Section 6: TikTok Business Insights (lazy-loaded with recharts) */}
+      {tiktokBusinessInsights && (
+        <>
+          <Separator className="divider-soft" />
+          <TikTokInsightsCharts data={tiktokBusinessInsights} />
+        </>
+      )}
+
       <Separator className="divider-soft" />
 
-      {/* Section 6: Metric Variance Info */}
+      {/* Section 7: Metric Variance Info */}
       <div className="card-premium p-4 bg-gradient-to-br from-blue-50 to-white border-blue-100">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
             <Info className="w-4 h-4 text-blue-600" />
           </div>
-          <div>
-            <h3 className="text-slate-800 font-semibold text-sm mb-1">
-              About These Metrics
-            </h3>
-            <p className="text-slate-500 text-xs leading-relaxed mb-2">
-              All metrics shown are lifetime cumulative values fetched directly
-              from each platform&apos;s API. They may vary from what you see on
-              each platform due to the following:
-            </p>
-            <ul className="text-[10px] text-slate-400 space-y-1">
-              <li>
-                <strong className="text-slate-500">Lifetime values</strong> -
-                Metrics are total lifetime counts, not periodic snapshots
-              </li>
-              <li>
-                <strong className="text-slate-500">Instagram</strong> - Up to
-                48-hour processing delay for accurate metrics
-              </li>
-              <li>
-                <strong className="text-slate-500">Bluesky</strong> - No view
-                counts available via API
-              </li>
-              <li>
-                <strong className="text-slate-500">LinkedIn</strong> - Metrics
-                only available for Company Pages
-              </li>
-              <li>
-                <strong className="text-slate-500">Meta platforms</strong> -
-                Content retained for 2 years; older data may be unavailable
-              </li>
-              <li>
-                <strong className="text-slate-500">Exclusions</strong> - Metrics
-                exclude paid/AD interactions
-              </li>
-            </ul>
+          <div className="space-y-3 flex-1">
+            <div>
+              <h3 className="text-slate-800 font-semibold text-sm mb-1">
+                About These Metrics
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                All metrics are lifetime cumulative values fetched directly from each
+                platform&apos;s API. Numbers may differ from in-app dashboards due to
+                processing delays, metric availability, and platform constraints.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Processing & Delays */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Processing &amp; Delays
+                </p>
+                <ul className="text-[10px] text-slate-400 space-y-0.5">
+                  <li>&bull; Instagram/Facebook: up to 48-hour delay</li>
+                  <li>&bull; YouTube: views may lag real-time (estimated/verified)</li>
+                  <li>&bull; All platforms: lifetime counts, not periodic snapshots</li>
+                </ul>
+              </div>
+
+              {/* Unavailable Metrics */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Unavailable Metrics
+                </p>
+                <ul className="text-[10px] text-slate-400 space-y-0.5">
+                  <li>&bull; Bluesky: no view/impression counts via API</li>
+                  <li>&bull; YouTube: share counts not available via API</li>
+                  <li>&bull; Shown as &quot;N/A&quot; in per-account cards</li>
+                </ul>
+              </div>
+
+              {/* Platform Constraints */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Platform Constraints
+                </p>
+                <ul className="text-[10px] text-slate-400 space-y-0.5">
+                  <li>&bull; LinkedIn: metrics only for Company Pages</li>
+                  <li>&bull; Meta (IG/FB): organic only, 2-year data retention</li>
+                  <li>&bull; Pinterest: 90-day and lifetime provided separately</li>
+                </ul>
+              </div>
+
+              {/* Data Sources */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Data Sources
+                </p>
+                <ul className="text-[10px] text-slate-400 space-y-0.5">
+                  <li>&bull; X: impressions include organic + paid traffic</li>
+                  <li>&bull; TikTok Business: extended watch time &amp; demographics</li>
+                  <li>&bull; All platforms: ad/paid interactions excluded</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -599,6 +791,7 @@ function OverviewCard({
   bg,
   isLoading,
   isPartial,
+  caveatNote,
 }: {
   label: string;
   value: number;
@@ -607,6 +800,7 @@ function OverviewCard({
   bg: string;
   isLoading: boolean;
   isPartial: boolean;
+  caveatNote?: string;
 }) {
   return (
     <div className="stat-card">
@@ -623,7 +817,17 @@ function OverviewCard({
       ) : (
         <p className="stat-value">{formatNumber(value)}</p>
       )}
-      <p className="stat-label">{label}</p>
+      <p className="stat-label">
+        {label}
+        {caveatNote && (
+          <span className="inline-flex ml-1 group relative">
+            <Info className="w-3 h-3 text-amber-400" />
+            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-10">
+              {caveatNote}
+            </span>
+          </span>
+        )}
+      </p>
     </div>
   );
 }
@@ -633,17 +837,19 @@ function MiniStat({
   label,
   value,
   color,
+  available = true,
 }: {
   icon: React.ElementType;
   label: string;
   value: number;
   color: string;
+  available?: boolean;
 }) {
   return (
     <div className="bg-slate-50 rounded-lg p-2 text-center">
-      <Icon className={`w-3.5 h-3.5 mx-auto mb-0.5 ${color}`} />
-      <p className="text-sm font-semibold text-slate-800">
-        {formatNumber(value)}
+      <Icon className={`w-3.5 h-3.5 mx-auto mb-0.5 ${available ? color : "text-slate-300"}`} />
+      <p className={`text-sm font-semibold ${available ? "text-slate-800" : "text-slate-300"}`}>
+        {available ? formatNumber(value) : "N/A"}
       </p>
       <p className="text-[10px] text-slate-400">{label}</p>
     </div>

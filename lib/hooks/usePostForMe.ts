@@ -16,6 +16,9 @@ import {
   PostForMeWebhookListResponse,
   PostForMeEventType,
 } from "@/types/webhooks";
+import { WebhookListResponseSchema } from "@/lib/validations/webhooks";
+import { apiClient } from "@/lib/api-client";
+import type { WebhookEvent } from "@/lib/webhook-event-store";
 import {
   SocialPost,
   SocialPostListResponse,
@@ -49,33 +52,6 @@ export const pfmKeys = {
   previews: () => [...pfmKeys.all, "previews"] as const,
 };
 
-// API Client for internal Next.js API routes
-async function apiClient<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const response = await fetch(endpoint, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(
-      error.message || error.error || `API error: ${response.status} ${response.statusText}`,
-    );
-  }
-
-  // 204 No Content has no body
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return response.json();
-}
 
 // ==================== Webhooks ====================
 
@@ -102,20 +78,29 @@ export function useWebhooks(
 ) {
   return useQuery<PostForMeWebhookListResponse, Error>({
     queryKey: [...pfmKeys.webhooks(), filters],
-    queryFn: () => {
+    queryFn: async () => {
       const searchParams = new URLSearchParams();
 
-      if (filters?.offset)
+      if (filters?.offset != null)
         searchParams.set("offset", filters.offset.toString());
-      if (filters?.limit) searchParams.set("limit", filters.limit.toString());
+      if (filters?.limit != null)
+        searchParams.set("limit", filters.limit.toString());
       filters?.url?.forEach((u) => searchParams.append("url", u));
       filters?.event_type?.forEach((e) => searchParams.append("event_type", e));
       filters?.id?.forEach((i) => searchParams.append("id", i));
 
       const query = searchParams.toString();
-      return apiClient<PostForMeWebhookListResponse>(
+      const raw = await apiClient<PostForMeWebhookListResponse>(
         `/api/webhooks${query ? `?${query}` : ""}`,
       );
+
+      // Validate at fetch time — runs once per fetch, not on every render
+      const result = WebhookListResponseSchema.safeParse(raw);
+      if (!result.success) {
+        console.warn("Webhook response validation failed:", result.error.issues);
+        return raw; // Fallback to raw data if validation fails
+      }
+      return result.data;
     },
     ...options,
   });
@@ -207,13 +192,16 @@ export function useDeleteWebhook() {
 /**
  * Get all posts
  *
- * Automatically polls every 10 seconds to show real-time status updates
- * from webhooks (post results, processing status, etc.)
+ * Updates are now webhook-driven via `useWebhookStatus()` which invalidates
+ * this query when a webhook event arrives. Falls back to `refetchOnWindowFocus`
+ * (React Query default) when the status endpoint is unavailable.
  */
 export function usePosts(params?: { offset?: number; limit?: number }) {
   const searchParams = new URLSearchParams();
-  if (params?.offset) searchParams.set("offset", params.offset.toString());
-  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset != null)
+    searchParams.set("offset", params.offset.toString());
+  if (params?.limit != null)
+    searchParams.set("limit", params.limit.toString());
   const query = searchParams.toString();
 
   return useQuery<SocialPostListResponse, Error>({
@@ -222,11 +210,6 @@ export function usePosts(params?: { offset?: number; limit?: number }) {
       apiClient<SocialPostListResponse>(
         `/api/posts${query ? `?${query}` : ""}`,
       ),
-    // Poll every 30 seconds to catch webhook updates (reduced from 10s to prevent flashing)
-    refetchInterval: 30000,
-    refetchIntervalInBackground: false, // Pause when tab is not active
-    refetchOnWindowFocus: true, // Refresh immediately when user returns to tab
-    staleTime: 10000, // Consider data fresh for 10 seconds to prevent rapid refetching
   });
 }
 
@@ -291,7 +274,11 @@ export function useRetryPost() {
         caption: failedPost.caption,
         social_accounts: failedPost.social_accounts?.map((a) => a.id) || [],
         scheduled_at: failedPost.scheduled_at,
-        media: failedPost.media?.map((m) => ({ url: m.url })),
+        media: failedPost.media?.map((m) => ({
+          url: m.url,
+          thumbnail_url: m.thumbnail_url,
+          skip_processing: m.skip_processing,
+        })),
         platform_configurations: failedPost.platform_configurations,
         account_configurations: failedPost.account_configurations,
       };
@@ -311,43 +298,19 @@ export function useRetryPost() {
  * API: GET /v1/social-post-results?post_id={postId}
  * https://www.postforme.dev/resources/getting-post-results
  *
- * Response includes:
- * - success: boolean (whether post succeeded)
- * - error: unknown (error details if failed)
- * - details: unknown (detailed logs for debugging)
- * - platform_data: { id?: string, url?: string } (platform-specific IDs and URLs)
- *
- * Automatically polls every 5 seconds while post is processing
- * to show real-time updates without page refresh
+ * Polls every 5s while processing, stops once results arrive or status is terminal.
  */
 export function usePostResults(postId: string, isProcessing?: boolean) {
   return useQuery<SocialPostResultListResponse, Error>({
     queryKey: pfmKeys.postResultsByPost(postId),
-    queryFn: async () => {
-      const response = await apiClient<SocialPostResultListResponse>(
+    queryFn: () =>
+      apiClient<SocialPostResultListResponse>(
         `/api/post-results?post_id=${postId}`,
-      );
-
-      // Debug logging for troubleshooting video posts
-      if (response.data.length > 0) {
-        console.log("[Post Results] Fetched results:", {
-          postId,
-          count: response.data.length,
-          results: response.data.map((r) => ({
-            success: r.success,
-            hasError: !!r.error,
-            platformData: r.platform_data,
-          })),
-        });
-      }
-
-      return response;
-    },
+      ),
     enabled: !!postId,
-    // Poll every 5 seconds while processing to get real-time updates
-    refetchInterval: isProcessing ? 5000 : false,
-    // Continue polling even when tab is in background
-    refetchIntervalInBackground: true,
+    // Poll every 5s while processing, stop when terminal
+    refetchInterval: isProcessing ? 5_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -400,7 +363,6 @@ export function usePostResultsList(params?: {
         `/api/post-results?${searchParams.toString()}`,
       );
     },
-    enabled: !!(postId || platform || socialAccountId),
   });
 }
 
@@ -411,12 +373,10 @@ export function useUploadMedia() {
   return useMutation<
     { url: string },
     Error,
-    { file: File; onProgress?: (progress: number) => void }
+    { file: File }
   >({
-    mutationFn: async ({ file, onProgress }) => {
+    mutationFn: async ({ file }) => {
       // Step 1: Get presigned upload URL and public media URL
-      console.log("[Upload] Step 1: Requesting upload URL for", file.name, `(${(file.size / 1024 / 1024).toFixed(2)}MB, ${file.type})`);
-
       const { upload_url, media_url } = await apiClient<{
         upload_url: string;
         media_url: string;
@@ -429,8 +389,6 @@ export function useUploadMedia() {
         }),
       });
 
-      console.log("[Upload] Step 2: Uploading to signed URL...");
-
       // Step 2: Upload file to presigned URL
       const response = await fetch(upload_url, {
         method: "PUT",
@@ -442,11 +400,8 @@ export function useUploadMedia() {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error("[Upload] Failed:", response.status, errorText);
         throw new Error(`Upload failed: ${response.status} ${errorText || response.statusText}`);
       }
-
-      console.log("[Upload] Step 3: Success! media_url:", media_url);
 
       // Step 3: Return the public media URL (for use in posts)
       return { url: media_url };
@@ -470,6 +425,9 @@ export function useUploadThumbnail() {
     mutationFn: async ({ dataUrl, filename = "thumbnail.jpg" }) => {
       // Convert data URL to blob
       const response = await fetch(dataUrl);
+      if (!response.ok) {
+        throw new Error("Failed to convert thumbnail data URL to blob");
+      }
       const blob = await response.blob();
 
       // Create a File from the blob
@@ -498,7 +456,8 @@ export function useUploadThumbnail() {
       });
 
       if (!uploadResponse.ok) {
-        throw new Error("Thumbnail upload failed");
+        const errorText = await uploadResponse.text().catch(() => "");
+        throw new Error(`Thumbnail upload failed: ${uploadResponse.status} ${errorText || uploadResponse.statusText}`);
       }
 
       // Step 3: Return the public media URL (for use in posts)
@@ -630,8 +589,6 @@ export function useAccount(id: string) {
  * Docs: https://www.postforme.dev/resources/intercepting-the-oauth-flow
  */
 export function useConnectAccount() {
-  const queryClient = useQueryClient();
-
   return useMutation<
     { url: string },
     Error,
@@ -757,8 +714,9 @@ export function useAllAccountFeeds(
   const data = new Map<string, SocialAccountFeedItem[]>();
   const errors = new Map<string, Error>();
   queries.forEach((q, i) => {
-    if (q.data) data.set(accountIds[i], q.data.data);
-    if (q.error) errors.set(accountIds[i], q.error as Error);
+    const accountId = accountIds[i] ?? "";
+    if (q.data) data.set(accountId, q.data.data);
+    if (q.error) errors.set(accountId, q.error as Error);
   });
 
   const allItems: SocialAccountFeedItem[] = [];
@@ -782,24 +740,11 @@ export function usePostPreview() {
     Error,
     SocialPostPreviewRequest
   >({
-    mutationFn: async (data) => {
-      console.log("[Preview Hook] Sending:", JSON.stringify(data, null, 2));
-      const response = await fetch("/api/social-post-previews", {
+    mutationFn: (data) =>
+      apiClient<SocialPostPreviewResponse>("/api/social-post-previews", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      });
-
-      console.log("[Preview Hook] Response status:", response.status);
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        console.error("[Preview Hook] Error:", error);
-        throw new Error(error.error || "Failed to generate preview");
-      }
-
-      return response.json();
-    },
+      }),
   });
 }
 
@@ -812,8 +757,10 @@ export function usePostPreview() {
  */
 export function useRegisterAppWebhook() {
   const createWebhook = useCreateWebhook();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const webhookUrl = `${appUrl}/api/webhooks/post-for-me`;
+  // Register the Cloudflare Worker URL (relays to Vercel), not the Vercel URL directly
+  const webhookUrl =
+    process.env.NEXT_PUBLIC_WEBHOOK_URL ||
+    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/webhooks/post-for-me`;
   const attempted = useRef(false);
 
   // Query webhooks filtered by our app URL to check if already registered
@@ -827,10 +774,11 @@ export function useRegisterAppWebhook() {
     async (eventTypes?: PostForMeEventType[]) => {
       // Only attempt once per app mount
       if (attempted.current) return;
-      attempted.current = true;
 
-      // Wait for existing webhook check to complete
+      // Don't mark as attempted until query has loaded — avoids race condition
+      // where register() is called before the webhook list query resolves
       if (isChecking) return;
+      attempted.current = true;
 
       // Check if webhook already exists
       const exists = existingWebhooks?.data?.some((w) => w.url === webhookUrl);
@@ -859,4 +807,67 @@ export function useRegisterAppWebhook() {
     isLoading: createWebhook.isPending,
     error: createWebhook.error,
   };
+}
+
+// ==================== Webhook Status Monitor ====================
+
+/**
+ * Map webhook event types to the React Query keys that should be invalidated.
+ */
+function getInvalidationKeys(eventType: string): readonly (readonly string[])[] {
+  if (eventType === "social.post.result.created") {
+    return [pfmKeys.postResults(), pfmKeys.posts()];
+  }
+  if (eventType.startsWith("social.post.")) {
+    return [pfmKeys.posts()];
+  }
+  if (eventType.startsWith("social.account.")) {
+    return [pfmKeys.accounts()];
+  }
+  // Unknown event — invalidate everything under post-for-me
+  return [pfmKeys.all];
+}
+
+/**
+ * Poll the lightweight `/api/webhooks/post-for-me/status` endpoint every 10s.
+ * When a new webhook event is detected (timestamp changed), trigger targeted
+ * `invalidateQueries` so React Query refetches only the affected data.
+ *
+ * This replaces the 30s blind `refetchInterval` on `usePosts()` with a
+ * webhook-driven approach: ~80 bytes per check instead of full data refetches.
+ *
+ * Degradation: if the status endpoint fails or returns `null` (cold instance),
+ * no invalidation happens — `refetchOnWindowFocus` remains as the safety net.
+ */
+export function useWebhookStatus() {
+  const queryClient = useQueryClient();
+  const lastSeenTs = useRef<number | null>(null);
+
+  const { data } = useQuery<{ last_event: WebhookEvent | null }>({
+    queryKey: ["webhook-status"],
+    queryFn: () =>
+      apiClient<{ last_event: WebhookEvent | null }>(
+        "/api/webhooks/post-for-me/status",
+      ),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
+    gcTime: 0,
+    retry: 3,
+  });
+
+  useEffect(() => {
+    const event = data?.last_event;
+    if (!event) return;
+
+    // Skip if we've already processed this timestamp
+    if (lastSeenTs.current !== null && event.ts <= lastSeenTs.current) return;
+    lastSeenTs.current = event.ts;
+
+    // Targeted invalidation based on event type
+    const keys = getInvalidationKeys(event.event_type);
+    for (const key of keys) {
+      queryClient.invalidateQueries({ queryKey: key });
+    }
+  }, [data, queryClient]);
 }
