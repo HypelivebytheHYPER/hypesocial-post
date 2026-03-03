@@ -134,10 +134,7 @@ function ConnectionLine({
 
 export default function WebhooksPage() {
   const queryClient = useQueryClient();
-  const { data: webhooksResponse, isLoading, error } = useWebhooks(
-    undefined,
-    { refetchInterval: 30_000 },
-  );
+  const { data: webhooksResponse, isLoading, error } = useWebhooks();
   const deleteWebhook = useDeleteWebhook();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
