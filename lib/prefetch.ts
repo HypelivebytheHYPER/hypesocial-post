@@ -11,8 +11,9 @@ import { pfm } from "@/lib/post-for-me";
  * that file contains React hooks which cannot be imported in server components.
  *
  * Keys match the client-side hooks exactly:
- * - useAccounts()  → ["post-for-me", "accounts"]
- * - usePosts()     → ["post-for-me", "posts", undefined]
+ * - useAccounts()             → ["post-for-me", "accounts"]
+ * - usePosts({ limit: 100 }) → ["post-for-me", "posts", { limit: 100 }]
+ * - usePosts()                → ["post-for-me", "posts", undefined]
  *
  * If either prefetch fails, prefetchQuery silently swallows the error —
  * the client hook will fetch normally. Safe degradation.
@@ -25,9 +26,14 @@ export async function prefetchDashboardData() {
       queryKey: ["post-for-me", "accounts"],
       queryFn: () => pfm.socialAccounts.list(),
     }),
+    // Prefetch both: no-params (home page) and limit:100 (posts page)
     queryClient.prefetchQuery({
       queryKey: ["post-for-me", "posts", undefined],
       queryFn: () => pfm.socialPosts.list(),
+    }),
+    queryClient.prefetchQuery({
+      queryKey: ["post-for-me", "posts", { limit: 100 }],
+      queryFn: () => pfm.socialPosts.list({ limit: 100 }),
     }),
   ]);
 
