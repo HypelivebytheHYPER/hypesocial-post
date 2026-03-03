@@ -61,6 +61,7 @@ export async function PATCH(
     if (!parsed.success) return parsed.response;
 
     const data = await pfm.socialAccounts.update(id, parsed.data);
+    console.log("[API] PATCH /accounts", { id });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {

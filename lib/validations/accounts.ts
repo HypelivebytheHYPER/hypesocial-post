@@ -25,7 +25,7 @@ export const ListAccountsQuerySchema = z.object({
 });
 
 export const CreateAccountSchema = z.object({
-  platform: z.string().min(1, "platform is required"),
+  platform: platformEnum,
   user_id: z.string().min(1, "user_id is required"),
   access_token: z.string().min(1, "access_token is required"),
   access_token_expires_at: z
@@ -33,18 +33,18 @@ export const CreateAccountSchema = z.object({
     .transform(String),
   username: z.string().optional(),
   external_id: z.string().optional(),
-  platform_data: z.record(z.any()).optional(),
+  refresh_token: z.string().optional(),
+  refresh_token_expires_at: z
+    .union([z.string(), z.number()])
+    .transform(String)
+    .optional(),
+  metadata: z.record(z.any()).optional(),
 });
 
 export const UpdateAccountSchema = z
   .object({
     username: z.string().optional(),
-    access_token: z.string().optional(),
-    access_token_expires_at: z
-      .union([z.string(), z.number()])
-      .optional(),
-    platform_data: z.record(z.any()).optional(),
-    status: z.string().optional(),
+    external_id: z.string().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Request body cannot be empty. Provide at least one field to update.",

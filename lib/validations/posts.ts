@@ -8,6 +8,10 @@ export const UpdatePostSchema = z.object({
     .optional(),
   scheduled_at: z.string().datetime().optional(),
   isDraft: z.boolean().optional(),
-  platform_configs: z.record(z.any()).optional(),
-  status: z.string().optional(),
+  platform_configurations: z.record(z.any()).optional(),
+  account_configurations: z.array(z.object({
+    social_account_id: z.string(),
+    configuration: z.record(z.any()),
+  })).optional(),
+  external_id: z.string().optional(),
 });

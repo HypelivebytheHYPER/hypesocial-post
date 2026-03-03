@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -39,6 +40,7 @@ import {
   usePosts,
   useDeletePost,
   useRetryPost,
+  useUpdatePost,
   useAccounts,
   usePostResultsList,
   pfmKeys,
@@ -117,12 +119,14 @@ function PostCard({
   post,
   onDelete,
   onRetry,
+  onEdit,
   account,
   results,
 }: {
   post: SocialPost;
   onDelete: (id: string) => void;
   onRetry?: (post: SocialPost) => void;
+  onEdit?: (post: SocialPost) => void;
   account?: {
     platform: string;
     username: string | null;
@@ -302,6 +306,12 @@ function PostCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {onEdit && (post.status === "draft" || post.status === "scheduled") && (
+              <DropdownMenuItem onClick={() => onEdit(post)}>
+                <FileEdit className="w-4 h-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+            )}
             {hasError && onRetry && (
               <DropdownMenuItem onClick={() => onRetry(post)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -327,6 +337,7 @@ function BoardColumn({
   posts,
   onDelete,
   onRetry,
+  onEdit,
   accounts,
   resultsMap,
 }: {
@@ -334,6 +345,7 @@ function BoardColumn({
   posts: SocialPost[];
   onDelete: (id: string) => void;
   onRetry?: (post: SocialPost) => void;
+  onEdit?: (post: SocialPost) => void;
   accounts: Map<
     string,
     {
@@ -383,6 +395,7 @@ function BoardColumn({
               post={post}
               onDelete={onDelete}
               onRetry={onRetry}
+              onEdit={onEdit}
               account={accounts.get(post.social_accounts?.[0]?.id || "")}
               results={resultsMap.get(post.id)}
             />
@@ -394,6 +407,7 @@ function BoardColumn({
 }
 
 export default function PostsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -406,6 +420,7 @@ export default function PostsPage() {
   const { data: accountsResponse, isLoading: accountsLoading } = useAccounts();
   const deletePost = useDeletePost();
   const retryPost = useRetryPost();
+  const updatePost = useUpdatePost();
 
   const posts = useMemo(() => postsResponse?.data ?? [], [postsResponse?.data]);
   const accounts = useMemo(() => accountsResponse?.data ?? [], [accountsResponse?.data]);
@@ -500,6 +515,10 @@ export default function PostsPage() {
     } catch {
       toast.error("Failed to retry post");
     }
+  };
+
+  const handleEdit = (post: SocialPost) => {
+    router.push(`/posts/new?edit=${post.id}`);
   };
 
   const isLoading = postsLoading || accountsLoading;
@@ -734,6 +753,7 @@ export default function PostsPage() {
                 posts={postsByStatus.draft ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
+                onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
@@ -742,6 +762,7 @@ export default function PostsPage() {
                 posts={postsByStatus.scheduled ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
+                onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
@@ -750,6 +771,7 @@ export default function PostsPage() {
                 posts={postsByStatus.processing ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
+                onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
@@ -758,6 +780,7 @@ export default function PostsPage() {
                 posts={postsByStatus.processed ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
+                onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
@@ -766,6 +789,7 @@ export default function PostsPage() {
                 posts={postsByStatus.failed ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
+                onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
@@ -776,6 +800,7 @@ export default function PostsPage() {
               posts={postsByStatus[statusFilter] || []}
               onDelete={handleDelete}
               onRetry={handleRetry}
+              onEdit={handleEdit}
               accounts={accountsMap}
               resultsMap={resultsMap}
             />
@@ -793,6 +818,7 @@ export default function PostsPage() {
               post={post}
               onDelete={handleDelete}
               onRetry={handleRetry}
+              onEdit={handleEdit}
               account={accountsMap.get(post.social_accounts?.[0]?.id || "")}
               results={resultsMap.get(post.id)}
             />
