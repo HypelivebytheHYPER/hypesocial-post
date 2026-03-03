@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import {
   Plus,
   RefreshCw,
@@ -11,17 +12,14 @@ import {
   CheckCircle2,
   AlertCircle,
   FileEdit,
-  ImageIcon,
   MoreHorizontal,
   ExternalLink,
   Trash2,
-  Edit2,
-  Filter,
   LayoutGrid,
   List,
 } from "lucide-react";
 import { platformIconsMap } from "@/lib/social-platforms";
-import { proxyMediaUrl } from "@/lib/utils";
+import { cn, proxyMediaUrl } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 
@@ -35,7 +33,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LazyVideo } from "@/components/ui/lazy-video";
 
 import {
@@ -43,7 +40,7 @@ import {
   useDeletePost,
   useRetryPost,
   useAccounts,
-  usePostResults,
+  usePostResultsList,
   pfmKeys,
 } from "@/lib/hooks/usePostForMe";
 import type { SocialPost, SocialPostResult } from "@/types/post-for-me";
@@ -98,11 +95,30 @@ const statusConfig = {
 // Platform icons are now imported from centralized config
 // Using platformIconsMap from @/lib/social-platforms
 
+// --- Animation variants ---
+const stagger = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
+  },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+  },
+};
+
 function PostCard({
   post,
   onDelete,
   onRetry,
   account,
+  results,
 }: {
   post: SocialPost;
   onDelete: (id: string) => void;
@@ -112,6 +128,7 @@ function PostCard({
     username: string | null;
     profile_photo_url?: string | null;
   };
+  results?: SocialPostResult[];
 }) {
   const PlatformIcon = account?.platform
     ? platformIconsMap[account.platform.toLowerCase()] || ExternalLink
@@ -120,26 +137,12 @@ function PostCard({
   const config = statusConfig[status] || statusConfig.draft;
   const StatusIcon = config.icon;
 
-  // Determine if we should poll for results (while processing or just completed)
-  const shouldPoll =
-    post.status === "processing" || post.status === "processed";
-
-  // Fetch post results for this specific post
-  // Polls automatically while post is processing to show real-time updates
-  const { data: resultsData, isLoading: resultsLoading } = usePostResults(
-    post.status !== "draft" && post.status !== "scheduled" ? post.id : "",
-    shouldPoll,
-  );
-  const results = resultsData?.data;
-
   // Get result for this post's account (if available)
   const postResult = results?.find(
     (r) => r.social_account_id === post.social_accounts?.[0]?.id,
   );
   const hasError = postResult?.success === false;
-  const isPending =
-    post.status === "processing" ||
-    (post.status === "processed" && !postResult);
+  const isPending = post.status === "processing";
 
   return (
     <div className="card-premium p-4 group hover:shadow-lg transition-all duration-300">
@@ -179,16 +182,16 @@ function PostCard({
       {/* Media Preview */}
       {post.media && post.media.length > 0 && (
         <div className="relative rounded-xl overflow-hidden mb-3 bg-slate-100">
-          {post.media[0].url.match(/\.(mp4|mov|avi|webm)/i) ? (
+          {post.media[0]?.url?.match(/\.(mp4|mov|avi|webm)/i) ? (
             <LazyVideo
-              src={post.media[0].url}
+              src={post.media[0]!.url}
               className="w-full h-32"
               controls
               preload="metadata"
             />
           ) : (
             <img
-              src={proxyMediaUrl(post.media[0].url)}
+              src={proxyMediaUrl(post.media[0]!.url)}
               alt="Post media"
               className="w-full h-32 object-cover"
               onError={(e) => {
@@ -207,12 +210,7 @@ function PostCard({
       {/* Per-Platform Results */}
       {post.status !== "draft" && post.status !== "scheduled" && (
         <div className="mb-3">
-          {resultsLoading ? (
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              <span>Checking platform status...</span>
-            </div>
-          ) : postResult ? (
+          {postResult ? (
             <div
               className={`flex items-center gap-2 text-xs ${postResult.success ? "text-emerald-600" : "text-red-600"}`}
             >
@@ -304,12 +302,6 @@ function PostCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/posts/${post.id}`}>
-                <Edit2 className="w-4 h-4 mr-2" />
-                Edit
-              </Link>
-            </DropdownMenuItem>
             {hasError && onRetry && (
               <DropdownMenuItem onClick={() => onRetry(post)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -336,6 +328,7 @@ function BoardColumn({
   onDelete,
   onRetry,
   accounts,
+  resultsMap,
 }: {
   status: StatusFilter;
   posts: SocialPost[];
@@ -349,6 +342,7 @@ function BoardColumn({
       profile_photo_url?: string | null;
     }
   >;
+  resultsMap: Map<string, SocialPostResult[]>;
 }) {
   if (status === "all") return null;
 
@@ -356,30 +350,30 @@ function BoardColumn({
   const Icon = config.icon;
 
   return (
-    <div className="flex flex-col min-w-[300px] w-[320px]">
+    <div className="flex flex-col min-w-[200px] flex-1">
       {/* Column Header */}
       <div
-        className={`flex items-center justify-between p-3 rounded-2xl ${config.bg} border ${config.accent} mb-3`}
+        className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${config.bg} border ${config.accent} mb-2`}
       >
         <div className="flex items-center gap-2">
           <div
-            className={`w-8 h-8 rounded-xl flex items-center justify-center ${config.color}`}
+            className={`w-7 h-7 rounded-lg flex items-center justify-center ${config.color}`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-3.5 h-3.5" />
           </div>
-          <span className="font-semibold text-slate-700">{config.label}</span>
+          <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{config.label}</span>
         </div>
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="secondary" className="text-[11px] h-5 px-1.5">
           {posts.length}
         </Badge>
       </div>
 
       {/* Posts */}
-      <div className="flex-1 space-y-3 overflow-y-auto max-h-[calc(100vh-300px)] pr-2 custom-scrollbar">
+      <div className="flex-1 space-y-2 overflow-y-auto max-h-[calc(100vh-320px)] custom-scrollbar">
         {posts.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200">
-            <p className="text-sm text-slate-400">
-              No {config.label.toLowerCase()} posts
+          <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-400">
+              ไม่มี{config.label.toLowerCase()}
             </p>
           </div>
         ) : (
@@ -390,6 +384,7 @@ function BoardColumn({
               onDelete={onDelete}
               onRetry={onRetry}
               account={accounts.get(post.social_accounts?.[0]?.id || "")}
+              results={resultsMap.get(post.id)}
             />
           ))
         )}
@@ -402,7 +397,6 @@ export default function PostsPage() {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const {
     data: postsResponse,
@@ -413,19 +407,30 @@ export default function PostsPage() {
   const deletePost = useDeletePost();
   const retryPost = useRetryPost();
 
-  const posts = postsResponse?.data || [];
-  const accounts = accountsResponse?.data || [];
+  const posts = useMemo(() => postsResponse?.data ?? [], [postsResponse?.data]);
+  const accounts = useMemo(() => accountsResponse?.data ?? [], [accountsResponse?.data]);
 
-  // Refresh data when user returns to the page (for real-time updates from webhooks)
-  useEffect(() => {
-    const handleFocus = () => {
-      // Invalidate posts to get latest status from webhooks
-      queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
-    };
+  // Bulk-fetch all post results in one query (eliminates N+1 per-card fetching)
+  const { data: allResultsResponse } = usePostResultsList({
+    limit: 500,
+  });
 
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [queryClient]);
+  // Build lookup map: post_id → SocialPostResult[]
+  const resultsMap = useMemo(() => {
+    const map = new Map<string, SocialPostResult[]>();
+    if (!allResultsResponse?.data) return map;
+    for (const result of allResultsResponse.data) {
+      const existing = map.get(result.post_id);
+      if (existing) {
+        existing.push(result);
+      } else {
+        map.set(result.post_id, [result]);
+      }
+    }
+    return map;
+  }, [allResultsResponse]);
+
+  // Focus refetch is handled by React Query's refetchOnWindowFocus (enabled globally + per-query in usePosts)
 
   // Create accounts lookup map
   const accountsMap = useMemo(() => {
@@ -461,28 +466,30 @@ export default function PostsPage() {
       if (!grouped[status]) grouped[status] = [];
       grouped[status].push(post);
     });
+    // "Failed" = posts that have at least one unsuccessful result
+    grouped.failed = posts.filter((post) => {
+      const results = resultsMap.get(post.id);
+      return results?.some((r) => !r.success);
+    });
     // Sort each group by date
     Object.keys(grouped).forEach((key) => {
-      grouped[key].sort((a, b) => {
+      grouped[key]!.sort((a, b) => {
         const dateA = new Date(a.scheduled_at || a.created_at || 0);
         const dateB = new Date(b.scheduled_at || b.created_at || 0);
         return dateB.getTime() - dateA.getTime();
       });
     });
     return grouped;
-  }, [posts]);
+  }, [posts, resultsMap]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this post?")) return;
 
-    setDeletingId(id);
     try {
       await deletePost.mutateAsync(id);
       toast.success("Post deleted");
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete post");
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -490,7 +497,7 @@ export default function PostsPage() {
     try {
       await retryPost.mutateAsync(post);
       toast.success("Post retry initiated");
-    } catch (err) {
+    } catch {
       toast.error("Failed to retry post");
     }
   };
@@ -558,16 +565,21 @@ export default function PostsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-5 pb-4"
+      variants={stagger}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+      <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h1 className="greeting-title">Posts</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Manage your social content across platforms
+            จัดการคอนเทนต์ทุกแพลตฟอร์ม
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button
             variant="soft"
             size="sm"
@@ -587,155 +599,175 @@ export default function PostsPage() {
             </Link>
           </Button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card-premium p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-              <LayoutGrid className="w-5 h-5 text-slate-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-              <p className="text-xs text-slate-400">Total Posts</p>
-            </div>
+      {/* Stat Ribbon */}
+      <motion.div variants={fadeUp}>
+        <div className="flex items-center flex-wrap rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-slate-100/80 dark:border-slate-800/80 px-5 py-4 gap-x-5 gap-y-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">{stats.total}</span>
+            <span className="text-xs text-slate-400 font-medium">posts</span>
           </div>
-        </div>
-        <div className="card-premium p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">
-                {stats.scheduled}
-              </p>
-              <p className="text-xs text-slate-400">Scheduled</p>
-            </div>
+          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.scheduled}</span>
+            <span className="text-xs text-slate-400 hidden sm:inline">scheduled</span>
           </div>
-        </div>
-        <div className="card-premium p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">
-                {stats.processed}
-              </p>
-              <p className="text-xs text-slate-400">Published</p>
-            </div>
+          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.processed}</span>
+            <span className="text-xs text-slate-400 hidden sm:inline">published</span>
           </div>
-        </div>
-        <div className="card-premium p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-red-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800">
-                {stats.failed}
-              </p>
-              <p className="text-xs text-slate-400">Failed</p>
-            </div>
+          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.failed}</span>
+            <span className="text-xs text-slate-400 hidden sm:inline">failed</span>
           </div>
+          {stats.total > 0 && (
+            <div className="flex-1 min-w-[80px] hidden lg:block">
+              <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                {stats.processed > 0 && (
+                  <div className="bg-emerald-500 h-full transition-all duration-700" style={{ width: `${(stats.processed / stats.total) * 100}%` }} />
+                )}
+                {stats.scheduled > 0 && (
+                  <div className="bg-blue-500 h-full transition-all duration-700" style={{ width: `${(stats.scheduled / stats.total) * 100}%` }} />
+                )}
+                {stats.failed > 0 && (
+                  <div className="bg-red-400 h-full transition-all duration-700" style={{ width: `${(stats.failed / stats.total) * 100}%` }} />
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <Tabs
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-        >
-          <TabsList className="bg-slate-100/50">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="processed">Published</TabsTrigger>
-            <TabsTrigger value="draft">Drafts</TabsTrigger>
-            <TabsTrigger value="failed">Failed</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === "board" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("board")}
-          >
-            <LayoutGrid className="w-4 h-4 mr-2" />
-            Board
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="w-4 h-4 mr-2" />
-            List
-          </Button>
+      <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
+        {/* Filter pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          {[
+            { value: "all" as StatusFilter, label: "ทั้งหมด", dot: "", count: stats.total },
+            { value: "scheduled" as StatusFilter, label: "รอโพสต์", dot: "bg-blue-500", count: stats.scheduled },
+            { value: "processed" as StatusFilter, label: "โพสต์แล้ว", dot: "bg-emerald-500", count: stats.processed },
+            { value: "draft" as StatusFilter, label: "แบบร่าง", dot: "bg-slate-400", count: postsByStatus.draft?.length || 0 },
+            { value: "failed" as StatusFilter, label: "ล้มเหลว", dot: "bg-red-500", count: stats.failed },
+          ].map((filter) => (
+            <button
+              key={filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+              className={cn(
+                "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0",
+                statusFilter === filter.value
+                  ? "bg-slate-800 text-white shadow-sm dark:bg-white dark:text-slate-900"
+                  : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              )}
+            >
+              {filter.dot && <span className={`w-1.5 h-1.5 rounded-full ${filter.dot}`} />}
+              {filter.label}
+              {filter.count > 0 && (
+                <span className={cn(
+                  "text-[10px] tabular-nums",
+                  statusFilter === filter.value ? "opacity-60" : "opacity-40"
+                )}>
+                  {filter.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      </div>
+        {/* View toggle */}
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 flex-shrink-0">
+          <button
+            onClick={() => setViewMode("board")}
+            className={cn(
+              "p-2 rounded-md transition-all duration-200",
+              viewMode === "board"
+                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
+                : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={cn(
+              "p-2 rounded-md transition-all duration-200",
+              viewMode === "list"
+                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
+                : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+      </motion.div>
 
       {/* Content */}
+      <motion.div variants={fadeUp}>
       {posts.length === 0 ? (
         <div className="card-premium p-16 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center mx-auto mb-6">
             <Calendar className="w-8 h-8 text-slate-400" />
           </div>
-          <h3 className="text-xl font-semibold text-slate-800 mb-2">
-            No posts yet
+          <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
+            ยังไม่มีโพสต์
           </h3>
           <p className="text-slate-400 max-w-sm mx-auto mb-8">
-            Create your first post to start scheduling and publishing content
-            across your social platforms
+            สร้างโพสต์แรกเพื่อเริ่มจัดการคอนเทนต์ข้ามแพลตฟอร์ม
           </p>
           <Button variant="premium" size="lg" asChild>
             <Link href="/posts/new">
               <Plus className="w-5 h-5 mr-2" />
-              Create Your First Post
+              สร้างโพสต์แรก
             </Link>
           </Button>
         </div>
       ) : viewMode === "board" ? (
-        <div className="flex gap-6 overflow-x-auto pb-4 -mx-4 px-4 snap-x">
+        <div className="flex gap-3 lg:gap-4 overflow-x-auto pb-4 -mx-4 px-4 lg:mx-0 lg:px-0">
           {statusFilter === "all" ? (
             <>
               <BoardColumn
                 status="draft"
-                posts={postsByStatus.draft}
+                posts={postsByStatus.draft ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 accounts={accountsMap}
+                resultsMap={resultsMap}
               />
               <BoardColumn
                 status="scheduled"
-                posts={postsByStatus.scheduled}
+                posts={postsByStatus.scheduled ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 accounts={accountsMap}
+                resultsMap={resultsMap}
               />
               <BoardColumn
                 status="processing"
-                posts={postsByStatus.processing}
+                posts={postsByStatus.processing ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 accounts={accountsMap}
+                resultsMap={resultsMap}
               />
               <BoardColumn
                 status="processed"
-                posts={postsByStatus.processed}
+                posts={postsByStatus.processed ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 accounts={accountsMap}
+                resultsMap={resultsMap}
               />
               <BoardColumn
                 status="failed"
-                posts={postsByStatus.failed}
+                posts={postsByStatus.failed ?? []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 accounts={accountsMap}
+                resultsMap={resultsMap}
               />
             </>
           ) : (
@@ -743,7 +775,9 @@ export default function PostsPage() {
               status={statusFilter}
               posts={postsByStatus[statusFilter] || []}
               onDelete={handleDelete}
+              onRetry={handleRetry}
               accounts={accountsMap}
+              resultsMap={resultsMap}
             />
           )}
         </div>
@@ -760,10 +794,12 @@ export default function PostsPage() {
               onDelete={handleDelete}
               onRetry={handleRetry}
               account={accountsMap.get(post.social_accounts?.[0]?.id || "")}
+              results={resultsMap.get(post.id)}
             />
           ))}
         </div>
       )}
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

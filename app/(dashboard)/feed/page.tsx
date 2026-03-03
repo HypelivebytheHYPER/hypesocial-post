@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Heart,
   MessageCircle,
@@ -165,6 +165,7 @@ export default function FeedPage() {
   const queryClient = useQueryClient();
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [cursors, setCursors] = useState<string[]>([]);
+  const [accumulatedItems, setAccumulatedItems] = useState<SocialAccountFeedItem[]>([]);
 
   // Get accounts
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
@@ -187,6 +188,22 @@ export default function FeedPage() {
     expand: "metrics",
   });
 
+  // Accumulate items across pages
+  useEffect(() => {
+    if (feedData?.data) {
+      if (cursors.length === 0) {
+        // First page or refresh — replace
+        setAccumulatedItems(feedData.data);
+      } else {
+        // Subsequent pages — append (deduplicate by platform_post_id)
+        setAccumulatedItems((prev) => {
+          const ids = new Set(prev.map((i) => i.platform_post_id));
+          return [...prev, ...feedData.data.filter((i) => !ids.has(i.platform_post_id))];
+        });
+      }
+    }
+  }, [feedData?.data, cursors.length]);
+
   // Handle load more
   const handleLoadMore = useCallback(() => {
     if (feedData?.meta?.cursor) {
@@ -197,11 +214,12 @@ export default function FeedPage() {
   // Handle refresh
   const handleRefresh = useCallback(() => {
     setCursors([]);
+    setAccumulatedItems([]);
     queryClient.invalidateQueries({ queryKey: pfmKeys.feeds() });
   }, [queryClient]);
 
-  // Get all feed items
-  const allFeedItems = feedData?.data || [];
+  // Get all feed items (accumulated across pages)
+  const allFeedItems = accumulatedItems;
   const hasMore = feedData?.meta?.has_more ?? false;
 
   // Get selected account details
@@ -247,6 +265,7 @@ export default function FeedPage() {
                 onClick={() => {
                   setSelectedAccountId(account.id);
                   setCursors([]);
+                  setAccumulatedItems([]);
                 }}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors flex-shrink-0",

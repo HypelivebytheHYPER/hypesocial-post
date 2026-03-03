@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody } from "@/lib/validations";
+import { CreateWebhookDtoSchema } from "@/lib/validations/webhooks";
 
 /**
  * GET /api/webhooks
@@ -50,10 +52,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    let body: Record<string, unknown>;
+    let jsonBody: unknown;
 
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -61,25 +63,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.url || typeof body.url !== "string") {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: "url is required and must be a string", statusCode: 400 },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(CreateWebhookDtoSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
 
-    if (
-      !body.event_types ||
-      !Array.isArray(body.event_types) ||
-      body.event_types.length === 0
-    ) {
-      return NextResponse.json<PostForMeError>(
-        { error: "Validation Error", message: "event_types is required and must be a non-empty array", statusCode: 400 },
-        { status: 400 },
-      );
-    }
-
-    const data = await pfm.post("/v1/webhooks", { body });
+    const data = await pfm.post("/v1/webhooks", { body: parsed.data });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

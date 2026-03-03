@@ -6,6 +6,8 @@ import {
   eq,
   larkText,
 } from "@/lib/lark";
+import { parseBody } from "@/lib/validations";
+import { ReorderItemsSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 
@@ -22,20 +24,17 @@ interface ReorderItem {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => null);
-    if (!body?.project_id || !body?.items?.length) {
-      return NextResponse.json(
-        { error: "project_id and items array are required" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
-    const reorderItems = body.items as ReorderItem[];
+    const parsed = parseBody(ReorderItemsSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const reorderItems = parsed.data.items;
 
     // Fetch all items for this project, then match by item_id
     const records = await larkSearchAllRecords(
       TABLE_ID,
-      filterAnd(eq("project_id", body.project_id)),
+      filterAnd(eq("project_id", parsed.data.project_id)),
     );
 
     // Map item_id -> record_id
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Reorder items error:", error);
     return NextResponse.json(
-      { error: "Failed to reorder items" },
+      { error: "Internal Server Error", message: "Failed to reorder items", statusCode: 500 },
       { status: 500 },
     );
   }

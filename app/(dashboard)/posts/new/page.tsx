@@ -18,6 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
+  Plus,
+  Tag,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
@@ -30,6 +32,7 @@ import {
   useAccounts,
   useCreatePost,
   useUploadMedia,
+  useUploadThumbnail,
   usePausedAccounts,
   usePostPreview,
 } from "@/lib/hooks/usePostForMe";
@@ -39,6 +42,8 @@ import type {
   AccountConfigurationDetailsDto,
   AccountConfigurationDto,
   AccountConfig,
+  MediaItem,
+  MediaTag,
 } from "@/types/post-for-me";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
@@ -116,6 +121,8 @@ const PLATFORM_OVERRIDE_FIELDS: Record<string, OverrideFieldConfig[]> = {
     { key: "auto_add_music", label: "Auto Music", type: "boolean" },
     { key: "is_draft", label: "Save as Draft", type: "boolean" },
     { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
+    { key: "disclose_your_brand", label: "Disclose Brand", type: "boolean" },
+    { key: "disclose_branded_content", label: "Branded Content", type: "boolean" },
   ],
   tiktok_business: [
     {
@@ -133,6 +140,8 @@ const PLATFORM_OVERRIDE_FIELDS: Record<string, OverrideFieldConfig[]> = {
     { key: "auto_add_music", label: "Auto Music", type: "boolean" },
     { key: "is_draft", label: "Save as Draft", type: "boolean" },
     { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
+    { key: "disclose_your_brand", label: "Disclose Brand", type: "boolean" },
+    { key: "disclose_branded_content", label: "Branded Content", type: "boolean" },
   ],
   instagram: [
     {
@@ -323,25 +332,44 @@ function PreviewCard({
             <div
               className={`grid gap-2 ${preview.media.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
             >
-              {preview.media.slice(0, 4).map((mediaItem, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="aspect-square rounded-xl overflow-hidden bg-slate-100 relative group"
-                >
-                  <img
-                    src={proxyMediaUrl(mediaItem.url)}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                  {/* Media Type Badge */}
-                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 text-white text-[10px] rounded-full">
-                    {mediaItem.url.match(/\.(mp4|mov|webm)($|\?)/) ? "VIDEO" : "IMAGE"}
-                  </div>
-                </motion.div>
-              ))}
+              {preview.media.slice(0, 4).map((mediaItem, idx) => {
+                const mediaWithType = mediaItem as typeof mediaItem & { content_type?: string };
+                const isVideo = mediaWithType.content_type?.startsWith("video/") ||
+                  mediaItem.url.match(/\.(mp4|mov|webm)($|\?)/);
+                // Local previews are always images (blob URL for images, JPEG data URL for video frame captures)
+                const isLocalPreview = mediaItem.url.startsWith("blob:") || mediaItem.url.startsWith("data:");
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="aspect-square rounded-xl overflow-hidden bg-slate-100 relative group"
+                  >
+                    {isVideo && !isLocalPreview ? (
+                      <video
+                        src={mediaItem.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img
+                        src={mediaItem.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        crossOrigin={isLocalPreview ? undefined : "anonymous"}
+                        referrerPolicy={isLocalPreview ? undefined : "no-referrer"}
+                      />
+                    )}
+                    {/* Media Type Badge */}
+                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 text-white text-[10px] rounded-full">
+                      {isVideo ? "VIDEO" : "IMAGE"}
+                    </div>
+                  </motion.div>
+                );
+              })}
               {preview.media.length > 4 && (
                 <div className="aspect-square rounded-xl overflow-hidden bg-slate-900/80 flex items-center justify-center">
                   <span
@@ -424,6 +452,74 @@ function PreviewCard({
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// Inline tag input for adding user/product tags to media
+function MediaTagInput({
+  tagPlatforms,
+  onAdd,
+}: {
+  tagPlatforms: ("facebook" | "instagram")[];
+  onAdd: (tag: MediaTag) => void;
+}) {
+  const [id, setId] = useState("");
+  const [platform, setPlatform] = useState<"facebook" | "instagram">(
+    tagPlatforms[0] || "instagram",
+  );
+  const [type, setType] = useState<"user" | "product">("user");
+
+  const handleAdd = () => {
+    const trimmed = id.trim();
+    if (!trimmed) return;
+    onAdd({ id: trimmed, platform, type });
+    setId("");
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="text"
+        value={id}
+        onChange={(e) => setId(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleAdd();
+          }
+        }}
+        placeholder={platform === "instagram" ? "@username or product ID" : "User ID"}
+        className="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200 min-w-0"
+      />
+      {tagPlatforms.length > 1 && (
+        <select
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value as "facebook" | "instagram")}
+          className="px-2 py-1.5 bg-white rounded-lg text-[10px] border border-slate-200"
+        >
+          {tagPlatforms.map((p) => (
+            <option key={p} value={p}>
+              {p === "instagram" ? "IG" : "FB"}
+            </option>
+          ))}
+        </select>
+      )}
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value as "user" | "product")}
+        className="px-2 py-1.5 bg-white rounded-lg text-[10px] border border-slate-200"
+      >
+        <option value="user">User</option>
+        {platform === "instagram" && <option value="product">Product</option>}
+      </select>
+      <button
+        onClick={handleAdd}
+        disabled={!id.trim()}
+        className="p-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <Plus className="w-3 h-3" />
+      </button>
+    </div>
   );
 }
 
@@ -684,6 +780,7 @@ function AccountOverrides({
 export default function NewPostPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [content, setContent] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -694,11 +791,15 @@ export default function NewPostPage() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
+  const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
+  const [thumbnailUploadedUrl, setThumbnailUploadedUrl] = useState<string | null>(null);
+  const [isThumbnailUploading, setIsThumbnailUploading] = useState(false);
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
   const { isPaused } = usePausedAccounts();
   const createPost = useCreatePost();
   const uploadMedia = useUploadMedia();
+  const uploadThumbnail = useUploadThumbnail();
   const postPreview = usePostPreview();
   const postPreviewRef = useRef(postPreview);
   postPreviewRef.current = postPreview;
@@ -708,6 +809,14 @@ export default function NewPostPage() {
     (a) => a.status === "connected" && !isPaused(a.id),
   );
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+  const [activeComposeTab, setActiveComposeTab] = useState<"media" | "accounts" | "schedule" | null>(null);
+  const [showTagsExpanded, setShowTagsExpanded] = useState(false);
+
+  // Ref to avoid stale closure in handleMediaSelect
+  const selectedAccountIdsRef = useRef(selectedAccountIds);
+  useEffect(() => {
+    selectedAccountIdsRef.current = selectedAccountIds;
+  }, [selectedAccountIds]);
 
   // Platform configs
   const [tiktokPrivacy, setTiktokPrivacy] = useState<"public" | "private">(
@@ -744,6 +853,29 @@ export default function NewPostPage() {
   const [instagramCollaborators, setInstagramCollaborators] = useState("");
   const [youtubeTitle, setYoutubeTitle] = useState("");
   const [xQuoteTweetId, setXQuoteTweetId] = useState("");
+
+  // Media tags (keyed by media file id) — UserTagDto for Facebook/Instagram
+  const [mediaTags, setMediaTags] = useState<Record<string, MediaTag[]>>({});
+
+  const addMediaTag = useCallback(
+    (mediaId: string, tag: MediaTag) => {
+      setMediaTags((prev) => ({
+        ...prev,
+        [mediaId]: [...(prev[mediaId] || []), tag],
+      }));
+    },
+    [],
+  );
+
+  const removeMediaTag = useCallback(
+    (mediaId: string, tagIndex: number) => {
+      setMediaTags((prev) => ({
+        ...prev,
+        [mediaId]: (prev[mediaId] || []).filter((_, i) => i !== tagIndex),
+      }));
+    },
+    [],
+  );
 
   // Per-account configuration overrides (keyed by account ID)
   const [accountOverrides, setAccountOverrides] = useState<
@@ -798,6 +930,8 @@ export default function NewPostPage() {
         .filter((f) => f.status === "success")
         .map((f) => ({
           url: f.uploadedUrl!,
+          preview: f.preview,
+          content_type: f.file.type,
           skip_processing: f.skipProcessing || false,
         })),
     [mediaFiles],
@@ -811,6 +945,31 @@ export default function NewPostPage() {
         .filter(Boolean) as string[],
     [selectedAccountIds, accounts],
   );
+
+  // Thumbnail upload visibility: has video media + a platform that supports thumbnails
+  const hasVideoMedia = mediaFiles.some(
+    (f) => f.file.type.startsWith("video/") && f.status === "success",
+  );
+  const THUMBNAIL_PLATFORMS = ["facebook", "instagram", "tiktok_business", "youtube"];
+  const showThumbnailUpload =
+    hasVideoMedia &&
+    selectedPlatforms.some((p) => THUMBNAIL_PLATFORMS.includes(p));
+
+  // Media tags: only show when Facebook or Instagram is selected and media exists
+  const TAG_PLATFORMS = ["facebook", "instagram"];
+  const showMediaTags =
+    mediaFiles.some((f) => f.status === "success") &&
+    selectedPlatforms.some((p) => TAG_PLATFORMS.includes(p));
+
+  // Determine which tag platforms are available from selected accounts
+  const tagPlatforms = useMemo(() => {
+    const platforms = new Set<"facebook" | "instagram">();
+    selectedPlatforms.forEach((p) => {
+      if (p === "facebook") platforms.add("facebook");
+      if (p === "instagram") platforms.add("instagram");
+    });
+    return [...platforms];
+  }, [selectedPlatforms]);
 
   // Calculate character limits
   const characterLimit = useMemo(
@@ -859,6 +1018,9 @@ export default function NewPostPage() {
               tiktokAllowComment,
               tiktokAutoAddMusic,
               tiktokIsDraft,
+              tiktokDiscloseBrand,
+              tiktokDiscloseBrandedContent,
+              tiktokIsAIGenerated,
             },
             instagram: {
               instagramPlacement,
@@ -897,6 +1059,9 @@ export default function NewPostPage() {
     tiktokAllowComment,
     tiktokAutoAddMusic,
     tiktokIsDraft,
+    tiktokDiscloseBrand,
+    tiktokDiscloseBrandedContent,
+    tiktokIsAIGenerated,
     instagramPlacement,
     instagramShareToFeed,
     instagramTrialReelType,
@@ -928,7 +1093,29 @@ export default function NewPostPage() {
           if (draft.accountOverrides) setAccountOverrides(draft.accountOverrides);
           // Restore platform configs
           const pc = draft.platformConfigs;
+          if (pc?.tiktok) {
+            if (pc.tiktok.tiktokPrivacy)
+              setTiktokPrivacy(pc.tiktok.tiktokPrivacy);
+            if (pc.tiktok.tiktokAllowDuet !== undefined)
+              setTiktokAllowDuet(pc.tiktok.tiktokAllowDuet);
+            if (pc.tiktok.tiktokAllowStitch !== undefined)
+              setTiktokAllowStitch(pc.tiktok.tiktokAllowStitch);
+            if (pc.tiktok.tiktokAllowComment !== undefined)
+              setTiktokAllowComment(pc.tiktok.tiktokAllowComment);
+            if (pc.tiktok.tiktokAutoAddMusic !== undefined)
+              setTiktokAutoAddMusic(pc.tiktok.tiktokAutoAddMusic);
+            if (pc.tiktok.tiktokIsDraft !== undefined)
+              setTiktokIsDraft(pc.tiktok.tiktokIsDraft);
+            if (pc.tiktok.tiktokDiscloseBrand !== undefined)
+              setTiktokDiscloseBrand(pc.tiktok.tiktokDiscloseBrand);
+            if (pc.tiktok.tiktokDiscloseBrandedContent !== undefined)
+              setTiktokDiscloseBrandedContent(pc.tiktok.tiktokDiscloseBrandedContent);
+            if (pc.tiktok.tiktokIsAIGenerated !== undefined)
+              setTiktokIsAIGenerated(pc.tiktok.tiktokIsAIGenerated);
+          }
           if (pc?.instagram) {
+            if (pc.instagram.instagramPlacement)
+              setInstagramPlacement(pc.instagram.instagramPlacement);
             if (pc.instagram.instagramShareToFeed !== undefined)
               setInstagramShareToFeed(pc.instagram.instagramShareToFeed);
             if (pc.instagram.instagramTrialReelType)
@@ -936,9 +1123,24 @@ export default function NewPostPage() {
             if (pc.instagram.instagramCollaborators)
               setInstagramCollaborators(pc.instagram.instagramCollaborators);
           }
-          if (pc?.youtube?.youtubeTitle)
-            setYoutubeTitle(pc.youtube.youtubeTitle);
-          if (pc?.x?.xQuoteTweetId) setXQuoteTweetId(pc.x.xQuoteTweetId);
+          if (pc?.facebook) {
+            if (pc.facebook.facebookPlacement)
+              setFacebookPlacement(pc.facebook.facebookPlacement);
+          }
+          if (pc?.youtube) {
+            if (pc.youtube.youtubePrivacy)
+              setYoutubePrivacy(pc.youtube.youtubePrivacy);
+            if (pc.youtube.youtubeMadeForKids !== undefined)
+              setYoutubeMadeForKids(pc.youtube.youtubeMadeForKids);
+            if (pc.youtube.youtubeTitle)
+              setYoutubeTitle(pc.youtube.youtubeTitle);
+          }
+          if (pc?.x) {
+            if (pc.x.xReplySettings)
+              setXReplySettings(pc.x.xReplySettings);
+            if (pc.x.xQuoteTweetId)
+              setXQuoteTweetId(pc.x.xQuoteTweetId);
+          }
           if (pc?.pinterest) {
             if (pc.pinterest.pinterestBoardId)
               setPinterestBoardId(pc.pinterest.pinterestBoardId);
@@ -1024,9 +1226,26 @@ export default function NewPostPage() {
         const hasPinterest = selectedAccountIds.some(
           (id) => accounts.find((a) => a.id === id)?.platform === "pinterest",
         );
+        const hasTikTokBusiness = selectedAccountIds.some(
+          (id) =>
+            accounts.find((a) => a.id === id)?.platform === "tiktok_business",
+        );
 
         if (hasTikTok) {
           platformConfigs.tiktok = {
+            privacy_status: tiktokPrivacy,
+            allow_comment: tiktokAllowComment,
+            allow_duet: tiktokAllowDuet,
+            allow_stitch: tiktokAllowStitch,
+            auto_add_music: tiktokAutoAddMusic,
+            is_draft: tiktokIsDraft,
+            disclose_your_brand: tiktokDiscloseBrand,
+            disclose_branded_content: tiktokDiscloseBrandedContent,
+            is_ai_generated: tiktokIsAIGenerated,
+          };
+        }
+        if (hasTikTokBusiness) {
+          platformConfigs.tiktok_business = {
             privacy_status: tiktokPrivacy,
             allow_comment: tiktokAllowComment,
             allow_duet: tiktokAllowDuet,
@@ -1086,7 +1305,15 @@ export default function NewPostPage() {
               : undefined,
           media:
             uploadedMedia.length > 0
-              ? uploadedMedia.map((m) => ({ url: m.url, skip_processing: m.skip_processing }))
+              ? uploadedMedia.map((m, i) => {
+                  const successFiles = mediaFiles.filter((f) => f.status === "success");
+                  const tags = successFiles[i] ? mediaTags[successFiles[i].id] : undefined;
+                  return {
+                    url: m.url,
+                    skip_processing: m.skip_processing,
+                    ...(tags?.length ? { tags } : {}),
+                  };
+                })
               : undefined,
           account_configurations:
             previewAccountConfigs.length > 0
@@ -1096,9 +1323,15 @@ export default function NewPostPage() {
 
         // API returns array directly, not { data: [...] }
         const previewsArray = Array.isArray(result) ? result : (result.data || []);
-        const previewsWithMedia = previewsArray.map((preview) => ({
+        // Use local preview URLs for instant rendering (remote URLs may be slow/blocked)
+        const previewsWithMedia = previewsArray.map((preview: any) => ({
           ...preview,
-          media: preview.media || [],
+          media: (preview.media || []).map((m: any, i: number) => ({
+            ...m,
+            // Use local blob preview if available, fallback to remote URL
+            url: uploadedMedia[i]?.preview || m.url,
+            content_type: uploadedMedia[i]?.content_type || m.content_type,
+          })),
         }));
 
         setPreviews(previewsWithMedia);
@@ -1188,45 +1421,38 @@ export default function NewPostPage() {
 
         // Inform user about TikTok photo post behavior
         const hasImages = newFiles.some((f) => !f.file.type.startsWith("video/"));
-        const hasOnlyTikTok = selectedPlatforms.length === 1 && selectedPlatforms[0] === "tiktok";
+        const currentPlatforms = selectedAccountIdsRef.current
+          .map((id) => accounts.find((a) => a.id === id)?.platform)
+          .filter(Boolean);
+        const hasOnlyTikTok = currentPlatforms.length === 1 && currentPlatforms[0] === "tiktok";
         if (hasImages && hasOnlyTikTok) {
           toast.info("TikTok will convert images into a photo slideshow. Toggle 'Auto Add Music' to control background music.");
         }
 
-        // Upload files sequentially to avoid overwhelming the server
-        for (const mediaFile of newFiles) {
-          try {
-            // Simulate progress updates
-            const progressInterval = setInterval(() => {
-              setMediaFiles((prev) =>
-                prev.map((f) =>
-                  f.id === mediaFile.id && f.status === "uploading"
-                    ? {
-                        ...f,
-                        uploadProgress: Math.min(
-                          (f.uploadProgress || 0) + Math.random() * 15,
-                          85,
-                        ),
-                      }
-                    : f,
-                ),
-              );
-            }, 300);
+        // Upload all files in parallel — each gets its own presigned URL
+        const uploadPromises = newFiles.map(async (mediaFile) => {
+          // Per-file progress simulation
+          const progressInterval = setInterval(() => {
+            setMediaFiles((prev) =>
+              prev.map((f) =>
+                f.id === mediaFile.id && f.status === "uploading"
+                  ? {
+                      ...f,
+                      uploadProgress: Math.min(
+                        (f.uploadProgress || 0) + Math.random() * 15,
+                        85,
+                      ),
+                    }
+                  : f,
+              ),
+            );
+          }, 300);
 
+          try {
             const result = await uploadMedia.mutateAsync({
               file: mediaFile.file,
-              onProgress: (progress) => {
-                setMediaFiles((prev) =>
-                  prev.map((f) =>
-                    f.id === mediaFile.id
-                      ? { ...f, uploadProgress: progress }
-                      : f,
-                  ),
-                );
-              },
             });
 
-            // Auto-enable skip_processing for large videos (>50MB)
             const isLargeVideo = mediaFile.file.type.startsWith("video/") && mediaFile.file.size > 50 * 1024 * 1024;
 
             clearInterval(progressInterval);
@@ -1245,11 +1471,9 @@ export default function NewPostPage() {
               ),
             );
 
-            toast.success(`${mediaFile.file.name} uploaded successfully`);
-
-            // Trigger preview refresh after successful upload
-            setPreviewRefreshTrigger(prev => prev + 1);
+            toast.success(`${mediaFile.file.name} uploaded`);
           } catch (error) {
+            clearInterval(progressInterval);
             const errorMsg = error instanceof Error ? error.message : "Upload failed";
             console.error("[Upload] Error:", errorMsg);
             setMediaFiles((prev) =>
@@ -1266,13 +1490,17 @@ export default function NewPostPage() {
             );
             toast.error(`Failed to upload ${mediaFile.file.name}: ${errorMsg}`);
           }
-        }
+        });
+
+        // Wait for all uploads then refresh preview once
+        await Promise.allSettled(uploadPromises);
+        setPreviewRefreshTrigger(prev => prev + 1);
       };
 
       processFiles();
       e.target.value = "";
     },
-    [uploadMedia],
+    [uploadMedia, accounts],
   );
 
   const removeMedia = useCallback((id: string) => {
@@ -1292,7 +1520,7 @@ export default function NewPostPage() {
       toast.error("Please select at least one account");
       return;
     }
-    if (hasUploadingMedia) {
+    if (hasUploadingMedia || isThumbnailUploading) {
       toast.error("Please wait for media uploads to complete");
       return;
     }
@@ -1323,9 +1551,26 @@ export default function NewPostPage() {
     const hasPinterest = selectedAccountIds.some(
       (id) => accounts.find((a) => a.id === id)?.platform === "pinterest",
     );
+    const hasTikTokBusiness = selectedAccountIds.some(
+      (id) =>
+        accounts.find((a) => a.id === id)?.platform === "tiktok_business",
+    );
 
     if (hasTikTok) {
       platformConfigs.tiktok = {
+        privacy_status: tiktokPrivacy,
+        allow_comment: tiktokAllowComment,
+        allow_duet: tiktokAllowDuet,
+        allow_stitch: tiktokAllowStitch,
+        auto_add_music: tiktokAutoAddMusic,
+        is_draft: tiktokIsDraft,
+        disclose_your_brand: tiktokDiscloseBrand,
+        disclose_branded_content: tiktokDiscloseBrandedContent,
+        is_ai_generated: tiktokIsAIGenerated,
+      };
+    }
+    if (hasTikTokBusiness) {
+      platformConfigs.tiktok_business = {
         privacy_status: tiktokPrivacy,
         allow_comment: tiktokAllowComment,
         allow_duet: tiktokAllowDuet,
@@ -1369,12 +1614,30 @@ export default function NewPostPage() {
       };
     }
 
+    let thumbnailApplied = false;
     const mediaForPost = mediaFiles
       .filter((f) => f.status === "success")
-      .map((f) => ({
-        url: f.uploadedUrl!,
-        skip_processing: f.skipProcessing || false,
-      }));
+      .map((f) => {
+        const item: MediaItem = {
+          url: f.uploadedUrl!,
+          skip_processing: f.skipProcessing || false,
+        };
+        // Attach thumbnail to the first video media item
+        if (
+          !thumbnailApplied &&
+          thumbnailUploadedUrl &&
+          f.file.type.startsWith("video/")
+        ) {
+          item.thumbnail_url = thumbnailUploadedUrl as unknown as object;
+          thumbnailApplied = true;
+        }
+        // Attach media tags (user/product tags for Facebook & Instagram)
+        const tags = mediaTags[f.id];
+        if (tags?.length) {
+          item.tags = tags;
+        }
+        return item;
+      });
 
     const accountConfigs: AccountConfigurationDto[] = Object.entries(
       accountOverrides,
@@ -1449,12 +1712,16 @@ export default function NewPostPage() {
     pinterestBoardId,
     pinterestLink,
     accountOverrides,
+    thumbnailUploadedUrl,
+    isThumbnailUploading,
+    mediaTags,
   ]);
 
   const canSubmit =
     content.trim().length > 0 &&
     selectedAccountIds.length > 0 &&
     !hasUploadingMedia &&
+    !isThumbnailUploading &&
     !hasUploadErrors &&
     !isOverLimit &&
     !isGeneratingPreview;
@@ -1486,7 +1753,7 @@ export default function NewPostPage() {
         <Button
           onClick={handleSubmit}
           disabled={!canSubmit || isSubmitting}
-          className="btn-gradient gap-2"
+          variant="gradient"
         >
           {isSubmitting ? (
             <>
@@ -1511,74 +1778,56 @@ export default function NewPostPage() {
 
       {/* 50:50 Layout - Preview first on mobile */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* LEFT SIDE - Editor */}
-        <motion.div variants={containerVariants} className="space-y-6 order-2 lg:order-1">
+        {/* LEFT SIDE - Editor (first on mobile, first on desktop) */}
+        <motion.div variants={containerVariants} className="order-1 lg:order-1">
           {/* Content Editor */}
           <motion.section variants={itemVariants} className="card-premium p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-slate-800 font-semibold flex items-center gap-2">
+              <h2 className="text-slate-800 dark:text-slate-100 font-semibold flex items-center gap-2">
                 <FileEdit className="w-4 h-4" />
                 Content
               </h2>
-              <div className="flex items-center gap-3">
-                {selectedPlatforms.length > 0 &&
-                  characterLimit !== Infinity && (
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "text-xs font-medium transition-colors",
-                          isOverLimit
-                            ? "text-red-500"
-                            : isNearLimit
-                              ? "text-amber-500"
-                              : "text-slate-400",
-                        )}
-                      >
-                        {charactersRemaining}
-                      </span>
-                      <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full transition-all duration-300",
-                            isOverLimit
-                              ? "bg-red-500"
-                              : isNearLimit
-                                ? "bg-amber-500"
-                                : "bg-emerald-500",
-                          )}
-                          style={{
-                            width: `${Math.min((content.length / characterLimit) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                {selectedPlatforms.length === 0 && (
-                  <span className="text-xs text-slate-400">
-                    Select accounts to see limits
-                  </span>
-                )}
-                {content.length > 0 && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    onClick={() => setContent("")}
-                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+              {selectedPlatforms.length > 0 && characterLimit !== Infinity && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "text-xs font-medium tabular-nums transition-colors",
+                      isOverLimit
+                        ? "text-red-500"
+                        : isNearLimit
+                          ? "text-amber-500"
+                          : "text-slate-400",
+                    )}
                   >
-                    Clear
-                  </motion.button>
-                )}
-              </div>
+                    {charactersRemaining}
+                  </span>
+                  <div className="w-14 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-300",
+                        isOverLimit
+                          ? "bg-red-500"
+                          : isNearLimit
+                            ? "bg-amber-500"
+                            : "bg-emerald-500",
+                      )}
+                      style={{
+                        width: `${Math.min((content.length / characterLimit) * 100, 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="relative">
+            <div className={cn(
+              "bg-slate-50 dark:bg-slate-800/50 rounded-2xl overflow-hidden transition-all",
+              isOverLimit && "ring-2 ring-red-200 dark:ring-red-800",
+            )}>
               <textarea
                 data-testid="post-caption-input"
-                className={cn(
-                  "min-h-[180px] w-full resize-none p-4 bg-slate-50 rounded-2xl text-slate-700 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all",
-                  isOverLimit && "ring-2 ring-red-200 focus:ring-red-300",
-                )}
-                placeholder="What's on your mind? Share your thoughts, ideas, or updates..."
+                className="min-h-[160px] w-full resize-none p-4 bg-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm focus:outline-none transition-all"
+                placeholder="เขียนอะไรสักหน่อย... แชร์ความคิด ไอเดีย หรืออัพเดท"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
@@ -1586,11 +1835,10 @@ export default function NewPostPage() {
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-red-500 mt-2 flex items-center gap-1"
+                  className="text-xs text-red-500 px-4 pb-2 flex items-center gap-1"
                 >
                   <AlertCircle className="w-3 h-3" />
-                  Over limit by {content.length - characterLimit} characters for{" "}
-                  {selectedPlatforms.find((p) => {
+                  เกินลิมิต {content.length - characterLimit} ตัวอักษร ({selectedPlatforms.find((p) => {
                     const limits: Record<string, number> = {
                       x: 280,
                       twitter: 280,
@@ -1604,22 +1852,19 @@ export default function NewPostPage() {
                       bluesky: 300,
                     };
                     return limits[p.toLowerCase()] === characterLimit;
-                  })}
+                  })})
                 </motion.p>
               )}
               {isNearLimit && !isOverLimit && characterLimit !== Infinity && (
                 <motion.p
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-amber-500 mt-2"
+                  className="text-xs text-amber-500 px-4 pb-2"
                 >
-                  Approaching character limit
+                  ใกล้ถึงลิมิตแล้ว
                 </motion.p>
               )}
-            </div>
-
-            {/* Media Upload */}
-            <div className="mt-4 flex items-center gap-3">
+              {/* Compose toolbar — all actions in one bar */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1628,30 +1873,83 @@ export default function NewPostPage() {
                 className="hidden"
                 onChange={handleMediaSelect}
               />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={hasUploadingMedia}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all active:scale-95"
-              >
-                <ImageIcon className="w-4 h-4 text-slate-600" />
-                <span className="text-sm text-slate-600 font-medium">
-                  Add Media
-                </span>
-              </button>
-              {mediaFiles.length > 0 && (
-                <motion.span
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-xs text-slate-400"
+              <div className="flex items-center gap-1 px-2 py-1.5 border-t border-slate-100 dark:border-slate-700/50">
+                <button
+                  onClick={() => setActiveComposeTab(activeComposeTab === "media" ? null : "media")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
+                    activeComposeTab === "media"
+                      ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700",
+                  )}
                 >
-                  {mediaFiles.filter((f) => f.status === "success").length} of{" "}
-                  {mediaFiles.length} ready
-                </motion.span>
-              )}
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  Media
+                  {mediaFiles.length > 0 && (
+                    <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-full text-[9px] font-bold">{mediaFiles.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveComposeTab(activeComposeTab === "accounts" ? null : "accounts")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
+                    activeComposeTab === "accounts"
+                      ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700",
+                  )}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  Accounts
+                  {selectedAccountIds.length > 0 && (
+                    <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full text-[9px] font-bold">{selectedAccountIds.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveComposeTab(activeComposeTab === "schedule" ? null : "schedule")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
+                    activeComposeTab === "schedule"
+                      ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700",
+                  )}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  {scheduledDate ? scheduledDate : "ตั้งเวลา"}
+                </button>
+                <div className="flex-1" />
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || isSubmitting}
+                  variant="gradient"
+                  size="sm"
+                  className="h-7 text-[11px] px-3 shadow-md shadow-blue-500/20"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-3 h-3" />
+                      {scheduledDate ? "ตั้งเวลา" : "โพสต์"}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
-            {/* Upload status indicator */}
-            <AnimatePresence mode="popLayout">
+            {/* ── Tab Panels ── */}
+            <AnimatePresence mode="wait">
+              {activeComposeTab === "media" && (
+                <motion.div
+                  key="media-panel"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4">
+                    {/* Upload status indicator */}
+                    <AnimatePresence mode="popLayout">
               {mediaFiles.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -1706,23 +2004,202 @@ export default function NewPostPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.section>
 
-          {/* Account Selection */}
-          <motion.section variants={itemVariants} className="card-premium p-6">
-            <h2 className="text-slate-800 font-semibold mb-4 flex items-center gap-2">
-              <Smartphone className="w-4 h-4" />
-              Accounts
-              {selectedAccountIds.length > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="ml-2 px-2 py-0.5 bg-slate-800 text-white text-xs rounded-full"
+            {/* Thumbnail Upload */}
+            {showThumbnailUpload && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="mt-4"
+              >
+                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Custom Thumbnail
+                </div>
+                <input
+                  ref={thumbnailInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    // Show preview immediately
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      setThumbnailDataUrl(dataUrl);
+                      setIsThumbnailUploading(true);
+                      try {
+                        const result = await uploadThumbnail.mutateAsync({
+                          dataUrl,
+                          filename: file.name,
+                        });
+                        setThumbnailUploadedUrl(result.url);
+                      } catch {
+                        toast.error("Failed to upload thumbnail");
+                        setThumbnailDataUrl(null);
+                      } finally {
+                        setIsThumbnailUploading(false);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+                {thumbnailDataUrl ? (
+                  <div className="relative inline-block">
+                    <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 relative">
+                      <img
+                        src={thumbnailDataUrl}
+                        alt="Thumbnail"
+                        className="w-full h-full object-cover"
+                      />
+                      {isThumbnailUploading && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setThumbnailDataUrl(null);
+                        setThumbnailUploadedUrl(null);
+                      }}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-300 flex flex-col items-center justify-center gap-1 transition-colors"
+                  >
+                    <ImageIcon className="w-5 h-5 text-slate-400" />
+                    <span className="text-[10px] text-slate-400">Upload</span>
+                  </button>
+                )}
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  Supported by{" "}
+                  {selectedPlatforms
+                    .filter((p) => THUMBNAIL_PLATFORMS.includes(p))
+                    .map((p) => p.replace("_", " "))
+                    .join(", ")}
+                </p>
+              </motion.div>
+            )}
+
+            {/* Media Tags (Facebook/Instagram) — collapsed by default, power-user feature */}
+            {showMediaTags && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTagsExpanded((v) => !v)}
+                  className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-500 transition-colors"
                 >
-                  {selectedAccountIds.length}
-                </motion.span>
+                  <Tag className="w-3 h-3" />
+                  <span>แท็กคนหรือสินค้าในรูป (FB/IG)</span>
+                  {showTagsExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                <AnimatePresence>
+                  {showTagsExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="space-y-3 mt-3">
+                        {mediaFiles
+                          .filter((f) => f.status === "success")
+                          .map((media) => {
+                            const tags = mediaTags[media.id] || [];
+                            const isVideo = media.file.type.startsWith("video/");
+                            return (
+                              <div
+                                key={media.id}
+                                className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3"
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  {isVideo ? (
+                                    <Play className="w-3 h-3 text-slate-400" />
+                                  ) : (
+                                    <ImageIcon className="w-3 h-3 text-slate-400" />
+                                  )}
+                                  <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
+                                    {media.file.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {tags.length} tag{tags.length !== 1 ? "s" : ""}
+                                  </span>
+                                </div>
+
+                                {/* Existing tags */}
+                                {tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {tags.map((tag, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded-full text-[10px] border border-slate-200 dark:border-slate-600"
+                                      >
+                                        <span className="text-slate-500">
+                                          {tag.platform === "instagram" ? "IG" : "FB"}
+                                        </span>
+                                        <span className="text-slate-700 dark:text-slate-200 font-medium">
+                                          {tag.id}
+                                        </span>
+                                        <span className="text-slate-400">
+                                          ({tag.type})
+                                        </span>
+                                        <button
+                                          onClick={() => removeMediaTag(media.id, idx)}
+                                          className="text-slate-400 hover:text-red-500"
+                                        >
+                                          <X className="w-2.5 h-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Add tag form */}
+                                <MediaTagInput
+                                  tagPlatforms={tagPlatforms}
+                                  onAdd={(tag) => addMediaTag(media.id, tag)}
+                                />
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+                    {mediaFiles.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group"
+                      >
+                        <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2 group-hover:text-slate-400 transition-colors" />
+                        <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">คลิกเพื่อเพิ่มรูปหรือวิดีโอ</p>
+                        <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-1">รองรับ JPG, PNG, MP4, MOV</p>
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
               )}
-            </h2>
+              {activeComposeTab === "accounts" && (
+                <motion.div
+                  key="accounts-panel"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4 space-y-4">
 
             {accountsLoading ? (
               <div className="grid grid-cols-2 gap-2">
@@ -1813,53 +2290,828 @@ export default function NewPostPage() {
                 })}
               </div>
             )}
-          </motion.section>
 
-          {/* Schedule */}
-          <motion.section variants={itemVariants} className="card-premium p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-slate-800 font-semibold flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Schedule
-              </h2>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
+          {/* ── Platform Options ── */}
+          {selectedAccountIds.length > 0 && (
+            <div className="border-t border-slate-100 dark:border-slate-700/50 pt-4">
+              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3" />
+                Platform Options
+              </div>
+              <div className="space-y-3">
+                {/* TikTok */}
+                {selectedPlatforms.includes("tiktok") && (
+                  <PlatformOptions
+                    title="TikTok"
+                    platform="tiktok"
+                    isOpen={expandedPlatforms.includes("tiktok")}
+                    onToggle={() => togglePlatformSection("tiktok")}
+                  >
+                    {/* Visibility */}
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Visibility
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Privacy</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Who can view this video</p>
+                        </div>
+                        <select
+                          value={tiktokPrivacy}
+                          onChange={(e) =>
+                            setTiktokPrivacy(e.target.value as "public" | "private")
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="public">Public</option>
+                          <option value="private">Private</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Save as Draft</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Save to TikTok drafts instead of publishing</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={tiktokIsDraft}
+                          onClick={() => setTiktokIsDraft(!tiktokIsDraft)}
+                          className={cn(
+                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                            tiktokIsDraft ? "bg-slate-800" : "bg-slate-200",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                              tiktokIsDraft ? "translate-x-4" : "translate-x-0",
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Engagement */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Engagement
+                      </div>
+                      <div className="space-y-3">
+                        {([
+                          {
+                            label: "Allow Duet",
+                            description: "Let others create side-by-side videos with yours",
+                            checked: tiktokAllowDuet,
+                            onChange: setTiktokAllowDuet,
+                          },
+                          {
+                            label: "Allow Stitch",
+                            description: "Let others clip and remix your video",
+                            checked: tiktokAllowStitch,
+                            onChange: setTiktokAllowStitch,
+                          },
+                          {
+                            label: "Comments",
+                            description: "Allow comments on this video",
+                            checked: tiktokAllowComment,
+                            onChange: setTiktokAllowComment,
+                          },
+                          {
+                            label: "Auto Add Music",
+                            description: "Add background music to photo slideshows",
+                            checked: tiktokAutoAddMusic,
+                            onChange: setTiktokAutoAddMusic,
+                          },
+                        ] as const).map(({ label, description, checked, onChange }) => (
+                          <div key={label} className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-slate-700">{label}</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              onClick={() => onChange(!checked)}
+                              className={cn(
+                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                                checked ? "bg-slate-800" : "bg-slate-200",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                  checked ? "translate-x-4" : "translate-x-0",
+                                )}
+                              />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Disclosure */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Disclosure
+                      </div>
+                      <div className="space-y-3">
+                        {([
+                          {
+                            label: "Disclose Brand",
+                            description: "Declare this promotes your own brand",
+                            checked: tiktokDiscloseBrand,
+                            onChange: setTiktokDiscloseBrand,
+                          },
+                          {
+                            label: "Branded Content",
+                            description: "Declare this is paid partnership content",
+                            checked: tiktokDiscloseBrandedContent,
+                            onChange: setTiktokDiscloseBrandedContent,
+                          },
+                          {
+                            label: "AI Generated",
+                            description: "Declare this content was AI-generated",
+                            checked: tiktokIsAIGenerated,
+                            onChange: setTiktokIsAIGenerated,
+                          },
+                        ] as const).map(({ label, description, checked, onChange }) => (
+                          <div key={label} className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-slate-700">{label}</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              onClick={() => onChange(!checked)}
+                              className={cn(
+                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                                checked ? "bg-slate-800" : "bg-slate-200",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                  checked ? "translate-x-4" : "translate-x-0",
+                                )}
+                              />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <AccountOverrides
+                      platform="tiktok"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        privacy_status: tiktokPrivacy,
+                        allow_duet: tiktokAllowDuet,
+                        allow_stitch: tiktokAllowStitch,
+                        allow_comment: tiktokAllowComment,
+                        auto_add_music: tiktokAutoAddMusic,
+                        is_draft: tiktokIsDraft,
+                        is_ai_generated: tiktokIsAIGenerated,
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* TikTok Business */}
+                {selectedPlatforms.includes("tiktok_business") && (
+                  <PlatformOptions
+                    title="TikTok Business"
+                    platform="tiktok_business"
+                    isOpen={expandedPlatforms.includes("tiktok_business")}
+                    onToggle={() => togglePlatformSection("tiktok_business")}
+                  >
+                    {/* Thumbnail badge */}
+                    {hasVideoMedia && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-50 to-pink-50 rounded-lg mb-3">
+                        <ImageIcon className="w-3.5 h-3.5 text-cyan-600" />
+                        <span className="text-[11px] text-cyan-700 font-medium">Custom thumbnail supported</span>
+                      </div>
+                    )}
+
+                    {/* Visibility */}
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Visibility
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Privacy</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Who can view this video</p>
+                        </div>
+                        <select
+                          value={tiktokPrivacy}
+                          onChange={(e) =>
+                            setTiktokPrivacy(e.target.value as "public" | "private")
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="public">Public</option>
+                          <option value="private">Private</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Save as Draft</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Save to TikTok drafts instead of publishing</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={tiktokIsDraft}
+                          onClick={() => setTiktokIsDraft(!tiktokIsDraft)}
+                          className={cn(
+                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                            tiktokIsDraft ? "bg-slate-800" : "bg-slate-200",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                              tiktokIsDraft ? "translate-x-4" : "translate-x-0",
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Engagement */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Engagement
+                      </div>
+                      <div className="space-y-3">
+                        {([
+                          {
+                            label: "Allow Duet",
+                            description: "Let others create side-by-side videos with yours",
+                            checked: tiktokAllowDuet,
+                            onChange: setTiktokAllowDuet,
+                          },
+                          {
+                            label: "Allow Stitch",
+                            description: "Let others clip and remix your video",
+                            checked: tiktokAllowStitch,
+                            onChange: setTiktokAllowStitch,
+                          },
+                          {
+                            label: "Comments",
+                            description: "Allow comments on this video",
+                            checked: tiktokAllowComment,
+                            onChange: setTiktokAllowComment,
+                          },
+                          {
+                            label: "Auto Add Music",
+                            description: "Add background music to photo slideshows",
+                            checked: tiktokAutoAddMusic,
+                            onChange: setTiktokAutoAddMusic,
+                          },
+                        ] as const).map(({ label, description, checked, onChange }) => (
+                          <div key={label} className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-slate-700">{label}</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              onClick={() => onChange(!checked)}
+                              className={cn(
+                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                                checked ? "bg-slate-800" : "bg-slate-200",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                  checked ? "translate-x-4" : "translate-x-0",
+                                )}
+                              />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Disclosure */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Disclosure
+                      </div>
+                      <div className="space-y-3">
+                        {([
+                          {
+                            label: "Disclose Brand",
+                            description: "Declare this promotes your own brand",
+                            checked: tiktokDiscloseBrand,
+                            onChange: setTiktokDiscloseBrand,
+                          },
+                          {
+                            label: "Branded Content",
+                            description: "Declare this is paid partnership content",
+                            checked: tiktokDiscloseBrandedContent,
+                            onChange: setTiktokDiscloseBrandedContent,
+                          },
+                          {
+                            label: "AI Generated",
+                            description: "Declare this content was AI-generated",
+                            checked: tiktokIsAIGenerated,
+                            onChange: setTiktokIsAIGenerated,
+                          },
+                        ] as const).map(({ label, description, checked, onChange }) => (
+                          <div key={label} className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-slate-700">{label}</span>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={checked}
+                              onClick={() => onChange(!checked)}
+                              className={cn(
+                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                                checked ? "bg-slate-800" : "bg-slate-200",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                  checked ? "translate-x-4" : "translate-x-0",
+                                )}
+                              />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <AccountOverrides
+                      platform="tiktok_business"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        privacy_status: tiktokPrivacy,
+                        allow_duet: tiktokAllowDuet,
+                        allow_stitch: tiktokAllowStitch,
+                        allow_comment: tiktokAllowComment,
+                        auto_add_music: tiktokAutoAddMusic,
+                        is_draft: tiktokIsDraft,
+                        is_ai_generated: tiktokIsAIGenerated,
+                        disclose_your_brand: tiktokDiscloseBrand,
+                        disclose_branded_content: tiktokDiscloseBrandedContent,
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* Instagram */}
+                {selectedPlatforms.includes("instagram") && (
+                  <PlatformOptions
+                    title="Instagram"
+                    platform="instagram"
+                    isOpen={expandedPlatforms.includes("instagram")}
+                    onToggle={() => togglePlatformSection("instagram")}
+                  >
+                    {/* Account requirement note */}
+                    <div className="flex items-start gap-2 px-3 py-1.5 bg-purple-50 rounded-lg mb-3">
+                      <AlertCircle className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-[10px] text-purple-600 leading-relaxed">
+                        Requires a Professional or Creator Instagram account. Personal accounts cannot publish via API.
+                      </p>
+                    </div>
+
+                    {/* Placement */}
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Placement
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Placement</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Where to publish: Reels, Stories, or Feed</p>
+                        </div>
+                        <select
+                          value={instagramPlacement}
+                          onChange={(e) =>
+                            setInstagramPlacement(
+                              e.target.value as "reels" | "stories" | "timeline",
+                            )
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="timeline">Feed Post</option>
+                          <option value="reels">Reels</option>
+                          <option value="stories">Stories</option>
+                        </select>
+                      </div>
+                      {instagramPlacement === "reels" && (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-medium text-slate-700">Share to Feed</span>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Also show Reel on your profile grid</p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={instagramShareToFeed}
+                            onClick={() => setInstagramShareToFeed(!instagramShareToFeed)}
+                            className={cn(
+                              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                              instagramShareToFeed ? "bg-slate-800" : "bg-slate-200",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                instagramShareToFeed ? "translate-x-4" : "translate-x-0",
+                              )}
+                            />
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Trial Reel</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Test reach before committing to your profile</p>
+                        </div>
+                        <select
+                          value={instagramTrialReelType}
+                          onChange={(e) =>
+                            setInstagramTrialReelType(
+                              e.target.value as "manual" | "performance" | "",
+                            )
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="">None</option>
+                          <option value="manual">Manual</option>
+                          <option value="performance">Performance</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Collaboration */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Collaboration
+                      </div>
+                      <div>
+                        <div className="flex-1 min-w-0 mb-1.5">
+                          <span className="text-xs font-medium text-slate-700">Collaborators</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Instagram usernames to invite as co-authors</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={instagramCollaborators}
+                          onChange={(e) =>
+                            setInstagramCollaborators(e.target.value)
+                          }
+                          placeholder="username1, username2"
+                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <AccountOverrides
+                      platform="instagram"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        placement: instagramPlacement,
+                        ...(instagramPlacement === "reels"
+                          ? { share_to_feed: instagramShareToFeed }
+                          : {}),
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* Facebook */}
+                {selectedPlatforms.includes("facebook") && (
+                  <PlatformOptions
+                    title="Facebook"
+                    platform="facebook"
+                    isOpen={expandedPlatforms.includes("facebook")}
+                    onToggle={() => togglePlatformSection("facebook")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium text-slate-700">Placement</span>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Post as Reel or Timeline post</p>
+                      </div>
+                      <select
+                        value={facebookPlacement}
+                        onChange={(e) =>
+                          setFacebookPlacement(
+                            e.target.value as "timeline" | "reels",
+                          )
+                        }
+                        className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                      >
+                        <option value="timeline">Timeline</option>
+                        <option value="reels">Reels</option>
+                      </select>
+                    </div>
+                    <AccountOverrides
+                      platform="facebook"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        placement: facebookPlacement,
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* YouTube */}
+                {selectedPlatforms.includes("youtube") && (
+                  <PlatformOptions
+                    title="YouTube"
+                    platform="youtube"
+                    isOpen={expandedPlatforms.includes("youtube")}
+                    onToggle={() => togglePlatformSection("youtube")}
+                  >
+                    {/* Visibility */}
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      Visibility
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Privacy</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Who can see this video</p>
+                        </div>
+                        <select
+                          value={youtubePrivacy}
+                          onChange={(e) =>
+                            setYoutubePrivacy(
+                              e.target.value as "public" | "private" | "unlisted",
+                            )
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="public">Public</option>
+                          <option value="unlisted">Unlisted</option>
+                          <option value="private">Private</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Made for Kids</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Required by COPPA for children&apos;s content</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={youtubeMadeForKids}
+                          onClick={() => setYoutubeMadeForKids(!youtubeMadeForKids)}
+                          className={cn(
+                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                            youtubeMadeForKids ? "bg-slate-800" : "bg-slate-200",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                              youtubeMadeForKids ? "translate-x-4" : "translate-x-0",
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="border-t border-slate-200 mt-3 pt-3">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Content
+                      </div>
+                      <div>
+                        <div className="flex-1 min-w-0 mb-1.5">
+                          <span className="text-xs font-medium text-slate-700">Title</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Override the video title (defaults to caption)</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={youtubeTitle}
+                          onChange={(e) => setYoutubeTitle(e.target.value)}
+                          placeholder="Video title (optional)"
+                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <AccountOverrides
+                      platform="youtube"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        privacy_status: youtubePrivacy,
+                        made_for_kids: youtubeMadeForKids,
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* X/Twitter */}
+                {(selectedPlatforms.includes("x") ||
+                  selectedPlatforms.includes("twitter")) && (
+                  <PlatformOptions
+                    title="X (Twitter)"
+                    platform="x"
+                    isOpen={expandedPlatforms.includes("x")}
+                    onToggle={() => togglePlatformSection("x")}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium text-slate-700">Reply Settings</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Who can reply to this post</p>
+                        </div>
+                        <select
+                          value={xReplySettings}
+                          onChange={(e) =>
+                            setXReplySettings(
+                              e.target.value as
+                                | "following"
+                                | "mentionedUsers"
+                                | "subscribers"
+                                | "verified",
+                            )
+                          }
+                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        >
+                          <option value="following">Everyone</option>
+                          <option value="mentionedUsers">People you follow</option>
+                          <option value="subscribers">Only subscribers</option>
+                          <option value="verified">Only verified</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div className="flex-1 min-w-0 mb-1.5">
+                          <span className="text-xs font-medium text-slate-700">Quote Tweet</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">ID of a tweet to quote</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={xQuoteTweetId}
+                          onChange={(e) => setXQuoteTweetId(e.target.value)}
+                          placeholder="Tweet ID to quote (optional)"
+                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        />
+                      </div>
+                    </div>
+                    <AccountOverrides
+                      platform="x"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{
+                        reply_settings: xReplySettings,
+                      }}
+                    />
+                  </PlatformOptions>
+                )}
+
+                {/* Pinterest */}
+                {selectedPlatforms.includes("pinterest") && (
+                  <PlatformOptions
+                    title="Pinterest"
+                    platform="pinterest"
+                    isOpen={expandedPlatforms.includes("pinterest")}
+                    onToggle={() => togglePlatformSection("pinterest")}
+                  >
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex-1 min-w-0 mb-1.5">
+                          <span className="text-xs font-medium text-slate-700">Board</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Pinterest board to pin to</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={pinterestBoardId}
+                          onChange={(e) => setPinterestBoardId(e.target.value)}
+                          placeholder="Pinterest board ID"
+                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex-1 min-w-0 mb-1.5">
+                          <span className="text-xs font-medium text-slate-700">Link</span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Destination URL when pin is clicked</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={pinterestLink}
+                          onChange={(e) => setPinterestLink(e.target.value)}
+                          placeholder="https://example.com"
+                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                        />
+                      </div>
+                    </div>
+                    <AccountOverrides
+                      platform="pinterest"
+                      accountIds={selectedAccountIds}
+                      accounts={connectedAccounts}
+                      accountOverrides={accountOverrides}
+                      onSetOverride={setAccountOverride}
+                      onClearOverride={clearAccountOverride}
+                      onClearAll={clearAllAccountOverrides}
+                      platformValues={{}}
+                    />
+                  </PlatformOptions>
+                )}
+              </div>
+            </div>
+          )}
+                  </div>
+                </motion.div>
+              )}
+              {activeComposeTab === "schedule" && (
+                <motion.div
+                  key="schedule-panel"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                className={cn(
+                  "w-10 h-6 rounded-full transition-colors relative flex-shrink-0",
+                  scheduledDate || scheduledTime
+                    ? "bg-slate-800 dark:bg-blue-600"
+                    : "bg-slate-200 dark:bg-slate-700",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!scheduledDate || !!scheduledTime}
+                  onChange={(e) => {
+                    if (!e.target.checked) {
+                      setScheduledDate("");
+                      setScheduledTime("");
+                    } else {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      tomorrow.setHours(9, 0, 0, 0);
+                      setScheduledDate(tomorrow.toISOString().split("T")[0] ?? "");
+                      setScheduledTime("09:00");
+                    }
+                  }}
+                  className="sr-only"
+                />
                 <div
                   className={cn(
-                    "w-10 h-6 rounded-full transition-colors relative",
+                    "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm",
                     scheduledDate || scheduledTime
-                      ? "bg-slate-800"
-                      : "bg-slate-200",
+                      ? "translate-x-5"
+                      : "translate-x-1",
                   )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!scheduledDate || !!scheduledTime}
-                    onChange={(e) => {
-                      if (!e.target.checked) {
-                        setScheduledDate("");
-                        setScheduledTime("");
-                      } else {
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        tomorrow.setHours(9, 0, 0, 0);
-                        setScheduledDate(tomorrow.toISOString().split("T")[0]);
-                        setScheduledTime("09:00");
-                      }
-                    }}
-                    className="sr-only"
-                  />
-                  <div
-                    className={cn(
-                      "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                      scheduledDate || scheduledTime
-                        ? "translate-x-5"
-                        : "translate-x-1",
-                    )}
-                  />
-                </div>
-                <span className="text-slate-600">Schedule for later</span>
-              </label>
-            </div>
+                />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">ตั้งเวลาโพสต์</span>
+                <p className="text-[11px] text-slate-400">
+                  {scheduledDate ? `${scheduledDate} เวลา ${scheduledTime || "—"}` : "โพสต์ทันทีถ้าไม่เลือก"}
+                </p>
+              </div>
+            </label>
 
             <AnimatePresence>
               {(scheduledDate || scheduledTime) && (
@@ -1869,49 +3121,38 @@ export default function NewPostPage() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block font-medium">
-                        Date
-                      </label>
-                      <input
-                        type="date"
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
-                        min={new Date().toISOString().split("T")[0]}
-                        className="w-full px-3 py-2.5 bg-slate-50 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block font-medium">
-                        Time
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-slate-50 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 transition-all"
-                      />
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
+                    />
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
+                    />
                   </div>
-                  <p className="text-xs text-slate-400 mt-3 flex items-center gap-1">
+                  <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    Your local timezone
+                    ตามเวลาท้องถิ่นของคุณ
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {!scheduledDate && !scheduledTime && (
-              <p className="text-sm text-slate-400">
-                Post will be published immediately
-              </p>
-            )}
-          </motion.section>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+        </motion.section>
         </motion.div>
 
-        {/* RIGHT SIDE - Preview (first on mobile) */}
-        <motion.div variants={containerVariants} className="space-y-6 order-1 lg:order-2">
+        {/* RIGHT SIDE - Preview (below editor on mobile) */}
+        <motion.div variants={containerVariants} className="space-y-6 order-2 lg:order-2">
           {/* Live Preview */}
           <motion.section variants={itemVariants} className="card-premium p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1994,390 +3235,6 @@ export default function NewPostPage() {
             </AnimatePresence>
           </motion.section>
 
-          {/* Platform Options */}
-          {selectedAccountIds.length > 0 && (
-            <motion.section
-              variants={itemVariants}
-              className="card-premium p-6"
-            >
-              <h2 className="text-slate-800 font-semibold mb-4 flex items-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                Platform Options
-              </h2>
-              <div className="space-y-3">
-                {/* TikTok */}
-                {selectedPlatforms.includes("tiktok") && (
-                  <PlatformOptions
-                    title="TikTok"
-                    platform="tiktok"
-                    isOpen={expandedPlatforms.includes("tiktok")}
-                    onToggle={() => togglePlatformSection("tiktok")}
-                  >
-                    <select
-                      value={tiktokPrivacy}
-                      onChange={(e) =>
-                        setTiktokPrivacy(e.target.value as "public" | "private")
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
-                    </select>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {[
-                        {
-                          label: "Allow Duet",
-                          checked: tiktokAllowDuet,
-                          onChange: setTiktokAllowDuet,
-                        },
-                        {
-                          label: "Allow Stitch",
-                          checked: tiktokAllowStitch,
-                          onChange: setTiktokAllowStitch,
-                        },
-                        {
-                          label: "Comments",
-                          checked: tiktokAllowComment,
-                          onChange: setTiktokAllowComment,
-                        },
-                        {
-                          label: "Save as Draft",
-                          checked: tiktokIsDraft,
-                          onChange: setTiktokIsDraft,
-                        },
-                        {
-                          label: "Auto Add Music",
-                          checked: tiktokAutoAddMusic,
-                          onChange: setTiktokAutoAddMusic,
-                        },
-                        {
-                          label: "Disclose Brand",
-                          checked: tiktokDiscloseBrand,
-                          onChange: setTiktokDiscloseBrand,
-                        },
-                        {
-                          label: "Branded Content",
-                          checked: tiktokDiscloseBrandedContent,
-                          onChange: setTiktokDiscloseBrandedContent,
-                        },
-                        {
-                          label: "AI Generated",
-                          checked: tiktokIsAIGenerated,
-                          onChange: setTiktokIsAIGenerated,
-                        },
-                      ].map(({ label, checked, onChange }) => (
-                        <label
-                          key={label}
-                          className="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1.5 rounded transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => onChange(e.target.checked)}
-                            className="rounded border-slate-300 text-slate-800 focus:ring-slate-200"
-                          />
-                          <span className="text-slate-600">{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <AccountOverrides
-                      platform="tiktok"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        privacy_status: tiktokPrivacy,
-                        allow_duet: tiktokAllowDuet,
-                        allow_stitch: tiktokAllowStitch,
-                        allow_comment: tiktokAllowComment,
-                        auto_add_music: tiktokAutoAddMusic,
-                        is_draft: tiktokIsDraft,
-                        is_ai_generated: tiktokIsAIGenerated,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Instagram */}
-                {selectedPlatforms.includes("instagram") && (
-                  <PlatformOptions
-                    title="Instagram"
-                    platform="instagram"
-                    isOpen={expandedPlatforms.includes("instagram")}
-                    onToggle={() => togglePlatformSection("instagram")}
-                  >
-                    <select
-                      value={instagramPlacement}
-                      onChange={(e) =>
-                        setInstagramPlacement(
-                          e.target.value as "reels" | "stories" | "timeline",
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="timeline">Feed Post</option>
-                      <option value="reels">Reels</option>
-                      <option value="stories">Stories</option>
-                    </select>
-                    {instagramPlacement === "reels" && (
-                      <label className="flex items-center gap-2 cursor-pointer text-xs hover:bg-slate-100 p-1.5 rounded transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={instagramShareToFeed}
-                          onChange={(e) =>
-                            setInstagramShareToFeed(e.target.checked)
-                          }
-                          className="rounded border-slate-300 text-slate-800 focus:ring-slate-200"
-                        />
-                        <span className="text-slate-600">Share to Feed</span>
-                      </label>
-                    )}
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Trial Reel Type
-                    </label>
-                    <select
-                      value={instagramTrialReelType}
-                      onChange={(e) =>
-                        setInstagramTrialReelType(
-                          e.target.value as "manual" | "performance" | "",
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="">None</option>
-                      <option value="manual">Manual</option>
-                      <option value="performance">Performance</option>
-                    </select>
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Collaborators
-                    </label>
-                    <input
-                      type="text"
-                      value={instagramCollaborators}
-                      onChange={(e) =>
-                        setInstagramCollaborators(e.target.value)
-                      }
-                      placeholder="username1, username2"
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    />
-                    <AccountOverrides
-                      platform="instagram"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        placement: instagramPlacement,
-                        ...(instagramPlacement === "reels"
-                          ? { share_to_feed: instagramShareToFeed }
-                          : {}),
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Facebook */}
-                {selectedPlatforms.includes("facebook") && (
-                  <PlatformOptions
-                    title="Facebook"
-                    platform="facebook"
-                    isOpen={expandedPlatforms.includes("facebook")}
-                    onToggle={() => togglePlatformSection("facebook")}
-                  >
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Placement
-                    </label>
-                    <select
-                      value={facebookPlacement}
-                      onChange={(e) =>
-                        setFacebookPlacement(
-                          e.target.value as "timeline" | "reels",
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="timeline">Timeline</option>
-                      <option value="reels">Reels</option>
-                    </select>
-                    <AccountOverrides
-                      platform="facebook"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        placement: facebookPlacement,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* YouTube */}
-                {selectedPlatforms.includes("youtube") && (
-                  <PlatformOptions
-                    title="YouTube"
-                    platform="youtube"
-                    isOpen={expandedPlatforms.includes("youtube")}
-                    onToggle={() => togglePlatformSection("youtube")}
-                  >
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Title
-                    </label>
-                    <input
-                      type="text"
-                      value={youtubeTitle}
-                      onChange={(e) => setYoutubeTitle(e.target.value)}
-                      placeholder="Video title (optional)"
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    />
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Privacy
-                    </label>
-                    <select
-                      value={youtubePrivacy}
-                      onChange={(e) =>
-                        setYoutubePrivacy(
-                          e.target.value as "public" | "private" | "unlisted",
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="public">Public</option>
-                      <option value="unlisted">Unlisted</option>
-                      <option value="private">Private</option>
-                    </select>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs hover:bg-slate-100 p-1.5 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={youtubeMadeForKids}
-                        onChange={(e) =>
-                          setYoutubeMadeForKids(e.target.checked)
-                        }
-                        className="rounded border-slate-300 text-slate-800 focus:ring-slate-200"
-                      />
-                      <span className="text-slate-600">Made for Kids</span>
-                    </label>
-                    <AccountOverrides
-                      platform="youtube"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        privacy_status: youtubePrivacy,
-                        made_for_kids: youtubeMadeForKids,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* X/Twitter */}
-                {(selectedPlatforms.includes("x") ||
-                  selectedPlatforms.includes("twitter")) && (
-                  <PlatformOptions
-                    title="X (Twitter)"
-                    platform="x"
-                    isOpen={expandedPlatforms.includes("x")}
-                    onToggle={() => togglePlatformSection("x")}
-                  >
-                    <label className="text-xs text-slate-500 mb-1.5 block">
-                      Who can reply?
-                    </label>
-                    <select
-                      value={xReplySettings}
-                      onChange={(e) =>
-                        setXReplySettings(
-                          e.target.value as
-                            | "following"
-                            | "mentionedUsers"
-                            | "subscribers"
-                            | "verified",
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    >
-                      <option value="following">Everyone</option>
-                      <option value="mentionedUsers">People you follow</option>
-                      <option value="subscribers">Only subscribers</option>
-                      <option value="verified">Only verified</option>
-                    </select>
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Quote Tweet ID
-                    </label>
-                    <input
-                      type="text"
-                      value={xQuoteTweetId}
-                      onChange={(e) => setXQuoteTweetId(e.target.value)}
-                      placeholder="Tweet ID to quote (optional)"
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    />
-                    <AccountOverrides
-                      platform="x"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        reply_settings: xReplySettings,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Pinterest */}
-                {selectedPlatforms.includes("pinterest") && (
-                  <PlatformOptions
-                    title="Pinterest"
-                    platform="pinterest"
-                    isOpen={expandedPlatforms.includes("pinterest")}
-                    onToggle={() => togglePlatformSection("pinterest")}
-                  >
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Board ID
-                    </label>
-                    <input
-                      type="text"
-                      value={pinterestBoardId}
-                      onChange={(e) => setPinterestBoardId(e.target.value)}
-                      placeholder="Pinterest board ID"
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    />
-                    <label className="text-xs text-slate-500 mb-1 block">
-                      Destination Link
-                    </label>
-                    <input
-                      type="text"
-                      value={pinterestLink}
-                      onChange={(e) => setPinterestLink(e.target.value)}
-                      placeholder="https://example.com"
-                      className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                    />
-                    <AccountOverrides
-                      platform="pinterest"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{}}
-                    />
-                  </PlatformOptions>
-                )}
-              </div>
-            </motion.section>
-          )}
         </motion.div>
       </div>
     </motion.div>

@@ -7,6 +7,8 @@ import {
   eq,
   toLarkUrl,
 } from "@/lib/lark";
+import { parseBody } from "@/lib/validations";
+import { UpdateItemSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 
@@ -32,19 +34,17 @@ export async function PATCH(
 
     if (!record) {
       return NextResponse.json(
-        { error: "Item not found" },
+        { error: "Not Found", message: "Item not found", statusCode: 404 },
         { status: 404 },
       );
     }
 
-    const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 },
-      );
-    }
+    const jsonBody = await request.json().catch(() => null);
 
+    const parsed = parseBody(UpdateItemSchema, jsonBody);
+    if (!parsed.success) return parsed.response;
+
+    const body = parsed.data;
     const fields: Record<string, unknown> = {
       updated_at: Date.now(),
     };
@@ -57,7 +57,7 @@ export async function PATCH(
       "likes",
       "comments",
       "linked_post_id",
-    ];
+    ] as const;
 
     for (const field of textFields) {
       if (body[field] !== undefined) fields[field] = body[field];
@@ -85,7 +85,7 @@ export async function PATCH(
   } catch (error) {
     console.error("[API] Update item error:", error);
     return NextResponse.json(
-      { error: "Failed to update item" },
+      { error: "Internal Server Error", message: "Failed to update item", statusCode: 500 },
       { status: 500 },
     );
   }
@@ -104,18 +104,18 @@ export async function DELETE(
 
     if (!record) {
       return NextResponse.json(
-        { error: "Item not found" },
+        { error: "Not Found", message: "Item not found", statusCode: 404 },
         { status: 404 },
       );
     }
 
     await larkDeleteRecords(TABLE_ID, [record.record_id]);
 
-    return new Response(null, { status: 204 });
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("[API] Delete item error:", error);
     return NextResponse.json(
-      { error: "Failed to delete item" },
+      { error: "Internal Server Error", message: "Failed to delete item", statusCode: 500 },
       { status: 500 },
     );
   }

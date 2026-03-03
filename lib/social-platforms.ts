@@ -8,6 +8,8 @@ import {
   TikTokBusinessIcon,
   YouTubeIcon,
   PinterestIcon,
+  BlueskyIcon,
+  ThreadsIcon,
   IconProps,
 } from "@/components/icons/social-icons";
 
@@ -179,6 +181,9 @@ export const platformIconsMap: Record<string, ComponentType<IconProps>> = {
   youtube: YouTubeIcon,
   yt: YouTubeIcon,
   pinterest: PinterestIcon,
+  bluesky: BlueskyIcon,
+  bsky: BlueskyIcon,
+  threads: ThreadsIcon,
 };
 
 /**

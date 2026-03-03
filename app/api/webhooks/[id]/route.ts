@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
 import type { PostForMeError } from "@/types/post-for-me";
+import { parseBody, validateId } from "@/lib/validations";
+import { UpdateWebhookDtoSchema } from "@/lib/validations/webhooks";
 
 /**
  * GET /api/webhooks/[id]
@@ -14,6 +16,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "webhook");
+    if (idError) return idError;
     const data = await pfm.get(`/v1/webhooks/${id}`);
     return NextResponse.json(data);
   } catch (error) {
@@ -42,10 +46,12 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "webhook");
+    if (idError) return idError;
 
-    let body: Record<string, unknown>;
+    let jsonBody: unknown;
     try {
-      body = await request.json();
+      jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
         { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
@@ -53,18 +59,16 @@ export async function PATCH(
       );
     }
 
-    if (Object.keys(body).length === 0) {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: "Request body cannot be empty. Provide at least one field to update.",
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(
+      UpdateWebhookDtoSchema.refine(
+        (data) => Object.keys(data).length > 0,
+        { message: "Request body cannot be empty. Provide at least one field to update." },
+      ),
+      jsonBody,
+    );
+    if (!parsed.success) return parsed.response;
 
-    const data = await pfm.patch(`/v1/webhooks/${id}`, { body });
+    const data = await pfm.patch(`/v1/webhooks/${id}`, { body: parsed.data });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {
@@ -92,6 +96,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "webhook");
+    if (idError) return idError;
     await pfm.delete(`/v1/webhooks/${id}`);
     return new NextResponse(null, { status: 204 });
   } catch (error) {

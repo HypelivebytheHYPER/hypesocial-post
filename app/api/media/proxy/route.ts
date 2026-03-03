@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const R2_DOMAINS = [
   "pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev", // static assets (logo etc.)
@@ -15,39 +15,36 @@ export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
 
   if (!url) {
-    return new Response(JSON.stringify({ error: "Missing url parameter" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Bad Request", message: "Missing url parameter", statusCode: 400 },
+      { status: 400 },
+    );
   }
 
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid URL" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Bad Request", message: "Invalid URL", statusCode: 400 },
+      { status: 400 },
+    );
   }
 
   if (!ALLOWED_DOMAINS.includes(parsed.hostname)) {
-    return new Response(JSON.stringify({ error: "Domain not allowed" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Forbidden", message: "Domain not allowed", statusCode: 403 },
+      { status: 403 },
+    );
   }
 
   try {
     const upstream = await fetch(url);
 
     if (!upstream.ok) {
-      return new Response(
-        JSON.stringify({ error: `Upstream returned ${upstream.status}` }),
-        {
-          status: upstream.status,
-          headers: { "Content-Type": "application/json" },
-        },
+      return NextResponse.json(
+        { error: "Bad Gateway", message: `Upstream returned ${upstream.status}`, statusCode: upstream.status },
+        { status: upstream.status },
       );
     }
 
@@ -66,9 +63,9 @@ export async function GET(request: NextRequest) {
     const data = await upstream.arrayBuffer();
     return new Response(data, { status: 200, headers });
   } catch {
-    return new Response(
-      JSON.stringify({ error: "Failed to fetch upstream resource" }),
-      { status: 502, headers: { "Content-Type": "application/json" } },
+    return NextResponse.json(
+      { error: "Bad Gateway", message: "Failed to fetch upstream resource", statusCode: 502 },
+      { status: 502 },
     );
   }
 }

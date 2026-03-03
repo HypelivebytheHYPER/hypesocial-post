@@ -1,6 +1,6 @@
 # Single Source of Truth Guide
 
-> **Auto-generated:** 2026-03-02
+> **Auto-generated:** 2026-03-03
 > **Regenerate:** `node scripts/update-ssot.js` or `pnpm build`
 
 This document defines the canonical sources for types, configurations, and utilities in this project to avoid confusion and inconsistencies.
@@ -123,10 +123,7 @@ This document defines the canonical sources for types, configurations, and utili
 | `FacebookProviderData` | Interface | Post For Me API type |
 | `InstagramProviderData` | Interface | Post For Me API type |
 | `YouTubeProviderData` | Interface | Post For Me API type |
-| `XProviderData` | Interface | Post For Me API type |
 | `PinterestProviderData` | Interface | Post For Me API type |
-| `LinkedInProviderData` | Interface | Post For Me API type |
-| `BlueskyProviderData` | Interface | Post For Me API type |
 | `ThreadsProviderData` | Interface | Post For Me API type |
 | `InvalidSocialPostDto` | Interface | Post For Me API type |
 | `DeleteEntityResponseDto` | Interface | Post For Me API type |
@@ -245,6 +242,7 @@ All TanStack Query hooks for Post For Me API.
 | `useAllAccountFeeds()` | Hook |
 | `usePostPreview()` | Hook |
 | `useRegisterAppWebhook()` | Hook |
+| `useWebhookStatus()` | Hook |
 
 ### Query Keys
 

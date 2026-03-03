@@ -1,41 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
-import { timingSafeEqual } from "crypto";
-import {
-  PostForMeWebhookPayloadSchema,
-  PostCreatedData,
-  PostUpdatedData,
-  PostDeletedData,
-  PostResultCreatedData,
-  AccountCreatedData,
-  AccountUpdatedData,
-} from "@/lib/validations/webhooks";
+import { createHmac, timingSafeEqual } from "crypto";
+import { PostForMeWebhookPayloadSchema } from "@/lib/validations/webhooks";
+import { setLastEvent } from "@/lib/webhook-event-store";
 
 /**
- * Timing-safe string comparison to prevent timing attacks
+ * Timing-safe string comparison to prevent timing attacks.
+ * Uses HMAC to normalize both inputs to the same length,
+ * avoiding length-leak via early return.
  */
 function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const key = "webhook-compare";
+  const hmacA = createHmac("sha256", key).update(a).digest();
+  const hmacB = createHmac("sha256", key).update(b).digest();
+  return timingSafeEqual(hmacA, hmacB);
 }
 
 /**
  * POST /api/webhooks/post-for-me
- * Receive webhook events from Post For Me API
+ * Receive webhook events forwarded by the Cloudflare Worker (api.hypelive.app).
+ *
+ * Flow: Post For Me API → Cloudflare Worker → this endpoint
  *
  * Per docs: Must respond 2XX within 1 second.
- * We return 200 immediately — revalidatePath is non-blocking.
+ * We validate and return 200. Client updates via React Query polling +
+ * refetchOnWindowFocus.
  *
  * Authentication:
- * - Verifies Post-For-Me-Webhook-Secret header using timing-safe comparison
- *
- * Expected Headers:
- * - Post-For-Me-Webhook-Secret: string (required)
- * - Content-Type: application/json
- *
- * Payload envelope:
- * - event_type: string (required)
- * - data: object (required)
+ * - Verifies Post-For-Me-Webhook-Secret header (set by the Cloudflare Worker
+ *   as NEXTJS_WEBHOOK_SECRET, matched against POST_FOR_ME_WEBHOOK_SECRET here)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!expectedSecret) {
       console.error("[Webhook] POST_FOR_ME_WEBHOOK_SECRET not configured");
       return NextResponse.json(
-        { error: "Webhook secret not configured" },
+        { error: "Internal Server Error", message: "Webhook secret not configured", statusCode: 500 },
         { status: 500 },
       );
     }
@@ -55,7 +47,10 @@ export async function POST(request: NextRequest) {
       request.headers.get("post-for-me-webhook-secret");
 
     if (!webhookSecret || !secureCompare(webhookSecret, expectedSecret)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized", message: "Invalid webhook secret", statusCode: 401 },
+        { status: 401 },
+      );
     }
 
     let body: unknown;
@@ -64,7 +59,7 @@ export async function POST(request: NextRequest) {
       body = await request.json();
     } catch {
       return NextResponse.json(
-        { error: "Invalid JSON in request body" },
+        { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
         { status: 400 },
       );
     }
@@ -74,74 +69,40 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       console.error("[Webhook] Validation failed:", JSON.stringify(result.error.format()));
       return NextResponse.json(
-        { error: "Invalid payload", details: result.error.format() },
+        { error: "Bad Request", message: "Invalid webhook payload", statusCode: 400 },
         { status: 400 },
       );
     }
 
-    const payload = result.data;
+    const { event_type, data } = result.data;
 
-    switch (payload.event_type) {
-      case "social.post.created":
-        handlePostCreated(payload.data);
-        break;
-      case "social.post.updated":
-        handlePostUpdated(payload.data);
-        break;
-      case "social.post.deleted":
-        handlePostDeleted(payload.data);
-        break;
-      case "social.post.result.created":
-        handlePostResultCreated(payload.data);
-        break;
-      case "social.account.created":
-        handleAccountCreated(payload.data);
-        break;
-      case "social.account.updated":
-        handleAccountUpdated(payload.data);
-        break;
-    }
+    // Extract the relevant ID from the event data
+    // Post events: data.id = post_id
+    // Result events: data.post_id = post_id, data.id = result_id
+    // Account events: data.id = account_id
+    const postId = "post_id" in data ? data.post_id : undefined;
+    const resourceId = data.id;
+
+    console.log(
+      `[Webhook] ${event_type}`,
+      postId ? `post=${postId}` : "",
+      `resource=${resourceId}`,
+    );
+
+    // Store event so the lightweight /status endpoint can notify the client
+    setLastEvent({
+      event_type,
+      resource_id: resourceId,
+      post_id: typeof postId === "string" ? postId : undefined,
+    });
 
     // Return 200 immediately per docs (must respond within 1 second)
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, event_type, id: resourceId });
   } catch (error) {
     console.error("[Webhook] Error processing webhook:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal Server Error", message: "Failed to process webhook", statusCode: 500 },
       { status: 500 },
     );
   }
-}
-
-function handlePostCreated(data: PostCreatedData) {
-  revalidatePath("/");
-  revalidatePath("/posts");
-}
-
-function handlePostUpdated(data: PostUpdatedData) {
-  revalidatePath(`/posts/${data.id}`);
-  revalidatePath("/");
-  revalidatePath("/posts");
-}
-
-function handlePostDeleted(data: PostDeletedData) {
-  revalidatePath("/");
-  revalidatePath("/posts");
-}
-
-function handlePostResultCreated(data: PostResultCreatedData) {
-  revalidatePath(`/posts/${data.post_id}`);
-  revalidatePath("/");
-  revalidatePath("/posts");
-  revalidatePath("/analytics");
-}
-
-function handleAccountCreated(data: AccountCreatedData) {
-  revalidatePath("/accounts/connect");
-  revalidatePath("/");
-}
-
-function handleAccountUpdated(data: AccountUpdatedData) {
-  revalidatePath("/accounts/connect");
-  revalidatePath("/");
 }

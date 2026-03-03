@@ -41,16 +41,16 @@ export function getDangerThreshold(limit: number): number {
 export interface SocialPost {
   id: string;
   caption: string;
-  social_accounts: SocialAccount[]; // API returns full account objects, not IDs
-  media?: MediaItem[];
-  scheduled_at?: string; // ISO 8601 datetime
+  social_accounts: SocialAccount[];
+  media: MediaItem[] | null;
+  scheduled_at: string | null;
   /** API status: draft | scheduled | processing | processed. Note: "failed" comes from post results, not post status */
   status: "draft" | "scheduled" | "processing" | "processed";
-  platform_configurations?: Record<string, PlatformConfig>;
-  account_configurations?: AccountConfig[];
-  external_id?: string;
+  platform_configurations: PlatformConfigurationsDto | null;
+  account_configurations: AccountConfigurationDto[] | null;
+  external_id: string | null;
   created_at: string;
-  updated_at: string; // API requires this field
+  updated_at: string;
 }
 
 // https://api.postforme.dev/docs#model/socialpostdto
@@ -63,14 +63,14 @@ export type SocialPostDto = SocialPost;
 export interface MediaItem {
   /** Public URL of the media (required) */
   url: string;
-  /** Public URL of the thumbnail for the media - API returns object | null */
+  /** Public URL of the thumbnail for the media */
   thumbnail_url?: object | null;
-  /** Timestamp in milliseconds of frame to use as thumbnail - API returns object | null */
+  /** Timestamp in milliseconds of frame to use as thumbnail */
   thumbnail_timestamp_ms?: object | null;
   /** List of tags to attach to the media (user/product tags for Facebook/Instagram) */
-  tags?: MediaTag[];
+  tags?: MediaTag[] | null;
   /** If true, media will not be processed. Increases failure risk if media doesn't meet platform requirements. */
-  skip_processing?: boolean;
+  skip_processing?: boolean | null;
 }
 
 // https://api.postforme.dev/docs#model/socialpostmediadto
@@ -82,11 +82,16 @@ export type SocialPostMediaDto = MediaItem;
  * Only Facebook and Instagram support media tagging
  */
 export interface MediaTag {
+  /** Facebook User ID, Instagram Username or Instagram product id to tag */
   id: string;
+  /** The platform for the tags */
   platform: "facebook" | "instagram";
+  /** The type of tag — "product" only supported for Instagram */
   type: "user" | "product";
-  x?: number; // percentage 0-100 (optional)
-  y?: number; // percentage 0-100 (optional)
+  /** Percentage distance from left edge of the image. Not required for videos or stories. */
+  x?: number;
+  /** Percentage distance from top edge of the image. Not required for videos or stories. */
+  y?: number;
 }
 
 // Alias - UserTagDto is the official OpenAPI name
@@ -419,24 +424,25 @@ export interface AccountConfigurationDto {
 export interface CreateSocialPostDto {
   caption: string;
   social_accounts: string[];
-  media?: MediaItem[];
-  scheduled_at?: string;
-  /** If true, post will not be processed (draft mode) */
-  isDraft?: boolean;
+  media?: MediaItem[] | null;
+  scheduled_at?: string | null;
+  /** If true, post will not be processed (draft mode). Default: false */
+  isDraft?: boolean | null;
   platform_configurations?: PlatformConfigurationsDto | null;
   account_configurations?: AccountConfigurationDto[] | null;
-  external_id?: string;
+  external_id?: string | null;
 }
 
 // Request body for updating a post
 // https://api.postforme.dev/docs#model/updatesocialpostdto
+// Note: No UpdateSocialPostDto in OpenAPI spec. This is inferred from CreateSocialPostDto.
 export interface UpdateSocialPostDto {
   caption?: string;
   social_accounts?: string[];
-  media?: MediaItem[];
-  scheduled_at?: string;
-  /** If true, post will not be processed (draft mode) */
-  isDraft?: boolean;
+  media?: MediaItem[] | null;
+  scheduled_at?: string | null;
+  /** If true, post will not be processed (draft mode). Default: false */
+  isDraft?: boolean | null;
   platform_configurations?: PlatformConfigurationsDto | null;
   account_configurations?: AccountConfigurationDto[] | null;
 }
@@ -453,25 +459,25 @@ export interface SocialPostListResponse {
 
 // ==================== SOCIAL ACCOUNTS ====================
 
-// Forward declaration - defined at end of file with provider data types
-export type SocialAccountMetadata = SocialAccountProviderData;
+// API spec: metadata is an opaque object (empty schema, nullable).
+// The API may return platform-specific fields, but none are guaranteed.
+// See: https://api.postforme.dev/docs#model/socialaccountmetadata
+export type SocialAccountMetadata = Record<string, unknown>;
 
 export interface SocialAccount {
   id: string;
-  user_id: string;
   platform: string;
   username: string | null;
-  external_id: string | null;
-  status: "connected" | "disconnected";
-  access_token: string;
-  access_token_expires_at: string;
-  refresh_token: string | null;
-  refresh_token_expires_at: string | null;
+  user_id: string;
   profile_photo_url: string | null;
-  /** The metadata of the social account - contains provider-specific data */
-  metadata?: SocialAccountMetadata;
-  created_at: string;
-  updated_at: string; // API requires this field
+  access_token: string;
+  refresh_token: string | null;
+  access_token_expires_at: string;
+  refresh_token_expires_at: string | null;
+  status: "connected" | "disconnected";
+  external_id: string | null;
+  /** The metadata of the social account */
+  metadata: SocialAccountMetadata | null;
 }
 
 // https://api.postforme.dev/docs#model/socialaccountdto
@@ -512,7 +518,7 @@ export interface BlueskyAuthUrlProviderData {
 // https://api.postforme.dev/docs#model/linkedinurlproviderdata
 export interface LinkedInUrlProviderData {
   /** The type of connection */
-  connection_type?: "personal" | "organization";
+  connection_type: "personal" | "organization";
   /** Override the default permissions/scopes requested during OAuth */
   permission_overrides?: string[][];
 }
@@ -639,7 +645,8 @@ export interface CreateUploadUrlDto {
 }
 
 export interface CreateUploadUrlResponse {
-  upload_url: string; // Signed URL for uploading - media URL is upload_url without query params
+  upload_url: string;
+  media_url: string;
 }
 
 // https://api.postforme.dev/docs#model/createuploadurlresponsedto
@@ -694,10 +701,10 @@ export interface SocialPostResult {
   social_account_id: string;
   /** Indicates if the post was successful */
   success: boolean;
-  /** Error message/object if the post failed - API returns object | null */
-  error: PostError | null;
-  /** Detailed logs from the post for debugging - API returns object | null */
-  details: PostDetails | null;
+  /** Error message/object if the post failed */
+  error: PostError;
+  /** Detailed logs from the post for debugging */
+  details: PostDetails;
   /** Platform-specific data (contains id and url of the posted content) - API returns this (can be null) */
   platform_data: SocialPostResultPlatformData;
 }
@@ -1044,19 +1051,19 @@ export interface PlatformPostDto {
   /** Social media platform name */
   platform: string;
   /** ID of the social post result */
-  social_post_result_id: string | null;
+  social_post_result_id?: string | null;
   /** Date the post was published */
-  posted_at: string;
+  posted_at?: string;
   /** ID of the social post */
-  social_post_id: string | null;
+  social_post_id?: string | null;
   /** External post ID from the platform */
-  external_post_id: string | null;
+  external_post_id?: string | null;
   /** Platform-specific post ID */
   platform_post_id: string;
   /** ID of the social account */
   social_account_id: string;
   /** External account ID from the platform */
-  external_account_id: string | null;
+  external_account_id?: string | null;
   /** Platform-specific account ID */
   platform_account_id: string;
   /** URL to the post on the platform */
@@ -1527,21 +1534,21 @@ export interface LinkedInPostMetricsDto {
 // https://api.postforme.dev/docs#model/pinterestmetricswindowdto
 export interface PinterestMetricsWindowDto {
   /** Number of times the Pin was shown (impressions) */
-  impression: number;
+  impression?: number;
   /** Number of clicks from the Pin to an external destination */
-  outbound_click: number;
+  outbound_click?: number;
   /** Number of clicks on the Pin to view it in closeup */
-  pin_click: number;
+  pin_click?: number;
   /** Number of saves of the Pin */
-  save: number;
+  save?: number;
   /** Number of comments on the Pin */
-  comment: number;
+  comment?: number;
   /** Total number of reactions on the Pin */
-  reaction: number;
+  reaction?: number;
   /** Number of follows driven from the Pin */
-  user_follow: object | null;
+  user_follow?: object | null;
   /** Number of visits to the author's profile driven from the Pin */
-  profile_visit: object | null;
+  profile_visit?: object | null;
   /** Number of video views */
   video_views?: number;
   /** Number of video views of at least 10 seconds */
@@ -1559,9 +1566,9 @@ export interface PinterestMetricsWindowDto {
 // https://api.postforme.dev/docs#model/pinterestpostmetricsdto
 export interface PinterestPostMetricsDto {
   /** Last 90 days of Pin metrics */
-  "90d": PinterestMetricsWindowDto;
+  "90d"?: PinterestMetricsWindowDto;
   /** Lifetime Pin metrics */
-  lifetime_metrics: PinterestMetricsWindowDto;
+  lifetime_metrics?: PinterestMetricsWindowDto;
 }
 
 // https://api.postforme.dev/docs#model/blueskypostmetricsdto
@@ -1596,9 +1603,9 @@ export type SocialAccountPreview = SocialPostPreviewAccount;
 export interface SocialPostPreviewMedia {
   /** Public URL of the media */
   url: string;
-  /** Public URL of the thumbnail for the media - API returns object | null */
+  /** Public URL of the thumbnail for the media */
   thumbnail_url?: object | null;
-  /** Timestamp in milliseconds of frame to use as thumbnail - API returns object | null */
+  /** Timestamp in milliseconds of frame to use as thumbnail */
   thumbnail_timestamp_ms?: object | null;
   /** List of tags to attach to the media (user/product tags for Facebook/Instagram) */
   tags?: MediaTag[] | null;
@@ -1629,13 +1636,13 @@ export interface SocialPostPreview {
   /** Caption text for the post */
   caption: string;
   /** Array of media URLs associated with the post */
-  media: SocialPostPreviewMedia[] | null;
+  media?: SocialPostPreviewMedia[] | null;
   /** Platform of the post */
   platform: string;
   /** Id of the social account */
   social_account_id: string;
-  /** Username of the social account - API returns object */
-  social_account_username: PreviewUsername;
+  /** Username of the social account */
+  social_account_username?: PreviewUsername;
   /** Url of the social account profile picture - API returns object */
   social_account_profile_picture_url?: PreviewProfilePictureUrl;
   /** Additional configuration for this platform - API returns object */
@@ -1650,11 +1657,11 @@ export interface SocialPostPreviewRequest {
   /** Array of social accounts. Can preview non connected accounts, just specify a random ID */
   preview_social_accounts: SocialPostPreviewAccount[];
   /** Array of media URLs associated with the post */
-  media?: SocialPostPreviewMedia[] | null;
+  media?: MediaItem[] | null;
   /** Platform-specific configurations for the post */
-  platform_configurations?: Record<string, PlatformConfig> | null;
+  platform_configurations?: PlatformConfigurationsDto | null;
   /** Account-specific configurations for the post */
-  account_configurations?: AccountConfig[] | null;
+  account_configurations?: AccountConfigurationDto[] | null;
 }
 
 export interface SocialPostPreviewResponse {
@@ -1678,153 +1685,48 @@ export type SocialPostPreviewResponseDto = SocialPostPreviewResponse;
 
 /** TikTok Provider Data - Returned in SocialAccount.metadata for TikTok accounts */
 export interface TikTokProviderData {
-  display_name?: string;
-  profile_image?: string;
-  follower_count?: number;
-  following_count?: number;
-  likes_count?: number;
-  video_count?: number;
-  is_verified?: boolean;
-  bio_description?: string;
+  permission_overrides?: string[][];
 }
 
 /** TikTok Business Provider Data - Returned in SocialAccount.metadata for TikTok Business accounts */
 export interface TikTokBusinessProviderData {
-  display_name?: string;
-  profile_image?: string;
-  follower_count?: number;
-  following_count?: number;
-  likes_count?: number;
-  video_count?: number;
-  is_verified?: boolean;
-  bio_description?: string;
-  /** Business-specific fields */
-  business_id?: string;
-  advertiser_id?: string;
+  permission_overrides?: string[][];
 }
 
 /** Facebook Provider Data - Returned in SocialAccount.metadata for Facebook accounts */
 export interface FacebookProviderData {
-  name?: string;
-  picture?: {
-    data?: {
-      url?: string;
-      height?: number;
-      width?: number;
-    };
-  };
-  followers_count?: number;
-  fan_count?: number;
-  verification_status?: string;
-  about?: string;
-  category?: string;
-  page_token?: string;
+  permission_overrides?: string[][];
 }
 
 /** Instagram Provider Data - Returned in SocialAccount.metadata for Instagram accounts */
 export interface InstagramProviderData {
-  username?: string;
-  account_type?: "BUSINESS" | "MEDIA_CREATOR" | "PERSONAL";
-  media_count?: number;
-  followers_count?: number;
-  follows_count?: number;
-  profile_picture_url?: string;
-  name?: string;
-  biography?: string;
-  website?: string;
+  connection_type: "instagram" | "facebook";
+  permission_overrides?: string[][];
 }
 
 /** YouTube Provider Data - Returned in SocialAccount.metadata for YouTube accounts */
 export interface YouTubeProviderData {
-  title?: string;
-  description?: string;
-  thumbnail?: string;
-  subscriber_count?: number;
-  video_count?: number;
-  view_count?: number;
-  custom_url?: string;
-  country?: string;
-  published_at?: string;
+  permission_overrides?: string[][];
 }
 
-/** X (Twitter) Provider Data - Returned in SocialAccount.metadata for X accounts */
-export interface XProviderData {
-  name?: string;
-  username?: string;
-  profile_image_url?: string;
-  verified?: boolean;
-  verified_type?: "blue" | "business" | "government";
-  followers_count?: number;
-  following_count?: number;
-  tweet_count?: number;
-  listed_count?: number;
-  description?: string;
-  location?: string;
-  url?: string;
-  created_at?: string;
-  protected?: boolean;
-}
-
-/** Pinterest Provider Data - Returned in SocialAccount.metadata for Pinterest accounts */
+/** Pinterest Provider Data */
 export interface PinterestProviderData {
-  username?: string;
-  profile_image?: string;
-  board_count?: number;
-  pin_count?: number;
-  follower_count?: number;
-  following_count?: number;
-  monthly_views?: number;
-  bio?: string;
-  website_url?: string;
+  permission_overrides?: string[][];
 }
 
-/** LinkedIn Provider Data - Returned in SocialAccount.metadata for LinkedIn accounts */
-export interface LinkedInProviderData {
-  first_name?: string;
-  last_name?: string;
-  profile_picture?: string;
-  headline?: string;
-  vanity_name?: string;
-  followers_count?: number;
-  connections_count?: number;
-  location?: string;
-  industry?: string;
-}
-
-/** Bluesky Provider Data - Returned in SocialAccount.metadata for Bluesky accounts */
-export interface BlueskyProviderData {
-  display_name?: string;
-  avatar?: string;
-  description?: string;
-  followers_count?: number;
-  follows_count?: number;
-  posts_count?: number;
-  handle?: string;
-  indexed_at?: string;
-}
-
-/** Threads Provider Data - Returned in SocialAccount.metadata for Threads accounts */
+/** Threads Provider Data */
 export interface ThreadsProviderData {
-  username?: string;
-  name?: string;
-  profile_picture_url?: string;
-  biography?: string;
-  followers_count?: number;
-  following_count?: number;
-  threads_count?: number;
+  permission_overrides?: string[][];
 }
 
-/** Union type for all provider data */
+/** Union type for all provider data (only types defined in OpenAPI spec) */
 export type SocialAccountProviderData =
   | TikTokProviderData
   | TikTokBusinessProviderData
   | FacebookProviderData
   | InstagramProviderData
   | YouTubeProviderData
-  | XProviderData
   | PinterestProviderData
-  | LinkedInProviderData
-  | BlueskyProviderData
   | ThreadsProviderData;
 
 // ==================== RESPONSE DTOs ====================
@@ -1871,7 +1773,7 @@ export interface DisconnectedSocialAccountDto {
   /** The external id of the social account */
   external_id: string | null;
   /** The metadata of the social account */
-  metadata?: SocialAccountMetadata;
+  metadata: SocialAccountMetadata | null;
 }
 
 // Error details object

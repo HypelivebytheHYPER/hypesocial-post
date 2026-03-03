@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
+import { parseQuery, validateId } from "@/lib/validations";
+import { ListFeedQuerySchema } from "@/lib/validations/account-feeds";
 
 /**
  * GET /api/account-feeds/[accountId]
@@ -13,15 +15,23 @@ export async function GET(
 ) {
   try {
     const { accountId } = await params;
+    const idError = validateId(accountId, "feed");
+    if (idError) return idError;
     const { searchParams } = new URL(request.url);
 
-    const data = await pfm.socialAccountFeeds.list(accountId, {
-      limit: Number(searchParams.get("limit") || 50),
-      cursor: searchParams.get("cursor") || undefined,
-      expand: searchParams.get("expand") === "metrics" ? ["metrics"] : undefined,
+    const q = parseQuery(ListFeedQuerySchema, {
+      limit: searchParams.get("limit") ?? undefined,
+      cursor: searchParams.get("cursor") ?? undefined,
+      expand: searchParams.get("expand") === "metrics" ? "metrics" : undefined,
       external_post_id: searchParams.getAll("external_post_id").length > 0 ? searchParams.getAll("external_post_id") : undefined,
       social_post_id: searchParams.getAll("social_post_id").length > 0 ? searchParams.getAll("social_post_id") : undefined,
       platform_post_id: searchParams.getAll("platform_post_id").length > 0 ? searchParams.getAll("platform_post_id") : undefined,
+    });
+    if (!q.success) return q.response;
+
+    const data = await pfm.socialAccountFeeds.list(accountId, {
+      ...q.data,
+      expand: q.data.expand ? [q.data.expand] : undefined,
     });
 
     return NextResponse.json(data);

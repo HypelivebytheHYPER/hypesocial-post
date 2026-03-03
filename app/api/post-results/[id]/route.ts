@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me";
 import { APIError } from "post-for-me";
+import { validateId } from "@/lib/validations";
 
 /**
  * GET /api/post-results/[id]
@@ -12,6 +13,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const idError = validateId(id, "post-result");
+    if (idError) return idError;
     const data = await pfm.socialPostResults.retrieve(id);
     return NextResponse.json(data);
   } catch (error) {
