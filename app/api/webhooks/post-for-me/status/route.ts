@@ -13,12 +13,20 @@ import { getLastEvent } from "@/lib/webhook-event-store";
  * Returns `null` when the Vercel instance is cold or no events have arrived.
  */
 export async function GET() {
-  return NextResponse.json(
-    { last_event: getLastEvent() },
-    {
-      headers: {
-        "Cache-Control": "no-store",
+  try {
+    return NextResponse.json(
+      { last_event: getLastEvent() },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
       },
-    },
-  );
+    );
+  } catch (error) {
+    console.error("[API] Error reading webhook status:", error);
+    return NextResponse.json(
+      { last_event: null },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 }

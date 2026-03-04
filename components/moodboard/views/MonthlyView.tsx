@@ -1,34 +1,21 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverEvent,
-  defaultDropAnimationSideEffects,
-  DropAnimation,
-} from "@dnd-kit/core";
+import { memo, useMemo } from "react";
+import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { format, isSameMonth, isToday } from "date-fns";
+import { isSameMonth, isToday } from "date-fns";
 import { Plus } from "lucide-react";
 
 import { CompactMoodboardCard } from "@/components/moodboard/CompactMoodboardCard";
 import type { MoodboardItem, DayColumnType } from "@/lib/hooks/useMoodboard";
+import { useMoodboardDnD } from "@/lib/hooks/useMoodboardDnD";
 
 const MAX_VISIBLE = 3;
+const DAY_HEADERS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 
 interface MonthlyViewProps {
   columns: DayColumnType[];
@@ -40,7 +27,7 @@ interface MonthlyViewProps {
   onReorder: (columns: DayColumnType[]) => void;
 }
 
-function MonthCell({
+const MonthCell = memo(function MonthCell({
   column,
   isCurrentMonth,
   onDeleteItem,
@@ -109,7 +96,7 @@ function MonthCell({
       )}
     </div>
   );
-}
+});
 
 export function MonthlyView({
   columns,
@@ -118,16 +105,15 @@ export function MonthlyView({
   onAddItem,
   onReorder,
 }: MonthlyViewProps) {
-  const [activeItem, setActiveItem] = useState<MoodboardItem | null>(null);
-  const [localColumns, setLocalColumns] = useState<DayColumnType[] | null>(null);
-  const displayColumns = localColumns || columns;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const {
+    sensors,
+    displayColumns,
+    activeItem,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    dropAnimation,
+  } = useMoodboardDnD(columns, onReorder);
 
   // Split columns into weeks (rows of 7)
   const weeks = useMemo(() => {
@@ -138,138 +124,6 @@ export function MonthlyView({
     return result;
   }, [displayColumns]);
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const id = event.active.id as string;
-      for (const col of columns) {
-        const item = col.items.find((i) => i.id === id);
-        if (item) {
-          setActiveItem(item);
-          break;
-        }
-      }
-      setLocalColumns(columns);
-    },
-    [columns],
-  );
-
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    setLocalColumns((prev) => {
-      if (!prev) return prev;
-
-      const activeContainer = prev.find((col) =>
-        col.items.some((item) => item.id === activeId),
-      )?.id;
-      const overContainer =
-        prev.find((col) => col.id === overId)?.id ||
-        prev.find((col) => col.items.some((item) => item.id === overId))?.id;
-
-      if (
-        !activeContainer ||
-        !overContainer ||
-        activeContainer === overContainer
-      )
-        return prev;
-
-      const activeCol = prev.find((c) => c.id === activeContainer)!;
-      const overCol = prev.find((c) => c.id === overContainer)!;
-      const activeIndex = activeCol.items.findIndex((i) => i.id === activeId);
-      const overIndex = overCol.items.findIndex((i) => i.id === overId);
-      const item = activeCol.items[activeIndex]!;
-
-      let newIndex;
-      if (prev.find((col) => col.id === overId)) {
-        newIndex = overCol.items.length;
-      } else {
-        const isBelowOverItem =
-          over &&
-          active.rect.current.translated &&
-          active.rect.current.translated.top > over.rect.top + over.rect.height;
-        newIndex =
-          overIndex >= 0
-            ? overIndex + (isBelowOverItem ? 1 : 0)
-            : overCol.items.length;
-      }
-
-      return prev.map((col) => {
-        if (col.id === activeContainer) {
-          return { ...col, items: col.items.filter((i) => i.id !== activeId) };
-        }
-        if (col.id === overContainer) {
-          const newItems = [...col.items];
-          newItems.splice(newIndex, 0, {
-            ...item,
-            column_date: col.isoDate,
-          });
-          return { ...col, items: newItems };
-        }
-        return col;
-      });
-    });
-  }, []);
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveItem(null);
-
-      if (!over || !localColumns) {
-        setLocalColumns(null);
-        return;
-      }
-
-      const activeId = active.id as string;
-      const overId = over.id as string;
-
-      let finalColumns = localColumns;
-
-      const activeContainer = localColumns.find((col) =>
-        col.items.some((item) => item.id === activeId),
-      )?.id;
-      const overContainer =
-        localColumns.find((col) => col.id === overId)?.id ||
-        localColumns.find((col) =>
-          col.items.some((item) => item.id === overId),
-        )?.id;
-
-      if (activeContainer && overContainer && activeContainer === overContainer) {
-        const col = localColumns.find((c) => c.id === activeContainer)!;
-        const activeIndex = col.items.findIndex((i) => i.id === activeId);
-        const overIndex = col.items.findIndex((i) => i.id === overId);
-
-        if (activeIndex !== overIndex && overIndex >= 0) {
-          finalColumns = localColumns.map((c) => {
-            if (c.id === activeContainer) {
-              return {
-                ...c,
-                items: arrayMove(c.items, activeIndex, overIndex),
-              };
-            }
-            return c;
-          });
-        }
-      }
-
-      onReorder(finalColumns);
-      setLocalColumns(null);
-    },
-    [localColumns, onReorder],
-  );
-
-  const dropAnimation: DropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: { active: { opacity: "0.5" } },
-    }),
-  };
-
-  const DAY_HEADERS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
   return (
     <DndContext
       sensors={sensors}
@@ -278,37 +132,42 @@ export function MonthlyView({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      {/* Day-of-week header */}
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {DAY_HEADERS.map((day) => (
-          <div
-            key={day}
-            className="text-center text-[10px] font-medium text-slate-400 py-1"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="space-y-1">
-        {weeks.map((week, weekIdx) => (
-          <div key={weekIdx} className="grid grid-cols-7 gap-1">
-            {week.map((column) => (
-              <div key={column.id} className="group/cell">
-                <MonthCell
-                  column={column}
-                  isCurrentMonth={isSameMonth(
-                    new Date(column.isoDate),
-                    monthAnchor,
-                  )}
-                  onDeleteItem={onDeleteItem}
-                  onAddItem={onAddItem}
-                />
+      {/* Responsive wrapper — horizontal scroll on mobile */}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="min-w-[500px] sm:min-w-0">
+          {/* Day-of-week header */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {DAY_HEADERS.map((day) => (
+              <div
+                key={day}
+                className="text-center text-[10px] font-medium text-slate-400 py-1"
+              >
+                {day}
               </div>
             ))}
           </div>
-        ))}
+
+          {/* Calendar grid */}
+          <div className="space-y-1">
+            {weeks.map((week, weekIdx) => (
+              <div key={weekIdx} className="grid grid-cols-7 gap-1">
+                {week.map((column) => (
+                  <div key={column.id} className="group/cell">
+                    <MonthCell
+                      column={column}
+                      isCurrentMonth={isSameMonth(
+                        new Date(column.isoDate),
+                        monthAnchor,
+                      )}
+                      onDeleteItem={onDeleteItem}
+                      onAddItem={onAddItem}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <DragOverlay dropAnimation={dropAnimation}>

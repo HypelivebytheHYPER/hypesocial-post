@@ -20,8 +20,10 @@ export function EditableText({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    setText(content);
-  }, [content]);
+    if (!isEditing) {
+      setText(content);
+    }
+  }, [content, isEditing]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {

@@ -94,7 +94,7 @@ export async function PUT(
 /**
  * DELETE /api/posts/[id]
  * Official API: DELETE /v1/social-posts/{id}
- * Returns: 204 No Content
+ * Returns: 200 { success: true }
  */
 export async function DELETE(
   request: NextRequest,

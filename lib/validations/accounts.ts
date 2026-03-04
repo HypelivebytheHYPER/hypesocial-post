@@ -54,7 +54,7 @@ export const AuthUrlSchema = z
   .object({
     platform: platformEnum,
     external_id: z.string().optional(),
-    permissions: z.array(z.string()).optional(),
+    permissions: z.array(z.enum(["posts", "feeds"])).optional(),
     platform_data: z.record(z.any()).optional(),
     connection_type: z.string().optional(),
     redirect_url_override: z.string().url().optional(),

@@ -1,25 +1,11 @@
 "use client";
 
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverEvent,
-  defaultDropAnimationSideEffects,
-  DropAnimation,
-} from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useState, useCallback } from "react";
+import { DndContext, DragOverlay, closestCorners } from "@dnd-kit/core";
 import { Video, FileText, Link as LinkIcon, ImageIcon } from "lucide-react";
 
 import { DayColumn } from "@/components/moodboard/DayColumn";
 import type { MoodboardItem, DayColumnType } from "@/lib/hooks/useMoodboard";
+import { useMoodboardDnD } from "@/lib/hooks/useMoodboardDnD";
 
 interface HorizontalViewProps {
   columns: DayColumnType[];
@@ -38,149 +24,15 @@ export function HorizontalView({
   onFileDrop,
   onReorder,
 }: HorizontalViewProps) {
-  const [activeItem, setActiveItem] = useState<MoodboardItem | null>(null);
-  const [localColumns, setLocalColumns] = useState<DayColumnType[] | null>(
-    null,
-  );
-  const displayColumns = localColumns || columns;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const id = event.active.id as string;
-      for (const col of columns) {
-        const item = col.items.find((i) => i.id === id);
-        if (item) {
-          setActiveItem(item);
-          break;
-        }
-      }
-      setLocalColumns(columns);
-    },
-    [columns],
-  );
-
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    setLocalColumns((prev) => {
-      if (!prev) return prev;
-
-      const activeContainer = prev.find((col) =>
-        col.items.some((item) => item.id === activeId),
-      )?.id;
-      const overContainer =
-        prev.find((col) => col.id === overId)?.id ||
-        prev.find((col) => col.items.some((item) => item.id === overId))?.id;
-
-      if (
-        !activeContainer ||
-        !overContainer ||
-        activeContainer === overContainer
-      )
-        return prev;
-
-      const activeCol = prev.find((c) => c.id === activeContainer)!;
-      const overCol = prev.find((c) => c.id === overContainer)!;
-      const activeIndex = activeCol.items.findIndex((i) => i.id === activeId);
-      const overIndex = overCol.items.findIndex((i) => i.id === overId);
-      const item = activeCol.items[activeIndex]!;
-
-      let newIndex;
-      if (prev.find((col) => col.id === overId)) {
-        newIndex = overCol.items.length;
-      } else {
-        const isBelowOverItem =
-          over &&
-          active.rect.current.translated &&
-          active.rect.current.translated.top > over.rect.top + over.rect.height;
-        newIndex =
-          overIndex >= 0
-            ? overIndex + (isBelowOverItem ? 1 : 0)
-            : overCol.items.length;
-      }
-
-      return prev.map((col) => {
-        if (col.id === activeContainer) {
-          return { ...col, items: col.items.filter((i) => i.id !== activeId) };
-        }
-        if (col.id === overContainer) {
-          const newItems = [...col.items];
-          newItems.splice(newIndex, 0, {
-            ...item,
-            column_date: col.isoDate,
-          });
-          return { ...col, items: newItems };
-        }
-        return col;
-      });
-    });
-  }, []);
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveItem(null);
-
-      if (!over || !localColumns) {
-        setLocalColumns(null);
-        return;
-      }
-
-      const activeId = active.id as string;
-      const overId = over.id as string;
-
-      let finalColumns = localColumns;
-
-      // Handle same-column reorder
-      const activeContainer = localColumns.find((col) =>
-        col.items.some((item) => item.id === activeId),
-      )?.id;
-      const overContainer =
-        localColumns.find((col) => col.id === overId)?.id ||
-        localColumns.find((col) =>
-          col.items.some((item) => item.id === overId),
-        )?.id;
-
-      if (activeContainer && overContainer && activeContainer === overContainer) {
-        const col = localColumns.find((c) => c.id === activeContainer)!;
-        const activeIndex = col.items.findIndex((i) => i.id === activeId);
-        const overIndex = col.items.findIndex((i) => i.id === overId);
-
-        if (activeIndex !== overIndex && overIndex >= 0) {
-          finalColumns = localColumns.map((c) => {
-            if (c.id === activeContainer) {
-              return {
-                ...c,
-                items: arrayMove(c.items, activeIndex, overIndex),
-              };
-            }
-            return c;
-          });
-        }
-      }
-
-      onReorder(finalColumns);
-      setLocalColumns(null);
-    },
-    [localColumns, onReorder],
-  );
-
-  const dropAnimation: DropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: { active: { opacity: "0.5" } },
-    }),
-  };
+  const {
+    sensors,
+    displayColumns,
+    activeItem,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    dropAnimation,
+  } = useMoodboardDnD(columns, onReorder);
 
   return (
     <DndContext
