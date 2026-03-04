@@ -31,7 +31,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen">
       <Navigation />
-      <main className="container-premium pt-20 md:pt-28 pb-24 md:pb-12">
+      <main className="container-premium pt-16 md:pt-28 pb-20 md:pb-12">
         <Suspense fallback={<DashboardLoading />}>
           <PrefetchedContent>{children}</PrefetchedContent>
         </Suspense>

@@ -23,7 +23,7 @@ const TikTokInsightsCharts = dynamic(
     ssr: false,
     loading: () => (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card-premium p-4 animate-pulse">
               <div className="w-8 h-8 rounded-xl bg-slate-100 mb-2" />
@@ -367,7 +367,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Section 2: Engagement Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {(() => {
           // Compute which platforms have unavailable metrics
           const unavailShares = connectedAccounts

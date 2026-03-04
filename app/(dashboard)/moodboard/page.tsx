@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, FolderOpen, Calendar, ArrowRight, Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { Plus, FolderOpen, Calendar, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

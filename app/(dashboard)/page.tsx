@@ -10,8 +10,6 @@ import {
   Calendar,
   MessageSquare,
   Send,
-  Check,
-  Heart,
   Users,
   Loader2,
   Activity,
@@ -53,16 +51,6 @@ function getPlatformIcon(platform: string) {
 
 function getPlatformColor(platform: string) {
   return PLATFORM_COLORS[platform.toLowerCase()] || "bg-slate-400";
-}
-
-// Stat item type
-interface StatItem {
-  label: string;
-  value: string;
-  subtext: string;
-  icon: React.ElementType;
-  color: string;
-  bg: string;
 }
 
 interface DiagnosticTest {

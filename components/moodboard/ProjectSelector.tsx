@@ -59,7 +59,7 @@ export function ProjectSelector() {
               setCreating(false);
             }}
           />
-          <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-200 z-50 py-1">
+          <div className="absolute top-full left-0 mt-1 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-slate-200 z-50 py-1">
             {projects.map((project) => (
               <button
                 key={project.id}

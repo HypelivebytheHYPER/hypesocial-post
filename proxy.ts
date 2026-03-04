@@ -6,6 +6,7 @@ import { rateLimit, getTier } from "@/lib/rate-limit";
 const PUBLIC_PATHS = [
   "/login",
   "/api/auth",
+  "/api/health",
   "/api/webhooks/post-for-me",
   "/api/accounts/callback",
 ];

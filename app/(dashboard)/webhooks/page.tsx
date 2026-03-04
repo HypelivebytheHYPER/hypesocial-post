@@ -21,6 +21,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { useWebhooks, useDeleteWebhook, pfmKeys } from "@/lib/hooks/usePostForMe";
 import type { PostForMeEventType } from "@/lib/validations/webhooks";
@@ -108,7 +118,7 @@ function ConnectionLine({
   const c = colors[color];
 
   return (
-    <div className="flex-1 max-w-[80px] mx-2 relative h-[2px]">
+    <div className="flex-1 max-w-[80px] mx-2 relative h-[2px] hidden sm:block">
       <div className="absolute inset-0 bg-slate-200 rounded-full" />
       <motion.div
         className={`absolute inset-y-0 left-0 ${c.fill} rounded-full`}
@@ -118,8 +128,8 @@ function ConnectionLine({
       />
       <motion.div
         className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${c.dot}`}
-        initial={{ x: 0, opacity: 0 }}
-        animate={{ x: 72, opacity: [0, 1, 1, 0] }}
+        initial={{ left: 0, opacity: 0 }}
+        animate={{ left: "calc(100% - 8px)", opacity: [0, 1, 1, 0] }}
         transition={{
           delay: pulseDelay,
           duration: 1.5,
@@ -137,9 +147,9 @@ export default function WebhooksPage() {
   const { data: webhooksResponse, isLoading, error } = useWebhooks();
   const deleteWebhook = useDeleteWebhook();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this webhook? Events will no longer be forwarded.")) return;
     setDeletingId(id);
     try {
       await deleteWebhook.mutateAsync(id);
@@ -223,7 +233,7 @@ export default function WebhooksPage() {
           </div>
 
           {/* Flow Diagram */}
-          <div className="flex items-center gap-0 justify-center py-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-center py-6">
             {/* Post For Me Node */}
             <motion.div
               className="flex flex-col items-center gap-2"
@@ -369,7 +379,7 @@ export default function WebhooksPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
                           Active
                         </Badge>
-                        <span className="text-[11px] font-mono text-slate-400">
+                        <span className="text-[11px] font-mono text-slate-400 truncate max-w-[120px] sm:max-w-none">
                           {webhook.id}
                         </span>
                       </div>
@@ -383,7 +393,7 @@ export default function WebhooksPage() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-slate-300 hover:text-red-500 hover:bg-red-50"
-                          onClick={() => handleDelete(webhook.id)}
+                          onClick={() => setPendingDeleteId(webhook.id)}
                           disabled={deletingId === webhook.id}
                         >
                           <Trash2 className={`h-3.5 w-3.5 ${deletingId === webhook.id ? "animate-spin" : ""}`} />
@@ -468,6 +478,33 @@ export default function WebhooksPage() {
           })}
         </div>
       </section>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!pendingDeleteId}
+        onOpenChange={(open) => !open && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Events will no longer be forwarded. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (pendingDeleteId) handleDelete(pendingDeleteId);
+                setPendingDeleteId(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

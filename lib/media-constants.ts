@@ -8,6 +8,8 @@ export const ALLOWED_CONTENT_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "video/mp4",
   "video/quicktime",
   "video/webm",

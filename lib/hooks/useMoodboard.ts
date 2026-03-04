@@ -3,6 +3,7 @@
  * Follows the same patterns as usePostForMe.ts
  */
 
+import { useCallback } from "react";
 import {
   useQuery,
   useMutation,
@@ -147,26 +148,53 @@ export function useMoodboardItems(projectId: string, startDate: string, endDate:
 
 export function useCreateItem(projectId?: string, dateRangeStart?: string) {
   const queryClient = useQueryClient();
-  return useMutation<
+  const queryKey =
+    projectId && dateRangeStart
+      ? moodboardKeys.itemsByProject(projectId, dateRangeStart)
+      : moodboardKeys.items();
+
+  const mutation = useMutation<
     MoodboardItem,
     Error,
-    Omit<MoodboardItem, "id" | "record_id" | "created_at" | "updated_at">
+    Omit<MoodboardItem, "id" | "record_id" | "created_at" | "updated_at">,
+    { previous: { items: MoodboardItem[] } | undefined }
   >({
     mutationFn: (data) =>
       apiClient("/api/moodboard/items", {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
-      if (projectId && dateRangeStart) {
-        queryClient.invalidateQueries({
-          queryKey: moodboardKeys.itemsByProject(projectId, dateRangeStart),
+    onMutate: async (newItem) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
+      if (previous) {
+        const placeholder: MoodboardItem = {
+          ...newItem,
+          id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        queryClient.setQueryData(queryKey, {
+          items: [...previous.items, placeholder],
         });
-      } else {
-        queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
       }
+      return { previous };
     },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    // No onSettled here — caller controls when to invalidate (sync real IDs).
+    // This prevents parallel mutations from stomping each other's optimistic state.
   });
+
+  /** Invalidate the items query to replace temp IDs with real server data. */
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryClient, projectId, dateRangeStart],
+  );
+
+  return { ...mutation, invalidate };
 }
 
 export function useUpdateItem(projectId?: string, dateRangeStart?: string) {
@@ -195,19 +223,36 @@ export function useUpdateItem(projectId?: string, dateRangeStart?: string) {
 
 export function useDeleteItem(projectId?: string, dateRangeStart?: string) {
   const queryClient = useQueryClient();
-  return useMutation<unknown, Error, string>({
+  const queryKey =
+    projectId && dateRangeStart
+      ? moodboardKeys.itemsByProject(projectId, dateRangeStart)
+      : moodboardKeys.items();
+
+  return useMutation<
+    unknown,
+    Error,
+    string,
+    { previous: { items: MoodboardItem[] } | undefined }
+  >({
     mutationFn: (itemId) =>
       apiClient(`/api/moodboard/items/${itemId}`, {
         method: "DELETE",
       }),
-    onSuccess: () => {
-      if (projectId && dateRangeStart) {
-        queryClient.invalidateQueries({
-          queryKey: moodboardKeys.itemsByProject(projectId, dateRangeStart),
+    onMutate: async (itemId) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
+      if (previous) {
+        queryClient.setQueryData(queryKey, {
+          items: previous.items.filter((i) => i.id !== itemId),
         });
-      } else {
-        queryClient.invalidateQueries({ queryKey: moodboardKeys.items() });
       }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 }
@@ -235,25 +280,20 @@ export function useReorderItems(projectId: string, dateRangeStart: string) {
         method: "POST",
         body: JSON.stringify({ project_id: projectId, items }),
       }),
-    onMutate: async (reorderItems) => {
-      // Cancel in-flight fetches
+    onMutate: async (reorderPayload) => {
       await queryClient.cancelQueries({ queryKey });
-
-      // Snapshot previous value
       const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
 
-      // Optimistically update
       if (previous) {
+        // O(n+m) via Map instead of O(n*m) with nested find()
+        const updates = new Map(
+          reorderPayload.map((r) => [r.item_id, r] as const),
+        );
         const updatedItems = previous.items.map((item) => {
-          const update = reorderItems.find((r) => r.item_id === item.id);
-          if (update) {
-            return {
-              ...item,
-              column_date: update.column_date,
-              sort_order: update.sort_order,
-            };
-          }
-          return item;
+          const update = updates.get(item.id);
+          return update
+            ? { ...item, column_date: update.column_date, sort_order: update.sort_order }
+            : item;
         });
         queryClient.setQueryData(queryKey, { items: updatedItems });
       }

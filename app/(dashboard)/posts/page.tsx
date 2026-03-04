@@ -40,7 +40,6 @@ import {
   usePosts,
   useDeletePost,
   useRetryPost,
-  useUpdatePost,
   useAccounts,
   usePostResultsList,
   pfmKeys,
@@ -362,7 +361,7 @@ function BoardColumn({
   const Icon = config.icon;
 
   return (
-    <div className="flex flex-col min-w-[200px] flex-1">
+    <div className="flex flex-col min-w-[160px] flex-1">
       {/* Column Header */}
       <div
         className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${config.bg} border ${config.accent} mb-2`}
@@ -420,7 +419,6 @@ export default function PostsPage() {
   const { data: accountsResponse, isLoading: accountsLoading } = useAccounts();
   const deletePost = useDeletePost();
   const retryPost = useRetryPost();
-  const updatePost = useUpdatePost();
 
   const posts = useMemo(() => postsResponse?.data ?? [], [postsResponse?.data]);
   const accounts = useMemo(() => accountsResponse?.data ?? [], [accountsResponse?.data]);

@@ -50,7 +50,7 @@ export function DayColumn({
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      "image/*": [".jpeg", ".jpg", ".png", ".gif", ".webp"],
+      "image/*": [".jpeg", ".jpg", ".png", ".gif", ".webp", ".heic", ".heif"],
       "video/*": [".mp4", ".mov", ".webm"],
     },
     noClick: true,
@@ -94,7 +94,7 @@ export function DayColumn({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
+          accept="image/*,video/*"
           multiple
           className="hidden"
           onChange={handleFileSelect}
@@ -128,34 +128,34 @@ export function DayColumn({
           >
             <Upload className="w-6 h-6 text-slate-300 mx-auto mb-2" />
             <p className="text-xs text-slate-400 font-medium">
-              Tap to upload or drag files
+              Tap to upload
             </p>
           </button>
         )}
       </div>
 
       {/* Add buttons — always visible */}
-      <div className="flex items-center justify-center gap-1.5 p-2">
+      <div className="flex items-center justify-center gap-2 p-2">
         <button
           onClick={handleUploadClick}
-          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
+          className="w-10 h-10 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
           title="Upload image or video"
         >
-          <Upload className="w-3.5 h-3.5 text-slate-500" />
+          <Upload className="w-4 h-4 text-slate-500" />
         </button>
         <button
           onClick={() => onAddItem(column.id, "note")}
-          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-amber-100 flex items-center justify-center transition-colors"
+          className="w-10 h-10 rounded-full bg-slate-100 hover:bg-amber-100 flex items-center justify-center transition-colors"
           title="Add note"
         >
-          <FileText className="w-3.5 h-3.5 text-slate-500" />
+          <FileText className="w-4 h-4 text-slate-500" />
         </button>
         <button
           onClick={() => onAddItem(column.id, "link")}
-          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
+          className="w-10 h-10 rounded-full bg-slate-100 hover:bg-blue-100 flex items-center justify-center transition-colors"
           title="Add link"
         >
-          <LinkIcon className="w-3.5 h-3.5 text-slate-500" />
+          <LinkIcon className="w-4 h-4 text-slate-500" />
         </button>
       </div>
     </div>

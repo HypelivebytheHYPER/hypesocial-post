@@ -49,7 +49,6 @@ export const pfmKeys = {
   feeds: () => [...pfmKeys.all, "feeds"] as const,
   feed: (accountId: string, cursor?: string) =>
     [...pfmKeys.feeds(), accountId, cursor ?? "initial"] as const,
-  previews: () => [...pfmKeys.all, "previews"] as const,
 };
 
 
@@ -869,6 +868,7 @@ function getInvalidationKeys(eventType: string): readonly (readonly string[])[] 
 export function useWebhookStatus() {
   const queryClient = useQueryClient();
   const lastSeenTs = useRef<number | null>(null);
+  const hiddenAtTs = useRef<number | null>(null);
 
   const { data } = useQuery<{ last_event: WebhookEvent | null }>({
     queryKey: ["webhook-status"],
@@ -882,6 +882,29 @@ export function useWebhookStatus() {
     gcTime: 0,
     retry: 3,
   });
+
+  // When returning from background after >15s, broadly invalidate core queries.
+  // The in-memory event store has a 60s TTL, so targeted invalidation may miss
+  // events that arrived while the mobile browser was backgrounded.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === "hidden") {
+        hiddenAtTs.current = Date.now();
+      } else if (document.visibilityState === "visible" && hiddenAtTs.current) {
+        const awayMs = Date.now() - hiddenAtTs.current;
+        hiddenAtTs.current = null;
+        // Only force-invalidate if away long enough to miss polling cycles
+        if (awayMs > 15_000) {
+          queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
+          queryClient.invalidateQueries({ queryKey: pfmKeys.postResults() });
+          queryClient.invalidateQueries({ queryKey: pfmKeys.accounts() });
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [queryClient]);
 
   useEffect(() => {
     const event = data?.last_event;

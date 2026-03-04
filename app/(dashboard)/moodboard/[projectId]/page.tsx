@@ -52,19 +52,28 @@ function getWeekStart(date: Date): Date {
   return startOfWeek(date, { weekStartsOn: 0 });
 }
 
-/** Build columns for an arbitrary date range */
+/** Build columns for an arbitrary date range. O(items + days) via pre-grouping. */
 function buildColumns(
   rangeStart: Date,
   rangeEnd: Date,
   items: MoodboardItem[],
 ): DayColumnType[] {
+  // Group items by date once — O(items)
+  const byDate = new Map<string, MoodboardItem[]>();
+  for (const item of items) {
+    const bucket = byDate.get(item.column_date);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      byDate.set(item.column_date, [item]);
+    }
+  }
+
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
   return days.map((day) => {
     const isoDate = format(day, "yyyy-MM-dd");
-    const dayItems = items
-      .filter((item) => item.column_date === isoDate)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    const dayItems = byDate.get(isoDate);
 
     return {
       id: isoDate,
@@ -72,7 +81,7 @@ function buildColumns(
       date: day.getDate(),
       fullDate: format(day, "MMMM d"),
       isoDate,
-      items: dayItems,
+      items: dayItems ? dayItems.sort((a, b) => a.sort_order - b.sort_order) : [],
     };
   });
 }
@@ -172,26 +181,29 @@ export default function ProjectMoodboardPage() {
       const column = columns.find((c) => c.id === columnId);
       if (!column) return;
 
-      createItem.mutate({
-        project_id: projectId,
-        column_date: column.isoDate,
-        sort_order: column.items.length,
-        type,
-        content:
-          type === "note"
-            ? "New note..."
-            : type === "link"
-              ? "https://..."
-              : "New content",
-        media_url: "",
-        platform: "",
-        video_ratio: type === "video" ? "9:16" : "",
-        author: "",
-        tags: [],
-        likes: "",
-        comments: "",
-        linked_post_id: "",
-      });
+      createItem.mutate(
+        {
+          project_id: projectId,
+          column_date: column.isoDate,
+          sort_order: column.items.length,
+          type,
+          content:
+            type === "note"
+              ? "New note..."
+              : type === "link"
+                ? "https://..."
+                : "New content",
+          media_url: "",
+          platform: "",
+          video_ratio: type === "video" ? "9:16" : "",
+          author: "",
+          tags: [],
+          likes: "",
+          comments: "",
+          linked_post_id: "",
+        },
+        { onSettled: createItem.invalidate },
+      );
     },
     [columns, projectId, createItem],
   );
@@ -201,37 +213,56 @@ export default function ProjectMoodboardPage() {
       const column = columns.find((c) => c.id === columnId);
       if (!column) return;
 
-      for (let idx = 0; idx < files.length; idx++) {
-        const file = files[idx]!;
-        const isVideo = file.type.startsWith("video/");
-        const type = isVideo ? "video" : "image";
-
-        try {
-          const mediaUrl = await uploadMedia.mutateAsync({
-            file,
-            projectId,
-          });
-
-          await createItem.mutateAsync({
-            project_id: projectId,
-            column_date: column.isoDate,
-            sort_order: column.items.length + idx,
-            type,
-            content: file.name.replace(/\.[^.]+$/, ""),
-            media_url: mediaUrl,
-            platform: "",
-            video_ratio: isVideo ? "9:16" : "",
-            author: "",
-            tags: [],
-            likes: "",
-            comments: "",
-            linked_post_id: "",
-          });
-        } catch (err) {
-          console.error("Upload failed:", err);
-          toast.error(`Failed to upload ${file.name}`);
+      // Client-side file size check before uploading
+      const maxImage = 8 * 1024 * 1024; // 8 MB
+      const maxVideo = 512 * 1024 * 1024; // 512 MB
+      const validFiles = files.filter((file) => {
+        const limit = file.type.startsWith("video/") ? maxVideo : maxImage;
+        if (file.size > limit) {
+          const sizeMB = Math.round(file.size / 1024 / 1024);
+          const limitMB = Math.round(limit / 1024 / 1024);
+          toast.error(`${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`);
+          return false;
         }
-      }
+        return true;
+      });
+
+      await Promise.all(
+        validFiles.map(async (file, idx) => {
+          const isVideo = file.type.startsWith("video/");
+          const type = isVideo ? "video" : "image";
+
+          try {
+            const mediaUrl = await uploadMedia.mutateAsync({
+              file,
+              projectId,
+            });
+
+            await createItem.mutateAsync({
+              project_id: projectId,
+              column_date: column.isoDate,
+              sort_order: column.items.length + idx,
+              type,
+              content: file.name.replace(/\.[^.]+$/, ""),
+              media_url: mediaUrl,
+              platform: "",
+              video_ratio: isVideo ? "9:16" : "",
+              author: "",
+              tags: [],
+              likes: "",
+              comments: "",
+              linked_post_id: "",
+            });
+          } catch (err) {
+            console.error("Upload failed:", err);
+            toast.error(`Failed to upload ${file.name}`);
+          }
+        }),
+      );
+
+      // Single invalidation after all uploads — replaces temp IDs with real
+      // server data without stomping concurrent optimistic placeholders.
+      createItem.invalidate();
     },
     [columns, projectId, uploadMedia, createItem],
   );
@@ -239,15 +270,25 @@ export default function ProjectMoodboardPage() {
   const handleReorder = useCallback(
     (finalColumns: DayColumnType[]) => {
       const payload = finalColumns.flatMap((col) =>
-        col.items.map((item, idx) => ({
-          item_id: item.id,
-          column_date: col.isoDate,
-          sort_order: idx,
-        })),
+        col.items
+          .filter((item) => !item.id.startsWith("temp-"))
+          .map((item, idx) => ({
+            item_id: item.id,
+            column_date: col.isoDate,
+            sort_order: idx,
+          })),
       );
+
+      // Skip API call if nothing actually moved
+      const changed = payload.some((p) => {
+        const item = items.find((i) => i.id === p.item_id);
+        return item && (item.column_date !== p.column_date || item.sort_order !== p.sort_order);
+      });
+      if (!changed) return;
+
       reorderItems.mutate(payload);
     },
-    [reorderItems],
+    [reorderItems, items],
   );
 
   // Navigation

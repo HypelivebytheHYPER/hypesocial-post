@@ -1381,8 +1381,24 @@ export default function NewPostPage() {
       if (!files) return;
 
       const processFiles = async () => {
+        // Client-side file size check before uploading
+        const maxImage = 8 * 1024 * 1024; // 8 MB
+        const maxVideo = 512 * 1024 * 1024; // 512 MB
+        const validFiles: File[] = [];
+        for (const file of Array.from(files)) {
+          const limit = file.type.startsWith("video/") ? maxVideo : maxImage;
+          if (file.size > limit) {
+            const sizeMB = Math.round(file.size / 1024 / 1024);
+            const limitMB = Math.round(limit / 1024 / 1024);
+            toast.error(`${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`);
+            continue;
+          }
+          validFiles.push(file);
+        }
+        if (validFiles.length === 0) return;
+
         const newFiles: MediaFile[] = await Promise.all(
-          Array.from(files).map(async (file) => {
+          validFiles.map(async (file) => {
             const isVideo = file.type.startsWith("video/");
             let preview: string;
 
