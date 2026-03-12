@@ -11,12 +11,6 @@ import { ReorderItemsSchema } from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 
-interface ReorderItem {
-  item_id: string;
-  column_date: string;
-  sort_order: number;
-}
-
 /**
  * POST /api/moodboard/items/reorder
  * Batch reorder items after drag-and-drop.
@@ -63,7 +57,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Reorder items error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to reorder items", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to reorder items",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

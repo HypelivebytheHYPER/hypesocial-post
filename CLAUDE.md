@@ -4,6 +4,29 @@
 **Description**: Social media management platform with Post For Me API integration
 **API Docs**: https://api.postforme.dev/docs#models
 
+## Stack
+
+- **Frontend**: Next.js + Vercel
+- **Backend**: Cloudflare Worker HTTP API → `https://lark-http-hype.hypelive.workers.dev/`
+- **Database**: Lark Base (via the worker)
+
+## Architecture
+
+```
+Next.js (Vercel) → Cloudflare Worker (lark-http-hype) → Lark Base
+```
+
+## Deploy
+
+- Frontend: `npx vercel --prod`
+- Worker: `wrangler deploy` from `~/hypelive/internal/02-integrations/lark/lark-http-hype/`
+
+## Note
+
+- `lark-http-hype.hypelive.workers.dev` ≠ `lark-mcp.hypelive.app`
+- lark-http-hype = custom HTTP API worker (Lark Base backend)
+- lark-mcp = MCP protocol server (300+ tools)
+
 ---
 
 ## Quick Start
@@ -61,8 +84,8 @@ lib/
 scripts/
   update-ssot.js        # Auto-generate docs
 types/
-  post-for-me.ts        # Main API types
-  webhooks.ts           # Webhook types
+  post-for-me-types.ts  # Main API types
+  webhook-types.ts      # Webhook types
 ```
 
 ---
@@ -87,14 +110,14 @@ Updated automatically on every build via `prebuild` hook.
 
 ### Key Files
 
-| File                                         | Purpose                        | Derived From |
-| -------------------------------------------- | ------------------------------ | ------------ |
-| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec**        | Original     |
-| `types/post-for-me.ts`                       | TypeScript types               | OpenAPI JSON |
+| File                                         | Purpose                         | Derived From |
+| -------------------------------------------- | ------------------------------- | ------------ |
+| `/Users/mdch/Downloads/api-post-for-me.json` | **SSOT - OpenAPI spec**         | Original     |
+| `types/post-for-me-types.ts`                 | TypeScript types                | OpenAPI JSON |
 | `lib/api-client.ts`                          | **SSOT - Shared fetch wrapper** | -            |
-| `lib/hooks/usePostForMe.ts`                  | TanStack Query hooks           | -            |
-| `lib/validations/webhooks.ts`               | Zod schemas (event types)      | OpenAPI JSON |
-| `lib/social-platforms.ts`                    | Platform icons & config        | -            |
+| `lib/hooks/usePostForMe.ts`                  | TanStack Query hooks            | -            |
+| `lib/validations/webhook-schemas.ts`         | Zod schemas (event types)       | OpenAPI JSON |
+| `lib/social-platforms.ts`                    | Platform icons & config         | -            |
 
 ### Type Imports
 
@@ -104,11 +127,11 @@ import type {
   SocialPost,
   SocialAccount,
   CreateSocialPostDto,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
 import {
   PLATFORM_CHARACTER_LIMITS,
   getMostRestrictiveLimit,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { usePosts, useAccounts, pfmKeys } from "@/lib/hooks/usePostForMe";
 ```

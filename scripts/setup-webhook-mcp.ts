@@ -4,7 +4,8 @@
  * This script registers the webhook with your public URL
  */
 
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+const API_BASE =
+  process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 const API_KEY = process.env.POST_FOR_ME_API_KEY;
 if (!API_KEY) {
   console.error("Error: POST_FOR_ME_API_KEY environment variable is required");
@@ -58,7 +59,7 @@ async function setupWebhook() {
           Authorization: `Bearer ${API_KEY}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     if (!listRes.ok) {
@@ -92,7 +93,9 @@ async function setupWebhook() {
 
     if (!createRes.ok) {
       const error = await createRes.text();
-      throw new Error(`Failed to create webhook: ${createRes.status} - ${error}`);
+      throw new Error(
+        `Failed to create webhook: ${createRes.status} - ${error}`,
+      );
     }
 
     const webhook = await createRes.json();
@@ -113,7 +116,10 @@ async function setupWebhook() {
     console.log("  - social.account.created");
     console.log("  - social.account.updated");
   } catch (error) {
-    console.error("\n❌ Error:", error instanceof Error ? error.message : error);
+    console.error(
+      "\n❌ Error:",
+      error instanceof Error ? error.message : error,
+    );
     process.exit(1);
   }
 }

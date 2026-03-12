@@ -16,7 +16,11 @@ export async function GET(request: NextRequest) {
 
   if (!url) {
     return NextResponse.json(
-      { error: "Bad Request", message: "Missing url parameter", statusCode: 400 },
+      {
+        error: "Bad Request",
+        message: "Missing url parameter",
+        statusCode: 400,
+      },
       { status: 400 },
     );
   }
@@ -43,7 +47,11 @@ export async function GET(request: NextRequest) {
 
     if (!upstream.ok) {
       return NextResponse.json(
-        { error: "Bad Gateway", message: `Upstream returned ${upstream.status}`, statusCode: upstream.status },
+        {
+          error: "Bad Gateway",
+          message: `Upstream returned ${upstream.status}`,
+          statusCode: upstream.status,
+        },
         { status: upstream.status },
       );
     }
@@ -64,7 +72,11 @@ export async function GET(request: NextRequest) {
     return new Response(data, { status: 200, headers });
   } catch {
     return NextResponse.json(
-      { error: "Bad Gateway", message: "Failed to fetch upstream resource", statusCode: 502 },
+      {
+        error: "Bad Gateway",
+        message: "Failed to fetch upstream resource",
+        statusCode: 502,
+      },
       { status: 502 },
     );
   }

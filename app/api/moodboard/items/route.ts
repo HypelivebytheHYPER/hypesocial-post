@@ -14,7 +14,10 @@ import {
 } from "@/lib/lark";
 import { randomUUID } from "crypto";
 import { parseBody, parseQuery } from "@/lib/validations";
-import { ListItemsQuerySchema, CreateItemSchema } from "@/lib/validations/moodboard";
+import {
+  ListItemsQuerySchema,
+  CreateItemSchema,
+} from "@/lib/validations/moodboard";
 
 const TABLE_ID = process.env.LARK_MOODBOARD_ITEMS_TABLE_ID!;
 
@@ -81,7 +84,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[API] List items error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to list items", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to list items",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -141,7 +148,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Create item error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to create item", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to create item",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

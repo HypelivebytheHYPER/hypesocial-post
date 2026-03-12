@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ZodSchema, ZodError } from "zod";
-import type { PostForMeError } from "@/types/post-for-me";
+import type { PostForMeError } from "@/types/post-for-me-types";
 
 /**
  * PFM resource ID prefixes — used for lightweight format validation.
@@ -39,7 +39,10 @@ export function validateId(
   return null; // valid
 }
 
-function formatZodError(error: ZodError): { message: string; fields: string[] } {
+function formatZodError(error: ZodError): {
+  message: string;
+  fields: string[];
+} {
   const fields = error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
   return { message: fields.join("; "), fields };
 }

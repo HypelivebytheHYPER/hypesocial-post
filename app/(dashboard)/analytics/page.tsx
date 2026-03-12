@@ -17,33 +17,30 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-const TikTokInsightsCharts = dynamic(
-  () => import("./analytics-charts"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card-premium p-4 animate-pulse">
-              <div className="w-8 h-8 rounded-xl bg-slate-100 mb-2" />
-              <div className="h-6 w-20 bg-slate-100 rounded mb-1" />
-              <div className="h-3 w-24 bg-slate-50 rounded" />
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card-premium p-4 animate-pulse">
-              <div className="h-4 w-32 bg-slate-100 rounded mb-3" />
-              <div className="h-48 bg-slate-50 rounded" />
-            </div>
-          ))}
-        </div>
+const TikTokInsightsCharts = dynamic(() => import("./analytics-charts"), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="card-premium p-4 animate-pulse">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 mb-2" />
+            <div className="h-6 w-20 bg-slate-100 rounded mb-1" />
+            <div className="h-3 w-24 bg-slate-50 rounded" />
+          </div>
+        ))}
       </div>
-    ),
-  },
-);
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="card-premium p-4 animate-pulse">
+            <div className="h-4 w-32 bg-slate-100 rounded mb-3" />
+            <div className="h-48 bg-slate-50 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  ),
+});
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -62,12 +59,11 @@ import {
   getMetricAvailability,
   PLATFORM_NOTES,
   type NormalizedMetrics,
-  type MetricAvailability,
   type ExtendedTikTokMetrics,
 } from "@/lib/metrics";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { proxyMediaUrl } from "@/lib/utils";
-import type { SocialAccountFeedItem } from "@/types/post-for-me";
+import type { SocialAccountFeedItem } from "@/types/post-for-me-types";
 
 // Platform colors for charts (same as dashboard)
 const PLATFORM_COLORS: Record<string, string> = {
@@ -110,7 +106,12 @@ export default function AnalyticsPage() {
 
   // 3. Aggregate totals
   const totals = useMemo(() => {
-    const result: NormalizedMetrics = { likes: 0, comments: 0, shares: 0, views: 0 };
+    const result: NormalizedMetrics = {
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      views: 0,
+    };
     allItems.forEach((item) => {
       const m = extractMetrics(item.metrics);
       result.likes += m.likes;
@@ -125,7 +126,12 @@ export default function AnalyticsPage() {
   const perAccount = useMemo(() => {
     return connectedAccounts.map((account) => {
       const items = feedsByAccount.get(account.id) || [];
-      const agg: NormalizedMetrics = { likes: 0, comments: 0, shares: 0, views: 0 };
+      const agg: NormalizedMetrics = {
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        views: 0,
+      };
       items.forEach((item) => {
         const m = extractMetrics(item.metrics);
         agg.likes += m.likes;
@@ -223,10 +229,11 @@ export default function AnalyticsPage() {
     const bestPost = tbItems.sort(
       (a, b) => b.metrics.views - a.metrics.views,
     )[0];
-    const retentionData = bestPost?.extended.videoViewRetention.map((p) => ({
-      second: p.second,
-      percentage: p.percentage,
-    })) || [];
+    const retentionData =
+      bestPost?.extended.videoViewRetention.map((p) => ({
+        second: p.second,
+        percentage: p.percentage,
+      })) || [];
 
     // Averaged demographics
     const genderMap = new Map<string, number>();
@@ -331,7 +338,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Section 1: Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="greeting-title">Engagement Analytics</h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -404,7 +411,11 @@ export default function AnalyticsPage() {
                 bg="bg-emerald-50"
                 isLoading={feedsLoading && allItems.length === 0}
                 isPartial={!isAllLoaded}
-                caveatNote={unavailShares.length > 0 ? `Shares not available for ${unavailShares.join(", ")}` : undefined}
+                caveatNote={
+                  unavailShares.length > 0
+                    ? `Shares not available for ${unavailShares.join(", ")}`
+                    : undefined
+                }
               />
               <OverviewCard
                 label="Total Views"
@@ -414,7 +425,11 @@ export default function AnalyticsPage() {
                 bg="bg-purple-50"
                 isLoading={feedsLoading && allItems.length === 0}
                 isPartial={!isAllLoaded}
-                caveatNote={unavailViews.length > 0 ? `Views not available for ${unavailViews.join(", ")}` : undefined}
+                caveatNote={
+                  unavailViews.length > 0
+                    ? `Views not available for ${unavailViews.join(", ")}`
+                    : undefined
+                }
               />
             </>
           );
@@ -427,117 +442,120 @@ export default function AnalyticsPage() {
       <div>
         <h2 className="section-title mb-4">Per-Account Breakdown</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {perAccount.map(({ account, metrics, postCount, error, isLoading }) => {
-            const PlatformIcon =
-              platformIconsMap[account.platform.toLowerCase()];
+          {perAccount.map(
+            ({ account, metrics, postCount, error, isLoading }) => {
+              const PlatformIcon =
+                platformIconsMap[account.platform.toLowerCase()];
 
-            if (isLoading) {
+              if (isLoading) {
+                return (
+                  <div key={account.id} className="card-premium p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="w-10 h-10 rounded-full" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="w-24 h-4" />
+                        <Skeleton className="w-16 h-3" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Skeleton className="h-12 rounded-lg" />
+                      <Skeleton className="h-12 rounded-lg" />
+                      <Skeleton className="h-12 rounded-lg" />
+                      <Skeleton className="h-12 rounded-lg" />
+                    </div>
+                  </div>
+                );
+              }
+
+              if (error) {
+                return (
+                  <div
+                    key={account.id}
+                    className="card-premium p-4 border-red-200"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">
+                          {account.username || account.platform}
+                        </p>
+                        <p className="text-xs text-red-500">
+                          Failed to load feed
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              const avail = getMetricAvailability(account.platform);
               return (
-                <div key={account.id} className="card-premium p-4 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="w-10 h-10 rounded-full" />
-                    <div className="space-y-1.5">
-                      <Skeleton className="w-24 h-4" />
-                      <Skeleton className="w-16 h-3" />
+                <div key={account.id} className="card-premium p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar className="w-10 h-10">
+                      {account.profile_photo_url && (
+                        <AvatarImage
+                          src={proxyMediaUrl(account.profile_photo_url)}
+                        />
+                      )}
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-sm">
+                        {(account.username ||
+                          account.platform)[0]?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
+                        {account.username || account.platform}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {PlatformIcon && (
+                          <PlatformIcon className="w-3 h-3 text-slate-400" />
+                        )}
+                        <span className="text-xs text-slate-400 capitalize">
+                          {account.platform}
+                        </span>
+                        <span className="text-xs text-slate-300">
+                          &middot; {postCount} posts
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Skeleton className="h-12 rounded-lg" />
-                    <Skeleton className="h-12 rounded-lg" />
-                    <Skeleton className="h-12 rounded-lg" />
-                    <Skeleton className="h-12 rounded-lg" />
+                    <MiniStat
+                      icon={Heart}
+                      label="Likes"
+                      value={metrics.likes}
+                      color="text-pink-500"
+                      available={avail.likes}
+                    />
+                    <MiniStat
+                      icon={MessageCircle}
+                      label="Comments"
+                      value={metrics.comments}
+                      color="text-blue-500"
+                      available={avail.comments}
+                    />
+                    <MiniStat
+                      icon={Share2}
+                      label="Shares"
+                      value={metrics.shares}
+                      color="text-emerald-500"
+                      available={avail.shares}
+                    />
+                    <MiniStat
+                      icon={Eye}
+                      label="Views"
+                      value={metrics.views}
+                      color="text-purple-500"
+                      available={avail.views}
+                    />
                   </div>
                 </div>
               );
-            }
-
-            if (error) {
-              return (
-                <div
-                  key={account.id}
-                  className="card-premium p-4 border-red-200"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-                      <AlertCircle className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">
-                        {account.username || account.platform}
-                      </p>
-                      <p className="text-xs text-red-500">
-                        Failed to load feed
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            const avail = getMetricAvailability(account.platform);
-            return (
-              <div key={account.id} className="card-premium p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar className="w-10 h-10">
-                    {account.profile_photo_url && (
-                      <AvatarImage
-                        src={proxyMediaUrl(account.profile_photo_url)}
-                      />
-                    )}
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-sm">
-                      {(account.username || account.platform)[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">
-                      {account.username || account.platform}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      {PlatformIcon && (
-                        <PlatformIcon className="w-3 h-3 text-slate-400" />
-                      )}
-                      <span className="text-xs text-slate-400 capitalize">
-                        {account.platform}
-                      </span>
-                      <span className="text-xs text-slate-300">
-                        &middot; {postCount} posts
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <MiniStat
-                    icon={Heart}
-                    label="Likes"
-                    value={metrics.likes}
-                    color="text-pink-500"
-                    available={avail.likes}
-                  />
-                  <MiniStat
-                    icon={MessageCircle}
-                    label="Comments"
-                    value={metrics.comments}
-                    color="text-blue-500"
-                    available={avail.comments}
-                  />
-                  <MiniStat
-                    icon={Share2}
-                    label="Shares"
-                    value={metrics.shares}
-                    color="text-emerald-500"
-                    available={avail.shares}
-                  />
-                  <MiniStat
-                    icon={Eye}
-                    label="Views"
-                    value={metrics.views}
-                    color="text-purple-500"
-                    available={avail.views}
-                  />
-                </div>
-              </div>
-            );
-          })}
+            },
+          )}
         </div>
       </div>
 
@@ -559,7 +577,7 @@ export default function AnalyticsPage() {
               </p>
             </div>
           ) : (
-            topPosts.map(({ item, engagement, metrics }, index) => {
+            topPosts.map(({ item, metrics }, index) => {
               const PlatformIcon =
                 platformIconsMap[item.platform?.toLowerCase()];
               const account = connectedAccounts.find(
@@ -598,8 +616,8 @@ export default function AnalyticsPage() {
                     </p>
                   </div>
 
-                  {/* Metric pills */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Metric pills — hidden on mobile to prevent overflow */}
+                  <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                     <span className="badge-soft text-pink-600 bg-pink-50 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                       <Heart className="w-3 h-3" />
                       {formatNumber(metrics.likes)}
@@ -686,7 +704,8 @@ export default function AnalyticsPage() {
                     </div>
                     {(PLATFORM_NOTES[platform]?.length ?? 0) > 0 && (
                       <p className="text-[10px] text-amber-500 mt-1 flex items-center gap-1">
-                        <Info className="w-3 h-3 flex-shrink-0" /> {PLATFORM_NOTES[platform]![0]}
+                        <Info className="w-3 h-3 flex-shrink-0" />{" "}
+                        {PLATFORM_NOTES[platform]![0]}
                       </p>
                     )}
                   </div>
@@ -719,9 +738,10 @@ export default function AnalyticsPage() {
                 About These Metrics
               </h3>
               <p className="text-slate-500 text-xs leading-relaxed">
-                All metrics are lifetime cumulative values fetched directly from each
-                platform&apos;s API. Numbers may differ from in-app dashboards due to
-                processing delays, metric availability, and platform constraints.
+                All metrics are lifetime cumulative values fetched directly from
+                each platform&apos;s API. Numbers may differ from in-app
+                dashboards due to processing delays, metric availability, and
+                platform constraints.
               </p>
             </div>
 
@@ -733,8 +753,13 @@ export default function AnalyticsPage() {
                 </p>
                 <ul className="text-[10px] text-slate-400 space-y-0.5">
                   <li>&bull; Instagram/Facebook: up to 48-hour delay</li>
-                  <li>&bull; YouTube: views may lag real-time (estimated/verified)</li>
-                  <li>&bull; All platforms: lifetime counts, not periodic snapshots</li>
+                  <li>
+                    &bull; YouTube: views may lag real-time (estimated/verified)
+                  </li>
+                  <li>
+                    &bull; All platforms: lifetime counts, not periodic
+                    snapshots
+                  </li>
                 </ul>
               </div>
 
@@ -757,8 +782,12 @@ export default function AnalyticsPage() {
                 </p>
                 <ul className="text-[10px] text-slate-400 space-y-0.5">
                   <li>&bull; LinkedIn: metrics only for Company Pages</li>
-                  <li>&bull; Meta (IG/FB): organic only, 2-year data retention</li>
-                  <li>&bull; Pinterest: 90-day and lifetime provided separately</li>
+                  <li>
+                    &bull; Meta (IG/FB): organic only, 2-year data retention
+                  </li>
+                  <li>
+                    &bull; Pinterest: 90-day and lifetime provided separately
+                  </li>
                 </ul>
               </div>
 
@@ -769,7 +798,10 @@ export default function AnalyticsPage() {
                 </p>
                 <ul className="text-[10px] text-slate-400 space-y-0.5">
                   <li>&bull; X: impressions include organic + paid traffic</li>
-                  <li>&bull; TikTok Business: extended watch time &amp; demographics</li>
+                  <li>
+                    &bull; TikTok Business: extended watch time &amp;
+                    demographics
+                  </li>
                   <li>&bull; All platforms: ad/paid interactions excluded</li>
                 </ul>
               </div>
@@ -805,11 +837,16 @@ function OverviewCard({
   return (
     <div className="stat-card">
       <div className="flex items-center justify-between mb-3">
-        <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}>
+        <div
+          className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}
+        >
           <Icon className={`w-4.5 h-4.5 ${color}`} />
         </div>
         {isPartial && !isLoading && (
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Still loading some accounts" />
+          <span
+            className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+            title="Still loading some accounts"
+          />
         )}
       </div>
       {isLoading ? (
@@ -847,8 +884,12 @@ function MiniStat({
 }) {
   return (
     <div className="bg-slate-50 rounded-lg p-2 text-center">
-      <Icon className={`w-3.5 h-3.5 mx-auto mb-0.5 ${available ? color : "text-slate-300"}`} />
-      <p className={`text-sm font-semibold ${available ? "text-slate-800" : "text-slate-300"}`}>
+      <Icon
+        className={`w-3.5 h-3.5 mx-auto mb-0.5 ${available ? color : "text-slate-300"}`}
+      />
+      <p
+        className={`text-sm font-semibold ${available ? "text-slate-800" : "text-slate-300"}`}
+      >
         {available ? formatNumber(value) : "N/A"}
       </p>
       <p className="text-[10px] text-slate-400">{label}</p>

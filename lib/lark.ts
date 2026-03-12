@@ -58,48 +58,32 @@ function getConfig() {
 // ==================== Filter Helpers ====================
 
 /** Build a filter with AND conjunction */
-export function filterAnd(
-  ...conditions: LarkFilterCondition[]
-): LarkFilter {
+export function filterAnd(...conditions: LarkFilterCondition[]): LarkFilter {
   return { conjunction: "and", conditions };
 }
 
 /** Build a filter with OR conjunction */
-export function filterOr(
-  ...conditions: LarkFilterCondition[]
-): LarkFilter {
+export function filterOr(...conditions: LarkFilterCondition[]): LarkFilter {
   return { conjunction: "or", conditions };
 }
 
 /** field_name == value */
-export function eq(
-  field_name: string,
-  value: unknown,
-): LarkFilterCondition {
+export function eq(field_name: string, value: unknown): LarkFilterCondition {
   return { field_name, operator: "is", value: [value] };
 }
 
 /** field_name != value */
-export function neq(
-  field_name: string,
-  value: unknown,
-): LarkFilterCondition {
+export function neq(field_name: string, value: unknown): LarkFilterCondition {
   return { field_name, operator: "isNot", value: [value] };
 }
 
 /** field_name >= value */
-export function gte(
-  field_name: string,
-  value: unknown,
-): LarkFilterCondition {
+export function gte(field_name: string, value: unknown): LarkFilterCondition {
   return { field_name, operator: "isGreaterEqual", value: [value] };
 }
 
 /** field_name <= value */
-export function lte(
-  field_name: string,
-  value: unknown,
-): LarkFilterCondition {
+export function lte(field_name: string, value: unknown): LarkFilterCondition {
   return { field_name, operator: "isLessEqual", value: [value] };
 }
 
@@ -115,9 +99,17 @@ async function callLarkEndpoint(
 ): Promise<unknown> {
   const { workerUrl } = getConfig();
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const apiKey = process.env.LARK_API_KEY;
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
   const res = await fetch(`${workerUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -254,9 +246,7 @@ export function larkText(val: unknown): string {
   if (!val) return "";
   if (typeof val === "string") return val;
   if (Array.isArray(val)) {
-    return val
-      .map((v: { text?: string }) => v?.text || "")
-      .join("");
+    return val.map((v: { text?: string }) => v?.text || "").join("");
   }
   return String(val);
 }

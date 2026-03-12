@@ -1,6 +1,6 @@
 # Single Source of Truth Guide
 
-> **Auto-generated:** 2026-03-04
+> **Auto-generated:** 2026-03-12
 > **Regenerate:** `node scripts/update-ssot.js` or `pnpm build`
 
 This document defines the canonical sources for types, configurations, and utilities in this project to avoid confusion and inconsistencies.
@@ -9,7 +9,7 @@ This document defines the canonical sources for types, configurations, and utili
 
 ## Type Definitions
 
-**Canonical Source:** `types/post-for-me.ts`
+**Canonical Source:** `types/post-for-me-types.ts`
 
 ### Core Types
 
@@ -150,17 +150,17 @@ This document defines the canonical sources for types, configurations, and utili
 
 | Function | Purpose |
 |----------|---------|
-| `getMostRestrictiveLimit()` | See types/post-for-me.ts |
-| `getWarningThreshold()` | See types/post-for-me.ts |
-| `getDangerThreshold()` | See types/post-for-me.ts |
+| `getMostRestrictiveLimit()` | See types/post-for-me-types.ts |
+| `getWarningThreshold()` | See types/post-for-me-types.ts |
+| `getDangerThreshold()` | See types/post-for-me-types.ts |
 | `PLATFORM_CHARACTER_LIMITS` | Constant |
 
 ### Import Pattern
 
 ```typescript
 // ✅ Correct
-import type { SocialPost, SocialAccount, CreateSocialPostDto } from "@/types/post-for-me";
-import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me";
+import type { SocialPost, SocialAccount, CreateSocialPostDto } from "@/types/post-for-me-types";
+import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me-types";
 ```
 
 ---
@@ -196,10 +196,10 @@ const Icon = platformIconsMap[platform.toLowerCase()];
 
 ## Character Limits
 
-**Canonical Source:** `types/post-for-me.ts`
+**Canonical Source:** `types/post-for-me-types.ts`
 
 ```typescript
-import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me";
+import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me-types";
 
 // Get limit for platforms
 const limit = getMostRestrictiveLimit(["x", "instagram"]);
@@ -244,6 +244,7 @@ All TanStack Query hooks for Post For Me API.
 | `usePostPreview()` | Hook |
 | `useRegisterAppWebhook()` | Hook |
 | `useWebhookStatus()` | Hook |
+| `useTiktokTrendingMusic()` | Hook |
 
 ### Query Keys
 
@@ -263,7 +264,7 @@ queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
 **Canonical Source:** `types/webhooks.ts`
 
 ```typescript
-import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhooks";
+import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhook-types";
 ```
 
 ---
@@ -272,8 +273,8 @@ import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhooks";
 
 | File | Purpose |
 |------|---------|
-| `types/post-for-me.ts` | Post For Me API types |
-| `types/webhooks.ts` | Webhook-specific types |
+| `types/post-for-me-types.ts` | Post For Me API types |
+| `types/webhook-types.ts` | Webhook-specific types |
 | `lib/hooks/usePostForMe.ts` | API hooks |
 | `lib/social-platforms.ts` | Platform config |
 

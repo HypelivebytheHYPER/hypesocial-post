@@ -24,7 +24,7 @@ import {
   usePausedAccounts,
   pfmKeys,
 } from "@/lib/hooks/usePostForMe";
-import type { SocialAccount } from "@/types/post-for-me";
+import type { SocialAccount } from "@/types/post-for-me-types";
 import { proxyMediaUrl } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,9 @@ function ConnectAccountsContent() {
     const isFailed = searchParams.get("isSuccess") === "false";
     if (error || isFailed) {
       toast.error(
-        ERROR_MESSAGES[error || ""] || error || "Connection failed. Please try again.",
+        ERROR_MESSAGES[error || ""] ||
+          error ||
+          "Connection failed. Please try again.",
       );
       router.replace("/accounts/connect");
     }
@@ -146,7 +148,9 @@ function ConnectAccountsContent() {
   const disconnectAccount = useDisconnectAccount();
   const { isReady, toggleAccount, isPaused } = usePausedAccounts();
 
-  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(
+    null,
+  );
   const [showInfo, setShowInfo] = useState(false);
 
   const connectedAccounts = accountsData?.data || [];
@@ -174,9 +178,7 @@ function ConnectAccountsContent() {
   const handleDisconnect = (account: SocialAccount) => {
     disconnectAccount.mutate(account.id, {
       onSuccess: () => {
-        toast.success(
-          `Disconnected ${account.username || account.platform}`,
-        );
+        toast.success(`Disconnected ${account.username || account.platform}`);
       },
       onError: (error) => {
         toast.error(`Failed to disconnect: ${error.message}`);
@@ -327,9 +329,7 @@ function ConnectAccountsContent() {
                             >
                               {account.profile_photo_url && (
                                 <AvatarImage
-                                  src={proxyMediaUrl(
-                                    account.profile_photo_url,
-                                  )}
+                                  src={proxyMediaUrl(account.profile_photo_url)}
                                   alt={account.username || platform.name}
                                 />
                               )}
@@ -527,9 +527,7 @@ function ConnectAccountsContent() {
               <div className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="text-slate-500">
-                  <p className="font-medium text-slate-600 mb-1">
-                    Permissions
-                  </p>
+                  <p className="font-medium text-slate-600 mb-1">Permissions</p>
                   <ul className="text-xs space-y-0.5">
                     <li>
                       <strong>posts</strong> — Required for publishing content
@@ -562,10 +560,47 @@ function ConnectAccountsContent() {
               </div>
 
               <div className="flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div className="text-slate-500">
+                  <p className="font-medium text-slate-600 mb-1">
+                    Facebook Requirements
+                  </p>
+                  <ul className="text-xs space-y-0.5">
+                    <li>
+                      Personal timelines are not supported — you must connect a
+                      Facebook Page
+                    </li>
+                    <li>
+                      During connection, select at least one Page and its
+                      associated business
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div className="text-slate-500">
+                  <p className="font-medium text-slate-600 mb-1">
+                    Bluesky Requirements
+                  </p>
+                  <ul className="text-xs space-y-0.5">
+                    <li>
+                      Bluesky uses App Passwords instead of standard OAuth
+                    </li>
+                    <li>
+                      Generate an App Password in Bluesky &gt; Settings &gt; App
+                      Passwords — do not use your login password
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
                 <Zap className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
                 <p className="text-slate-500">
-                  Webhooks are auto-registered for real-time post status
-                  updates including publish success, failures, and errors.
+                  Webhooks are auto-registered for real-time post status updates
+                  including publish success, failures, and errors.
                 </p>
               </div>
             </div>

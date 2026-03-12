@@ -17,7 +17,7 @@ interface RateLimitResult {
 type Tier = "auth" | "webhook" | "media" | "api";
 
 const TIER_LIMITS: Record<Tier, { max: number; windowMs: number }> = {
-  auth: { max: 10, windowMs: 60_000 },
+  auth: { max: 30, windowMs: 60_000 },
   webhook: { max: 100, windowMs: 60_000 },
   media: { max: 20, windowMs: 60_000 },
   api: { max: 60, windowMs: 60_000 },
@@ -38,7 +38,11 @@ function ensureCleanup() {
     }
   }, 60_000);
   // Don't prevent process exit
-  if (cleanupTimer && typeof cleanupTimer === "object" && "unref" in cleanupTimer) {
+  if (
+    cleanupTimer &&
+    typeof cleanupTimer === "object" &&
+    "unref" in cleanupTimer
+  ) {
     cleanupTimer.unref();
   }
 }

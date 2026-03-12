@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { pfm } from "@/lib/post-for-me";
+import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me";
+import type { PostForMeError } from "@/types/post-for-me-types";
 
 // Allowed media storage domains - ONLY Post For Me storage
 const ALLOWED_MEDIA_DOMAINS = [
@@ -22,18 +22,38 @@ const CreatePostSchema = z.object({
   scheduled_at: z.string().datetime().optional(),
   isDraft: z.boolean().optional(),
   platform_configurations: z.record(z.any()).optional(),
-  account_configurations: z.array(z.object({
-    social_account_id: z.string(),
-    configuration: z.record(z.any()),
-  })).optional(),
+  account_configurations: z
+    .array(
+      z.object({
+        social_account_id: z.string(),
+        configuration: z.record(z.any()),
+      }),
+    )
+    .optional(),
   external_id: z.string().optional(),
 });
 
 const ListPostsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.array(z.enum(["draft", "scheduled", "processing", "processed"])).optional(),
-  platform: z.array(z.enum(["facebook", "instagram", "tiktok", "youtube", "x", "bluesky", "linkedin", "pinterest", "threads"])).optional(),
+  status: z
+    .array(z.enum(["draft", "scheduled", "processing", "processed"]))
+    .optional(),
+  platform: z
+    .array(
+      z.enum([
+        "facebook",
+        "instagram",
+        "tiktok",
+        "youtube",
+        "x",
+        "bluesky",
+        "linkedin",
+        "pinterest",
+        "threads",
+      ]),
+    )
+    .optional(),
   external_id: z.array(z.string()).optional(),
   social_account_id: z.array(z.string()).optional(),
 });
@@ -81,7 +101,9 @@ export async function GET(request: NextRequest) {
     });
 
     if (!queryResult.success) {
-      const issues = queryResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+      const issues = queryResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
       return NextResponse.json<PostForMeError>(
         {
           error: "Validation Error",
@@ -98,13 +120,21 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(
-        { error: "API Error", message: error.message, statusCode: error.status },
+        {
+          error: "API Error",
+          message: error.message,
+          statusCode: error.status,
+        },
         { status: error.status || 500 },
       );
     }
     console.error("[API] Error fetching posts:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Unknown error occurred",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -122,7 +152,11 @@ export async function POST(request: NextRequest) {
       jsonBody = await request.json();
     } catch {
       return NextResponse.json<PostForMeError>(
-        { error: "Bad Request", message: "Invalid JSON in request body", statusCode: 400 },
+        {
+          error: "Bad Request",
+          message: "Invalid JSON in request body",
+          statusCode: 400,
+        },
         { status: 400 },
       );
     }
@@ -130,13 +164,15 @@ export async function POST(request: NextRequest) {
     // Validate with Zod
     const parseResult = CreatePostSchema.safeParse(jsonBody);
     if (!parseResult.success) {
-      const issues = parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+      const issues = parseResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
       return NextResponse.json<PostForMeError>(
         {
           error: "Validation Error",
           message: issues.join("; "),
           statusCode: 400,
-          details: { fields: issues }
+          details: { fields: issues },
         },
         { status: 400 },
       );
@@ -151,11 +187,18 @@ export async function POST(request: NextRequest) {
         errors.push("caption is required and must be a non-empty string");
       }
       if (!body.social_accounts || body.social_accounts.length === 0) {
-        errors.push("social_accounts is required and must be a non-empty array");
+        errors.push(
+          "social_accounts is required and must be a non-empty array",
+        );
       }
       if (errors.length > 0) {
         return NextResponse.json<PostForMeError>(
-          { error: "Validation Error", message: errors.join("; "), statusCode: 400, details: { fields: errors } },
+          {
+            error: "Validation Error",
+            message: errors.join("; "),
+            statusCode: 400,
+            details: { fields: errors },
+          },
           { status: 400 },
         );
       }
@@ -169,10 +212,35 @@ export async function POST(request: NextRequest) {
           error: "Validation Error",
           message: mediaValidation.error || "Invalid media URL",
           statusCode: 400,
-          details: { allowed_domains: ALLOWED_MEDIA_DOMAINS, instruction: "Upload media via POST /api/media to get valid URLs" },
+          details: {
+            allowed_domains: ALLOWED_MEDIA_DOMAINS,
+            instruction: "Upload media via POST /api/media to get valid URLs",
+          },
         },
         { status: 400 },
       );
+    }
+
+    // Validate TikTok privacy_status is explicitly set (required by TikTok Developer Guidelines)
+    const pc = body.platform_configurations;
+    if (pc) {
+      for (const key of ["tiktok", "tiktok_business"] as const) {
+        const cfg = pc[key];
+        if (
+          cfg &&
+          (!cfg.privacy_status ||
+            !["public", "private"].includes(cfg.privacy_status))
+        ) {
+          return NextResponse.json<PostForMeError>(
+            {
+              error: "Validation Error",
+              message: `${key}.privacy_status must be "public" or "private"`,
+              statusCode: 400,
+            },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Validate scheduled_at is in the future (skip for drafts)
@@ -180,7 +248,11 @@ export async function POST(request: NextRequest) {
       const scheduledDate = new Date(body.scheduled_at);
       if (scheduledDate < new Date()) {
         return NextResponse.json<PostForMeError>(
-          { error: "Validation Error", message: "scheduled_at must be in the future", statusCode: 400 },
+          {
+            error: "Validation Error",
+            message: "scheduled_at must be in the future",
+            statusCode: 400,
+          },
           { status: 400 },
         );
       }
@@ -192,18 +264,48 @@ export async function POST(request: NextRequest) {
       social_accounts: body.social_accounts || [],
     });
 
-    console.log("[API] POST /posts", { id: data.id, status: data.status, accounts: body.social_accounts?.length ?? 0 });
+    console.log("[API] POST /posts", {
+      id: data.id,
+      status: data.status,
+      accounts: body.social_accounts?.length ?? 0,
+      ...(pc?.tiktok && {
+        tiktok: {
+          privacy: pc.tiktok.privacy_status,
+          comment: pc.tiktok.allow_comment,
+          duet: pc.tiktok.allow_duet,
+          stitch: pc.tiktok.allow_stitch,
+          auto_music: pc.tiktok.auto_add_music,
+        },
+      }),
+      ...(pc?.tiktok_business && {
+        tiktok_biz: {
+          privacy: pc.tiktok_business.privacy_status,
+          comment: pc.tiktok_business.allow_comment,
+          duet: pc.tiktok_business.allow_duet,
+          stitch: pc.tiktok_business.allow_stitch,
+          auto_music: pc.tiktok_business.auto_add_music,
+        },
+      }),
+    });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(
-        { error: "API Error", message: error.message, statusCode: error.status },
+        {
+          error: "API Error",
+          message: error.message,
+          statusCode: error.status,
+        },
         { status: error.status || 500 },
       );
     }
     console.error("[API] Error creating post:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Unknown error occurred",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

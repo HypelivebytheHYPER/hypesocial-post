@@ -9,17 +9,11 @@ import DashboardLoading from "./loading";
  * Wrapped in Suspense so the shell + loading.tsx stream immediately
  * while this resolves in the background.
  */
-async function PrefetchedContent({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+async function PrefetchedContent({ children }: { children: React.ReactNode }) {
   const dehydratedState = await prefetchDashboardData();
 
   return (
-    <HydrationBoundary state={dehydratedState}>
-      {children}
-    </HydrationBoundary>
+    <HydrationBoundary state={dehydratedState}>{children}</HydrationBoundary>
   );
 }
 

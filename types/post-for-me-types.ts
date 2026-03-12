@@ -11,6 +11,7 @@ export const PLATFORM_CHARACTER_LIMITS: Record<string, number> = {
   facebook: 63206,
   linkedin: 3000,
   tiktok: 2200,
+  tiktok_business: 2200,
   threads: 500,
   pinterest: 500,
   youtube: 5000,
@@ -1798,4 +1799,4 @@ export type {
   PostForMeWebhook,
   PostForMeWebhookPayload,
   PostForMeWebhookListResponse,
-} from "./webhooks";
+} from "./webhook-types";

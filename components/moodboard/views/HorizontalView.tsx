@@ -63,11 +63,14 @@ export function HorizontalView({
               {activeItem.type === "image" && (
                 <div className="aspect-[4/5] bg-slate-100 flex items-center justify-center">
                   {activeItem.media_url ? (
-                    <img
-                      src={activeItem.media_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeItem.media_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </>
                   ) : (
                     <ImageIcon className="w-8 h-8 text-slate-300" />
                   )}

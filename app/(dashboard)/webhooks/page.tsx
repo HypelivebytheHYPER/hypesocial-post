@@ -32,8 +32,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { useWebhooks, useDeleteWebhook, pfmKeys } from "@/lib/hooks/usePostForMe";
-import type { PostForMeEventType } from "@/lib/validations/webhooks";
+import {
+  useWebhooks,
+  useDeleteWebhook,
+  pfmKeys,
+} from "@/lib/hooks/usePostForMe";
+import type { PostForMeEventType } from "@/lib/validations/webhook-schemas";
 
 const WEBHOOK_ENDPOINT =
   process.env.NEXT_PUBLIC_WEBHOOK_URL ||
@@ -162,7 +166,10 @@ export default function WebhooksPage() {
   };
 
   // Zod validation now runs in useWebhooks queryFn (once per fetch, not per render)
-  const webhooks = useMemo(() => webhooksResponse?.data ?? [], [webhooksResponse?.data]);
+  const webhooks = useMemo(
+    () => webhooksResponse?.data ?? [],
+    [webhooksResponse?.data],
+  );
   const subscribedEvents = useMemo(
     () => new Set<string>(webhooks.flatMap((w) => w.event_types)),
     [webhooks],
@@ -386,7 +393,10 @@ export default function WebhooksPage() {
                       <div className="flex items-center gap-2">
                         {webhook.created_at && (
                           <span className="text-[11px] text-slate-300">
-                            {format(new Date(webhook.created_at), "MMM d, yyyy")}
+                            {format(
+                              new Date(webhook.created_at),
+                              "MMM d, yyyy",
+                            )}
                           </span>
                         )}
                         <Button
@@ -396,7 +406,9 @@ export default function WebhooksPage() {
                           onClick={() => setPendingDeleteId(webhook.id)}
                           disabled={deletingId === webhook.id}
                         >
-                          <Trash2 className={`h-3.5 w-3.5 ${deletingId === webhook.id ? "animate-spin" : ""}`} />
+                          <Trash2
+                            className={`h-3.5 w-3.5 ${deletingId === webhook.id ? "animate-spin" : ""}`}
+                          />
                         </Button>
                       </div>
                     </div>

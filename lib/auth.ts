@@ -1,7 +1,13 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
-import { larkSearchRecords, filterAnd, eq, larkText, larkBool } from "@/lib/lark";
+import {
+  larkSearchRecords,
+  filterAnd,
+  eq,
+  larkText,
+  larkBool,
+} from "@/lib/lark";
 
 /**
  * Hash a password using scrypt (Node.js built-in, zero dependencies).
@@ -35,7 +41,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const tableId = process.env.LARK_USERS_TABLE_ID;
         if (!tableId) {
-          console.warn("[Auth] LARK_USERS_TABLE_ID not configured — auth disabled");
+          console.warn(
+            "[Auth] LARK_USERS_TABLE_ID not configured — auth disabled",
+          );
           return null;
         }
 
@@ -54,7 +62,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         const record = result.items?.[0];
         if (!record) {
-          console.log("[Auth] Login failed — user not found", { email: inputEmail });
+          console.log("[Auth] Login failed — user not found", {
+            email: inputEmail,
+          });
           return null;
         }
 
@@ -62,18 +72,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Check active status
         if (!larkBool(fields["Is Active"])) {
-          console.log("[Auth] Login failed — account inactive", { email: inputEmail });
+          console.log("[Auth] Login failed — account inactive", {
+            email: inputEmail,
+          });
           return null;
         }
 
         // Verify password
         const storedHash = larkText(fields["Password Hash"]);
         if (!verifyPassword(inputPassword, storedHash)) {
-          console.log("[Auth] Login failed — invalid password", { email: inputEmail });
+          console.log("[Auth] Login failed — invalid password", {
+            email: inputEmail,
+          });
           return null;
         }
 
-        console.log("[Auth] Login success", { email: inputEmail, role: larkText(fields["Role"]) });
+        console.log("[Auth] Login success", {
+          email: inputEmail,
+          role: larkText(fields["Role"]),
+        });
         return {
           id: record.record_id,
           email: larkText(fields["Email"]),

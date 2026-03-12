@@ -18,7 +18,9 @@ async function setupCustomDomain() {
   if (!CF_API_TOKEN) {
     console.log("\n❌ CLOUDFLARE_API_TOKEN not set");
     console.log("\nRun this first:");
-    console.log("  /Users/mdch/PROJECTS/HypePostSocial/scripts/create-cloudflare-token.sh");
+    console.log(
+      "  /Users/mdch/hypelive/products/hype-social/scripts/create-cloudflare-token.sh",
+    );
     process.exit(1);
   }
 
@@ -31,7 +33,7 @@ async function setupCustomDomain() {
         Authorization: `Bearer ${CF_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   if (!verifyRes.ok) {
@@ -50,7 +52,7 @@ async function setupCustomDomain() {
         Authorization: `Bearer ${CF_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   const zonesData = await zonesRes.json();
@@ -72,21 +74,21 @@ async function setupCustomDomain() {
         Authorization: `Bearer ${CF_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   const domainsData = await domainsRes.json();
 
   if (domainsData.success) {
     const existing = domainsData.result?.find(
-      (d: any) => d.hostname === `${SUBDOMAIN}.${DOMAIN}`
+      (d: any) => d.hostname === `${SUBDOMAIN}.${DOMAIN}`,
     );
 
     if (existing) {
       console.log("  ✅ Custom domain already exists:");
       console.log(`     Hostname: ${existing.hostname}`);
       console.log(`     Service: ${existing.service}`);
-      console.log(`     Status: ${existing.status || 'active'}`);
+      console.log(`     Status: ${existing.status || "active"}`);
       console.log("\n✨ Setup complete!");
       console.log(`\n🌐 Your webhook URL:`);
       console.log(`   https://${SUBDOMAIN}.${DOMAIN}/webhooks/post-for-me`);
@@ -109,7 +111,7 @@ async function setupCustomDomain() {
         service: WORKER_NAME,
         environment: "production",
       }),
-    }
+    },
   );
 
   const createData = await createRes.json();
@@ -141,7 +143,7 @@ async function setupCustomDomain() {
         Authorization: `Bearer ${CF_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   const dnsData = await dnsRes.json();
@@ -158,7 +160,9 @@ async function setupCustomDomain() {
   console.log("\n🌐 Your webhook endpoint:");
   console.log(`   https://${SUBDOMAIN}.${DOMAIN}/webhooks/post-for-me`);
   console.log("\n📡 Update your webhook registration:");
-  console.log(`   npx tsx scripts/setup-webhook-mcp.ts --url=https://${SUBDOMAIN}.${DOMAIN}`);
+  console.log(
+    `   npx tsx scripts/setup-webhook-mcp.ts --url=https://${SUBDOMAIN}.${DOMAIN}`,
+  );
   console.log("\n⏰ DNS may take a few minutes to propagate worldwide.");
 }
 

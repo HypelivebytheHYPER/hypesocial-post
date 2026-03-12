@@ -59,7 +59,11 @@ export async function GET(
   } catch (error) {
     console.error("[API] Get project error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to get project", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to get project",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -106,7 +110,11 @@ export async function PATCH(
   } catch (error) {
     console.error("[API] Update project error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to update project", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to update project",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -142,7 +150,11 @@ export async function DELETE(
   } catch (error) {
     console.error("[API] Delete project error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to delete project", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to delete project",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

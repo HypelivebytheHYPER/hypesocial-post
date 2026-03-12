@@ -20,7 +20,7 @@ import type {
   ImpressionSource,
   AudienceGender,
   AudienceCountry,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
 
 export interface NormalizedMetrics {
   likes: number;
@@ -37,20 +37,23 @@ export interface MetricAvailability {
 }
 
 const METRIC_AVAILABILITY: Record<string, MetricAvailability> = {
-  instagram:       { likes: true,  comments: true,  shares: true,  views: true },
-  facebook:        { likes: true,  comments: true,  shares: true,  views: true },
-  tiktok:          { likes: true,  comments: true,  shares: true,  views: true },
-  tiktok_business: { likes: true,  comments: true,  shares: true,  views: true },
-  youtube:         { likes: true,  comments: true,  shares: false, views: true },
-  x:               { likes: true,  comments: true,  shares: true,  views: true },
-  linkedin:        { likes: true,  comments: true,  shares: true,  views: true },
-  bluesky:         { likes: true,  comments: true,  shares: true,  views: false },
-  threads:         { likes: true,  comments: true,  shares: true,  views: true },
-  pinterest:       { likes: true,  comments: true,  shares: true,  views: true },
+  instagram: { likes: true, comments: true, shares: true, views: true },
+  facebook: { likes: true, comments: true, shares: true, views: true },
+  tiktok: { likes: true, comments: true, shares: true, views: true },
+  tiktok_business: { likes: true, comments: true, shares: true, views: true },
+  youtube: { likes: true, comments: true, shares: false, views: true },
+  x: { likes: true, comments: true, shares: true, views: true },
+  linkedin: { likes: true, comments: true, shares: true, views: true },
+  bluesky: { likes: true, comments: true, shares: true, views: false },
+  threads: { likes: true, comments: true, shares: true, views: true },
+  pinterest: { likes: true, comments: true, shares: true, views: true },
 };
 
 const DEFAULT_AVAILABILITY: MetricAvailability = {
-  likes: true, comments: true, shares: true, views: true,
+  likes: true,
+  comments: true,
+  shares: true,
+  views: true,
 };
 
 export function getMetricAvailability(platform: string): MetricAvailability {
@@ -83,17 +86,11 @@ export const PLATFORM_NOTES: Record<string, string[]> = {
     "Metrics only available for Company Pages",
     "Personal profile analytics not supported",
   ],
-  bluesky: [
-    "Views/impressions not available via API",
-  ],
+  bluesky: ["Views/impressions not available via API"],
   tiktok: [],
-  tiktok_business: [
-    "Extended metrics: watch time, retention, demographics",
-  ],
+  tiktok_business: ["Extended metrics: watch time, retention, demographics"],
   threads: [],
-  pinterest: [
-    "90-day and lifetime metrics provided separately",
-  ],
+  pinterest: ["90-day and lifetime metrics provided separately"],
 };
 
 export interface MetricsWithAvailability {

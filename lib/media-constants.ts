@@ -22,6 +22,6 @@ export const MAX_FILE_SIZES: Record<string, number> = {
 
 export function getMaxFileSize(contentType: string): number {
   return contentType.startsWith("video/")
-    ? MAX_FILE_SIZES.video ?? 0
-    : MAX_FILE_SIZES.image ?? 0;
+    ? (MAX_FILE_SIZES.video ?? 0)
+    : (MAX_FILE_SIZES.image ?? 0);
 }

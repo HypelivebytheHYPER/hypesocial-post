@@ -4,11 +4,7 @@
  */
 
 import { useCallback } from "react";
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
 // ==================== Types ====================
@@ -134,7 +130,11 @@ export function useDeleteProject() {
 
 // ==================== Item Hooks ====================
 
-export function useMoodboardItems(projectId: string, startDate: string, endDate: string) {
+export function useMoodboardItems(
+  projectId: string,
+  startDate: string,
+  endDate: string,
+) {
   return useQuery<{ items: MoodboardItem[] }>({
     queryKey: moodboardKeys.itemsByProject(projectId, startDate),
     queryFn: () =>
@@ -166,7 +166,9 @@ export function useCreateItem(projectId?: string, dateRangeStart?: string) {
       }),
     onMutate: async (newItem) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
+      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(
+        queryKey,
+      );
       if (previous) {
         const placeholder: MoodboardItem = {
           ...newItem,
@@ -181,7 +183,8 @@ export function useCreateItem(projectId?: string, dateRangeStart?: string) {
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      if (context?.previous)
+        queryClient.setQueryData(queryKey, context.previous);
     },
     // No onSettled here — caller controls when to invalidate (sync real IDs).
     // This prevents parallel mutations from stomping each other's optimistic state.
@@ -240,7 +243,9 @@ export function useDeleteItem(projectId?: string, dateRangeStart?: string) {
       }),
     onMutate: async (itemId) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
+      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(
+        queryKey,
+      );
       if (previous) {
         queryClient.setQueryData(queryKey, {
           items: previous.items.filter((i) => i.id !== itemId),
@@ -249,7 +254,8 @@ export function useDeleteItem(projectId?: string, dateRangeStart?: string) {
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      if (context?.previous)
+        queryClient.setQueryData(queryKey, context.previous);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });
@@ -282,7 +288,9 @@ export function useReorderItems(projectId: string, dateRangeStart: string) {
       }),
     onMutate: async (reorderPayload) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(queryKey);
+      const previous = queryClient.getQueryData<{ items: MoodboardItem[] }>(
+        queryKey,
+      );
 
       if (previous) {
         // O(n+m) via Map instead of O(n*m) with nested find()
@@ -292,7 +300,11 @@ export function useReorderItems(projectId: string, dateRangeStart: string) {
         const updatedItems = previous.items.map((item) => {
           const update = updates.get(item.id);
           return update
-            ? { ...item, column_date: update.column_date, sort_order: update.sort_order }
+            ? {
+                ...item,
+                column_date: update.column_date,
+                sort_order: update.sort_order,
+              }
             : item;
         });
         queryClient.setQueryData(queryKey, { items: updatedItems });
@@ -327,11 +339,7 @@ interface UploadResult {
  * 3. Return the public URL
  */
 export function useUploadMoodboardMedia() {
-  return useMutation<
-    string,
-    Error,
-    { file: File; projectId: string }
-  >({
+  return useMutation<string, Error, { file: File; projectId: string }>({
     mutationFn: async ({ file, projectId }) => {
       // Step 1: Get presigned URL
       const { upload_url, media_url } = await apiClient<UploadResult>(

@@ -31,12 +31,15 @@ async function setupCloudflareMcp() {
 
   // Test API access
   console.log("\n🔑 Testing Cloudflare API access...");
-  const userRes = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
-    headers: {
-      "Authorization": `Bearer ${CF_API_TOKEN}`,
-      "Content-Type": "application/json",
+  const userRes = await fetch(
+    "https://api.cloudflare.com/client/v4/user/tokens/verify",
+    {
+      headers: {
+        Authorization: `Bearer ${CF_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
     },
-  });
+  );
 
   if (!userRes.ok) {
     console.error("❌ Invalid API token");
@@ -50,7 +53,7 @@ async function setupCloudflareMcp() {
   console.log("\n📋 Fetching zones (domains)...");
   const zonesRes = await fetch("https://api.cloudflare.com/client/v4/zones", {
     headers: {
-      "Authorization": `Bearer ${CF_API_TOKEN}`,
+      Authorization: `Bearer ${CF_API_TOKEN}`,
       "Content-Type": "application/json",
     },
   });
@@ -69,12 +72,15 @@ async function setupCloudflareMcp() {
 
   // Get accounts
   console.log("\n🏢 Fetching accounts...");
-  const accountsRes = await fetch("https://api.cloudflare.com/client/v4/accounts", {
-    headers: {
-      "Authorization": `Bearer ${CF_API_TOKEN}`,
-      "Content-Type": "application/json",
+  const accountsRes = await fetch(
+    "https://api.cloudflare.com/client/v4/accounts",
+    {
+      headers: {
+        Authorization: `Bearer ${CF_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
     },
-  });
+  );
 
   const accountsData = await accountsRes.json();
 
@@ -96,16 +102,16 @@ async function setupCloudflareMcp() {
         type: "http",
         url: `https://api.cloudflare.com/client/v4`,
         headers: {
-          "Authorization": `Bearer ${CF_API_TOKEN}`,
+          Authorization: `Bearer ${CF_API_TOKEN}`,
           "Content-Type": "application/json",
         },
         env: {
           CLOUDFLARE_API_TOKEN: CF_API_TOKEN,
           CLOUDFLARE_ACCOUNT_ID: CF_ACCOUNT_ID || accountsData.result[0]?.id,
           CLOUDFLARE_ZONE_ID: CF_ZONE_ID || zonesData.result[0]?.id,
-        }
-      }
-    }
+        },
+      },
+    },
   };
 
   console.log("\nAdd this to ~/.claude/mcp.json:\n");
@@ -113,7 +119,9 @@ async function setupCloudflareMcp() {
 
   // Save to env file
   const envPath = path.join(process.cwd(), ".env.local");
-  let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
+  let envContent = fs.existsSync(envPath)
+    ? fs.readFileSync(envPath, "utf-8")
+    : "";
 
   if (!envContent.includes("CLOUDFLARE_API_TOKEN")) {
     envContent += `\n# Cloudflare\nCLOUDFLARE_API_TOKEN=${CF_API_TOKEN}\n`;

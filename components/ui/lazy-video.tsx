@@ -54,7 +54,7 @@ export function LazyVideo({
       {
         rootMargin: "50px", // Start loading 50px before visible
         threshold: 0.1,
-      }
+      },
     );
 
     if (containerRef.current) {
@@ -94,7 +94,8 @@ export function LazyVideo({
   };
 
   // Validate URL is from Post For Me storage or already proxied
-  const isValidUrl = src.includes("data.postforme.dev") ||
+  const isValidUrl =
+    src.includes("data.postforme.dev") ||
     src.includes("cjsgitiiwhrsfolwmtby.supabase.co") ||
     src.startsWith("/api/media/proxy");
 
@@ -104,7 +105,7 @@ export function LazyVideo({
         ref={containerRef}
         className={cn(
           "relative bg-slate-100 rounded-xl flex items-center justify-center",
-          className
+          className,
         )}
       >
         <div className="text-center p-4">
@@ -124,7 +125,10 @@ export function LazyVideo({
   return (
     <div
       ref={containerRef}
-      className={cn("relative overflow-hidden rounded-xl bg-slate-900", className)}
+      className={cn(
+        "relative overflow-hidden rounded-xl bg-slate-900",
+        className,
+      )}
     >
       {/* Loading State */}
       {isLoading && (
@@ -137,7 +141,9 @@ export function LazyVideo({
       {hasError && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10">
           <div className="text-center p-4">
-            <p className="text-sm text-red-400 font-medium">Failed to load video</p>
+            <p className="text-sm text-red-400 font-medium">
+              Failed to load video
+            </p>
             <button
               onClick={() => window.location.reload()}
               className="mt-2 text-xs text-white/70 hover:text-white underline"
@@ -177,7 +183,10 @@ export function LazyVideo({
               className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition-colors"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              <Play className="w-4 h-4" fill={isPlaying ? "currentColor" : "none"} />
+              <Play
+                className="w-4 h-4"
+                fill={isPlaying ? "currentColor" : "none"}
+              />
             </button>
             <button
               onClick={toggleMute}
@@ -196,12 +205,15 @@ export function LazyVideo({
 
       {/* Placeholder before load */}
       {!isInView && proxiedPoster && (
-        <img
-          src={proxiedPoster}
-          alt="Video thumbnail"
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proxiedPoster}
+            alt="Video thumbnail"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        </>
       )}
     </div>
   );

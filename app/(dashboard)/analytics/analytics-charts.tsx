@@ -10,12 +10,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import {
-  Clock,
-  TrendingUp,
-  UserPlus,
-  Globe,
-} from "lucide-react";
+import { Clock, TrendingUp, UserPlus, Globe } from "lucide-react";
 import { formatNumber, formatDuration } from "@/lib/metrics";
 
 interface TikTokBusinessInsightsData {
@@ -57,9 +52,7 @@ export default function TikTokInsightsCharts({
           <p className="text-lg font-bold text-slate-800">
             {formatDuration(data.totalWatchTime)}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">
-            Total Watch Time
-          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Total Watch Time</p>
         </div>
         <div className="card-premium p-4">
           <div className="flex items-center justify-between mb-2">
@@ -70,9 +63,7 @@ export default function TikTokInsightsCharts({
           <p className="text-lg font-bold text-slate-800">
             {formatDuration(data.avgWatchTime)}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">
-            Avg Watch Time
-          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Avg Watch Time</p>
         </div>
         <div className="card-premium p-4">
           <div className="flex items-center justify-between mb-2">
@@ -83,9 +74,7 @@ export default function TikTokInsightsCharts({
           <p className="text-lg font-bold text-slate-800">
             {formatNumber(data.totalNewFollowers)}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">
-            New Followers
-          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">New Followers</p>
         </div>
         <div className="card-premium p-4">
           <div className="flex items-center justify-between mb-2">
@@ -183,7 +172,11 @@ export default function TikTokInsightsCharts({
                     }}
                     formatter={(value: number) => [`${value}%`, "Share"]}
                   />
-                  <Bar dataKey="percentage" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="percentage"
+                    fill="#ec4899"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -227,7 +220,11 @@ export default function TikTokInsightsCharts({
                     }}
                     formatter={(value: number) => [`${value}%`, "Share"]}
                   />
-                  <Bar dataKey="percentage" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="percentage"
+                    fill="#06b6d4"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -241,34 +238,28 @@ export default function TikTokInsightsCharts({
               Impression Sources
             </h3>
             <div className="space-y-3">
-              {data.impressionData.map(
-                ({ source, percentage }) => {
-                  const maxPct =
-                    data.impressionData[0]?.percentage || 1;
-                  const barWidth = Math.max(
-                    (percentage / maxPct) * 100,
-                    2,
-                  );
-                  return (
-                    <div key={source}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-slate-600 capitalize">
-                          {source.replace(/_/g, " ")}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-700">
-                          {percentage}%
-                        </span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-pink-500"
-                          style={{ width: `${barWidth}%` }}
-                        />
-                      </div>
+              {data.impressionData.map(({ source, percentage }) => {
+                const maxPct = data.impressionData[0]?.percentage || 1;
+                const barWidth = Math.max((percentage / maxPct) * 100, 2);
+                return (
+                  <div key={source}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-600 capitalize">
+                        {source.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {percentage}%
+                      </span>
                     </div>
-                  );
-                },
-              )}
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-pink-500"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

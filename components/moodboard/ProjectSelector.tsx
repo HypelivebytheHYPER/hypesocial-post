@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ChevronDown, Plus, FolderOpen } from "lucide-react";
-import {
-  useProjects,
-  useCreateProject,
-} from "@/lib/hooks/useMoodboard";
+import { useProjects, useCreateProject } from "@/lib/hooks/useMoodboard";
 
 export function ProjectSelector() {
   const router = useRouter();

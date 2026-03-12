@@ -575,38 +575,78 @@
    */
 
   /* Text color inversions */
-  .dark .text-slate-800 { color: #e2e8f0; }
-  .dark .text-slate-700 { color: #cbd5e1; }
-  .dark .text-slate-600 { color: #94a3b8; }
+  .dark .text-slate-800 {
+    color: #e2e8f0;
+  }
+  .dark .text-slate-700 {
+    color: #cbd5e1;
+  }
+  .dark .text-slate-600 {
+    color: #94a3b8;
+  }
 
   /* Background inversions */
-  .dark .bg-white { background-color: #1e293b; }
-  .dark .bg-slate-50 { background-color: rgba(30, 41, 59, 0.5); }
-  .dark .bg-slate-100 { background-color: rgba(30, 41, 59, 0.6); }
-  .dark .bg-slate-800 { background-color: #334155; }
+  .dark .bg-white {
+    background-color: #1e293b;
+  }
+  .dark .bg-slate-50 {
+    background-color: rgba(30, 41, 59, 0.5);
+  }
+  .dark .bg-slate-100 {
+    background-color: rgba(30, 41, 59, 0.6);
+  }
+  .dark .bg-slate-800 {
+    background-color: #334155;
+  }
 
   /* Border inversions */
-  .dark .border-white { border-color: rgba(255, 255, 255, 0.1); }
-  .dark .border-slate-100 { border-color: rgba(255, 255, 255, 0.06); }
-  .dark .border-slate-200 { border-color: rgba(255, 255, 255, 0.08); }
-  .dark .border-slate-300 { border-color: rgba(255, 255, 255, 0.12); }
+  .dark .border-white {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .dark .border-slate-100 {
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  .dark .border-slate-200 {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .dark .border-slate-300 {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
 
   /* Hover inversions */
-  .dark .hover\:bg-slate-50:hover { background-color: rgba(30, 41, 59, 0.5); }
-  .dark .hover\:bg-slate-100:hover { background-color: rgba(30, 41, 59, 0.7); }
-  .dark .hover\:bg-slate-200:hover { background-color: rgba(51, 65, 85, 0.8); }
-  .dark .hover\:border-slate-300:hover { border-color: rgba(255, 255, 255, 0.15); }
-  .dark .hover\:text-slate-600:hover { color: #cbd5e1; }
-  .dark .hover\:text-slate-800:hover { color: #e2e8f0; }
+  .dark .hover\:bg-slate-50:hover {
+    background-color: rgba(30, 41, 59, 0.5);
+  }
+  .dark .hover\:bg-slate-100:hover {
+    background-color: rgba(30, 41, 59, 0.7);
+  }
+  .dark .hover\:bg-slate-200:hover {
+    background-color: rgba(51, 65, 85, 0.8);
+  }
+  .dark .hover\:border-slate-300:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+  .dark .hover\:text-slate-600:hover {
+    color: #cbd5e1;
+  }
+  .dark .hover\:text-slate-800:hover {
+    color: #e2e8f0;
+  }
 
   /* Mobile navigation dark mode */
-  .dark .bg-white\/90 { background-color: rgba(15, 23, 42, 0.9); }
+  .dark .bg-white\/90 {
+    background-color: rgba(15, 23, 42, 0.9);
+  }
 
   /* Ring / focus overrides */
-  .dark .ring-offset-background { --tw-ring-offset-color: hsl(222 47% 8%); }
+  .dark .ring-offset-background {
+    --tw-ring-offset-color: hsl(222 47% 8%);
+  }
 
   /* Avatar backgrounds — keep slate-800 as-is for contrast in dark mode */
-  .dark .bg-slate-800.text-white { background-color: #475569; }
+  .dark .bg-slate-800.text-white {
+    background-color: #475569;
+  }
 }
 
 @layer utilities {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pfm } from "@/lib/post-for-me";
+import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
 import { parseQuery } from "@/lib/validations";
 import { ListPostResultsQuerySchema } from "@/lib/validations/post-results";
@@ -15,9 +15,18 @@ export async function GET(request: NextRequest) {
     const q = parseQuery(ListPostResultsQuerySchema, {
       offset: searchParams.get("offset") ?? undefined,
       limit: searchParams.get("limit") ?? undefined,
-      post_id: searchParams.getAll("post_id").length > 0 ? searchParams.getAll("post_id") : undefined,
-      social_account_id: searchParams.getAll("social_account_id").length > 0 ? searchParams.getAll("social_account_id") : undefined,
-      platform: searchParams.getAll("platform").length > 0 ? searchParams.getAll("platform") : undefined,
+      post_id:
+        searchParams.getAll("post_id").length > 0
+          ? searchParams.getAll("post_id")
+          : undefined,
+      social_account_id:
+        searchParams.getAll("social_account_id").length > 0
+          ? searchParams.getAll("social_account_id")
+          : undefined,
+      platform:
+        searchParams.getAll("platform").length > 0
+          ? searchParams.getAll("platform")
+          : undefined,
     });
     if (!q.success) return q.response;
 
@@ -27,13 +36,21 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(
-        { error: "API Error", message: error.message, statusCode: error.status },
+        {
+          error: "API Error",
+          message: error.message,
+          statusCode: error.status,
+        },
         { status: error.status || 500 },
       );
     }
     console.error("[API] Error fetching post results:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Unknown error occurred",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

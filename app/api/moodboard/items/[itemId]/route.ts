@@ -85,7 +85,11 @@ export async function PATCH(
   } catch (error) {
     console.error("[API] Update item error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to update item", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to update item",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -115,7 +119,11 @@ export async function DELETE(
   } catch (error) {
     console.error("[API] Delete item error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to delete item", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to delete item",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

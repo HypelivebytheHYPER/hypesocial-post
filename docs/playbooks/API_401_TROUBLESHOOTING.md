@@ -55,6 +55,7 @@ grep -r "POST_FOR_ME_API_KEY" app/api/*/route.ts
 Expected output should show multiple files using `process.env.POST_FOR_ME_API_KEY`.
 
 Common mistakes:
+
 - `POSTFORME_API_KEY` (missing underscores)
 - `POST_FOR_ME_KEY` (missing `_API`)
 - `PFM_API_KEY` (wrong prefix)
@@ -77,13 +78,15 @@ curl -H "Authorization: Bearer $KEY" \
 ### Expected responses:
 
 **Success (200):**
+
 ```json
-{"data":[],"total":0}
+{ "data": [], "total": 0 }
 ```
 
 **Invalid key (401):**
+
 ```json
-{"message":"Unauthorized","statusCode":401}
+{ "message": "Unauthorized", "statusCode": 401 }
 ```
 
 ### If direct curl fails:
@@ -102,16 +105,19 @@ The project includes debug endpoints to inspect what's happening.
 ### 3.1 Check environment variable loading
 
 **Local:**
+
 ```bash
 curl http://localhost:3000/api/debug-env
 ```
 
 **Vercel (Production):**
+
 ```bash
 curl https://your-app.vercel.app/api/debug-env
 ```
 
 Expected response:
+
 ```json
 {
   "hasApiKey": true,
@@ -123,6 +129,7 @@ Expected response:
 ```
 
 **If `hasApiKey` is false:**
+
 - Environment variable is not set
 - Run: `vercel env add POST_FOR_ME_API_KEY`
 - Then redeploy
@@ -130,16 +137,19 @@ Expected response:
 ### 3.2 Check API connectivity from the app
 
 **Local:**
+
 ```bash
 curl http://localhost:3000/api/debug-api
 ```
 
 **Vercel (Production):**
+
 ```bash
 curl https://your-app.vercel.app/api/debug-api
 ```
 
 Expected response:
+
 ```json
 {
   "status": 200,
@@ -149,6 +159,7 @@ Expected response:
 ```
 
 **If status is 401:**
+
 - The key is being passed but is invalid
 - Check that the key prefix matches `pfm_live_` or `pfm_test_`
 - Get a new key from the dashboard
@@ -174,28 +185,32 @@ curl http://localhost:3000/api/debug-api
 
 ### 4.2 Compare local vs Vercel
 
-| Test | Local | Vercel |
-|------|-------|--------|
+| Test      | Local    | Vercel   |
+| --------- | -------- | -------- |
 | debug-env | Working? | Working? |
 | debug-api | Working? | Working? |
 
 **If local works but Vercel fails:**
+
 - Environment variable not synced to Vercel
 - Run: `vercel env pull` to sync local .env
 - Or set directly: `vercel env add POST_FOR_ME_API_KEY`
 
 **If both fail:**
+
 - Key is invalid
 - Get new key from https://dashboard.postforme.dev
 
 ### 4.3 Check if key is expired
 
 Post For Me keys don't expire automatically, but can be:
+
 - Revoked from dashboard
 - Deleted by team member
 - Invalidated due to account changes
 
 **Check key format:**
+
 - Live keys: `pfm_live_xxxxxxxxxxxxxxxx`
 - Test keys: `pfm_test_xxxxxxxxxxxxxxxx`
 
@@ -227,6 +242,7 @@ curl https://your-app.vercel.app/api/debug-api
 ### 5.3 Test actual functionality
 
 Navigate to your app and try:
+
 1. Loading accounts page
 2. Creating a post
 3. Checking feed
@@ -270,6 +286,7 @@ curl https://your-app.vercel.app/api/debug-api
 **Cause:** Environment variable not set in Vercel
 
 **Fix:**
+
 ```bash
 vercel env add POST_FOR_ME_API_KEY
 vercel --prod
@@ -280,6 +297,7 @@ vercel --prod
 **Cause:** Key might have extra whitespace or quotes
 
 **Fix:**
+
 ```bash
 # Remove and re-add without quotes
 vercel env rm POST_FOR_ME_API_KEY
@@ -292,6 +310,7 @@ vercel env add POST_FOR_ME_API_KEY
 **Cause:** Old key revoked, new key not updated
 
 **Fix:**
+
 1. Get new key from dashboard
 2. Update in Vercel: `vercel env add POST_FOR_ME_API_KEY`
 3. Redeploy: `vercel --prod`
@@ -301,6 +320,7 @@ vercel env add POST_FOR_ME_API_KEY
 **Cause:** Environment variable only set for Preview
 
 **Fix:**
+
 ```bash
 vercel env add POST_FOR_ME_API_KEY
 # Select BOTH "Production" and "Preview" when prompted
@@ -313,6 +333,7 @@ vercel env add POST_FOR_ME_API_KEY
 If debug endpoints are missing, create them:
 
 **`/app/api/debug-env/route.ts`:**
+
 ```typescript
 import { NextResponse } from "next/server";
 
@@ -331,12 +352,14 @@ export async function GET() {
 ```
 
 **`/app/api/debug-api/route.ts`:**
+
 ```typescript
 import { NextResponse } from "next/server";
 
 export async function GET() {
   const apiKey = process.env.POST_FOR_ME_API_KEY;
-  const apiBase = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+  const apiBase =
+    process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 
   try {
     const response = await fetch(`${apiBase}/v1/social-accounts`, {
@@ -356,10 +379,13 @@ export async function GET() {
       apiKeyUsed: apiKey?.substring(0, 15) + "...",
     });
   } catch (error) {
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : "Unknown error",
-      apiKeyPrefix: apiKey?.substring(0, 15),
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+        apiKeyPrefix: apiKey?.substring(0, 15),
+      },
+      { status: 500 },
+    );
   }
 }
 ```

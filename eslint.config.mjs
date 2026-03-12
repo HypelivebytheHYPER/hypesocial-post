@@ -3,6 +3,7 @@ import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import reactPlugin from "eslint-plugin-react";
 import hooksPlugin from "eslint-plugin-react-hooks";
+import nextPlugin from "@next/eslint-plugin-next";
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
@@ -15,6 +16,7 @@ export default [
       "test-results/**",
       "playwright-report/**",
       ".storybook/**",
+      "workers/**",
     ],
   },
   js.configs.recommended,
@@ -38,9 +40,11 @@ export default [
       "@typescript-eslint": tsPlugin,
       react: reactPlugin,
       "react-hooks": hooksPlugin,
+      "@next/next": nextPlugin,
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
+      ...nextPlugin.configs.recommended.rules,
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",

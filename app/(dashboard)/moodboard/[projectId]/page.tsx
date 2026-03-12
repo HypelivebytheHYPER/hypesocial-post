@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+
+// Stable empty array reference for fallbacks (2026 best practice)
+const EMPTY_ARRAY: never[] = [];
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Check,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { toast } from "sonner";
 import {
   addWeeks,
@@ -81,7 +80,9 @@ function buildColumns(
       date: day.getDate(),
       fullDate: format(day, "MMMM d"),
       isoDate,
-      items: dayItems ? dayItems.sort((a, b) => a.sort_order - b.sort_order) : [],
+      items: dayItems
+        ? dayItems.sort((a, b) => a.sort_order - b.sort_order)
+        : [],
     };
   });
 }
@@ -135,27 +136,33 @@ export default function ProjectMoodboardPage() {
   const rangeEndStr = format(rangeEnd, "yyyy-MM-dd");
 
   // Data hooks
-  const { data: project } = useProject(projectId);
-  const { data: itemsData } = useMoodboardItems(projectId, rangeStartStr, rangeEndStr);
+  useProject(projectId); // Prefetch project data
+  const { data: itemsData } = useMoodboardItems(
+    projectId,
+    rangeStartStr,
+    rangeEndStr,
+  );
   const createItem = useCreateItem(projectId, rangeStartStr);
   const updateItem = useUpdateItem(projectId, rangeStartStr);
   const deleteItem = useDeleteItem(projectId, rangeStartStr);
   const reorderItems = useReorderItems(projectId, rangeStartStr);
   const uploadMedia = useUploadMoodboardMedia();
 
-  const items = itemsData?.items || [];
+  const items = itemsData?.items ?? EMPTY_ARRAY;
   const columns = useMemo(
     () => buildColumns(rangeStart, rangeEnd, items),
     [rangeStart, rangeEnd, items],
   );
 
   // Header labels
-  const headerLabel = viewMode === "monthly"
-    ? format(monthAnchor, "MMMM yyyy")
-    : `Week ${getWeekNumber(weekStart)}`;
-  const headerSub = viewMode === "monthly"
-    ? undefined
-    : `${format(weekStart, "MMMM d")} - ${format(addDays(weekStart, 6), "MMMM d")}`;
+  const headerLabel =
+    viewMode === "monthly"
+      ? format(monthAnchor, "MMMM yyyy")
+      : `Week ${getWeekNumber(weekStart)}`;
+  const headerSub =
+    viewMode === "monthly"
+      ? undefined
+      : `${format(weekStart, "MMMM d")} - ${format(addDays(weekStart, 6), "MMMM d")}`;
 
   const isSaving =
     createItem.isPending ||
@@ -221,7 +228,9 @@ export default function ProjectMoodboardPage() {
         if (file.size > limit) {
           const sizeMB = Math.round(file.size / 1024 / 1024);
           const limitMB = Math.round(limit / 1024 / 1024);
-          toast.error(`${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`);
+          toast.error(
+            `${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`,
+          );
           return false;
         }
         return true;
@@ -282,7 +291,11 @@ export default function ProjectMoodboardPage() {
       // Skip API call if nothing actually moved
       const changed = payload.some((p) => {
         const item = items.find((i) => i.id === p.item_id);
-        return item && (item.column_date !== p.column_date || item.sort_order !== p.sort_order);
+        return (
+          item &&
+          (item.column_date !== p.column_date ||
+            item.sort_order !== p.sort_order)
+        );
       });
       if (!changed) return;
 
@@ -347,7 +360,8 @@ export default function ProjectMoodboardPage() {
             )}
           </div>
           <p className="text-slate-400 text-sm mt-1">
-            Plan your {viewMode === "monthly" ? "monthly" : "weekly"} social content
+            Plan your {viewMode === "monthly" ? "monthly" : "weekly"} social
+            content
           </p>
         </div>
 

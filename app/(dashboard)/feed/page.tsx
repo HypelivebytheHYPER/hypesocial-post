@@ -17,10 +17,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAccounts, useAccountFeed, pfmKeys } from "@/lib/hooks/usePostForMe";
-import { extractMetrics, formatNumber, getMetricAvailability } from "@/lib/metrics";
+import {
+  extractMetrics,
+  formatNumber,
+  getMetricAvailability,
+} from "@/lib/metrics";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
-import type { SocialAccountFeedItem } from "@/types/post-for-me";
+import type { SocialAccountFeedItem } from "@/types/post-for-me-types";
 
 // Format time helper
 function formatTime(dateString?: string) {
@@ -105,14 +109,17 @@ function FeedItem({ item, accountPlatform, accountUsername }: FeedItemProps) {
                 className="w-full h-auto max-h-96"
               />
             ) : (
-              <img
-                src={proxyMediaUrl(media.url)}
-                alt=""
-                className="w-full h-auto object-cover max-h-96"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={proxyMediaUrl(media.url)}
+                  alt=""
+                  className="w-full h-auto object-cover max-h-96"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </>
             )}
           </div>
         </div>
@@ -121,25 +128,33 @@ function FeedItem({ item, accountPlatform, accountUsername }: FeedItemProps) {
       {/* Post Stats */}
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <span className={`flex items-center gap-1.5 ${available.likes ? "text-slate-500" : "text-slate-300"}`}>
+          <span
+            className={`flex items-center gap-1.5 ${available.likes ? "text-slate-500" : "text-slate-300"}`}
+          >
             <Heart className="w-4 h-4" />
             <span className="text-sm font-medium">
               {available.likes ? formatNumber(metrics.likes) : "N/A"}
             </span>
           </span>
-          <span className={`flex items-center gap-1.5 ${available.comments ? "text-slate-500" : "text-slate-300"}`}>
+          <span
+            className={`flex items-center gap-1.5 ${available.comments ? "text-slate-500" : "text-slate-300"}`}
+          >
             <MessageCircle className="w-4 h-4" />
             <span className="text-sm font-medium">
               {available.comments ? formatNumber(metrics.comments) : "N/A"}
             </span>
           </span>
-          <span className={`flex items-center gap-1.5 ${available.shares ? "text-slate-500" : "text-slate-300"}`}>
+          <span
+            className={`flex items-center gap-1.5 ${available.shares ? "text-slate-500" : "text-slate-300"}`}
+          >
             <Share2 className="w-4 h-4" />
             <span className="text-sm font-medium">
               {available.shares ? formatNumber(metrics.shares) : "N/A"}
             </span>
           </span>
-          <span className={`flex items-center gap-1.5 ${available.views ? "text-slate-500" : "text-slate-300"}`}>
+          <span
+            className={`flex items-center gap-1.5 ${available.views ? "text-slate-500" : "text-slate-300"}`}
+          >
             <Eye className="w-4 h-4" />
             <span className="text-sm font-medium">
               {available.views ? formatNumber(metrics.views) : "N/A"}
@@ -165,7 +180,9 @@ export default function FeedPage() {
   const queryClient = useQueryClient();
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [cursors, setCursors] = useState<string[]>([]);
-  const [accumulatedItems, setAccumulatedItems] = useState<SocialAccountFeedItem[]>([]);
+  const [accumulatedItems, setAccumulatedItems] = useState<
+    SocialAccountFeedItem[]
+  >([]);
 
   // Get accounts
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
@@ -173,7 +190,8 @@ export default function FeedPage() {
   const connectedAccounts = accounts.filter((a) => a.status === "connected");
 
   // Derived effective account — no useEffect needed, no flash of empty state
-  const effectiveAccountId = selectedAccountId || connectedAccounts[0]?.id || "";
+  const effectiveAccountId =
+    selectedAccountId || connectedAccounts[0]?.id || "";
 
   // Get feed for selected account
   const currentCursor =
@@ -198,7 +216,10 @@ export default function FeedPage() {
         // Subsequent pages — append (deduplicate by platform_post_id)
         setAccumulatedItems((prev) => {
           const ids = new Set(prev.map((i) => i.platform_post_id));
-          return [...prev, ...feedData.data.filter((i) => !ids.has(i.platform_post_id))];
+          return [
+            ...prev,
+            ...feedData.data.filter((i) => !ids.has(i.platform_post_id)),
+          ];
         });
       }
     }
@@ -297,9 +318,8 @@ export default function FeedPage() {
         </Button>
         {allFeedItems.length > 0 && (
           <span className="text-xs text-slate-400">
-            {allFeedItems.length} posts &middot;{" "}
-            {formatNumber(totalLikes)} likes &middot;{" "}
-            {formatNumber(totalComments)} comments
+            {allFeedItems.length} posts &middot; {formatNumber(totalLikes)}{" "}
+            likes &middot; {formatNumber(totalComments)} comments
           </span>
         )}
       </div>
@@ -341,7 +361,9 @@ export default function FeedPage() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
             <p className="text-xs text-slate-500">
-              <strong className="text-slate-600">LinkedIn:</strong> Metrics only available for Company Pages — personal profile analytics not supported.
+              <strong className="text-slate-600">LinkedIn:</strong> Metrics only
+              available for Company Pages — personal profile analytics not
+              supported.
             </p>
           </div>
         </div>
@@ -351,7 +373,8 @@ export default function FeedPage() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
             <p className="text-xs text-slate-500">
-              <strong className="text-slate-600">Bluesky:</strong> View counts are not available via the Bluesky API and will show as N/A.
+              <strong className="text-slate-600">Bluesky:</strong> View counts
+              are not available via the Bluesky API and will show as N/A.
             </p>
           </div>
         </div>
@@ -361,7 +384,8 @@ export default function FeedPage() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
             <p className="text-xs text-slate-500">
-              <strong className="text-slate-600">YouTube:</strong> Share counts not available via API; views may lag real-time due to estimation.
+              <strong className="text-slate-600">YouTube:</strong> Share counts
+              not available via API; views may lag real-time due to estimation.
             </p>
           </div>
         </div>
@@ -376,7 +400,9 @@ export default function FeedPage() {
           </div>
         ) : feedError ? (
           <div className="card-premium p-12 text-center border-red-200">
-            <p className="text-red-500 mb-2">{feedError?.message || "Failed to load feed"}</p>
+            <p className="text-red-500 mb-2">
+              {feedError?.message || "Failed to load feed"}
+            </p>
             <Button variant="soft" size="sm" onClick={handleRefresh}>
               Try Again
             </Button>

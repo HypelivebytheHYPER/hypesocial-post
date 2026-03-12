@@ -3,13 +3,7 @@
 import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  ImageIcon,
-  Video,
-  FileText,
-  Link as LinkIcon,
-  X,
-} from "lucide-react";
+import { ImageIcon, Video, FileText, Link as LinkIcon, X } from "lucide-react";
 import { proxyMediaUrl } from "@/lib/utils";
 import type { MoodboardItem } from "@/lib/hooks/useMoodboard";
 
@@ -63,16 +57,23 @@ export const CompactMoodboardCard = memo(function CompactMoodboardCard({
       className="group/compact flex items-center gap-1.5 px-1 py-0.5 rounded-md hover:bg-slate-50 cursor-grab active:cursor-grabbing"
     >
       {/* Thumbnail or type icon */}
-      <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center overflow-hidden ${typeBg[item.type]}`}>
+      <div
+        className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center overflow-hidden ${typeBg[item.type]}`}
+      >
         {imageUrl && (item.type === "image" || item.type === "video") ? (
-          <img
-            src={imageUrl}
-            alt=""
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </>
         ) : (
-          <Icon className={`w-2.5 h-2.5 ${item.type === "video" ? "text-white/70" : "text-slate-400"}`} />
+          <Icon
+            className={`w-2.5 h-2.5 ${item.type === "video" ? "text-white/70" : "text-slate-400"}`}
+          />
         )}
       </div>
 

@@ -2,7 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, FolderOpen, Calendar, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import {
+  Plus,
+  FolderOpen,
+  Calendar,
+  ArrowRight,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,7 +44,10 @@ export default function MoodboardPage() {
 
   const handleRename = async (projectId: string) => {
     const trimmed = renameValue.trim();
-    if (!trimmed) { setRenamingId(null); return; }
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
     try {
       await updateProject.mutateAsync({ projectId, data: { name: trimmed } });
       toast.success("เปลี่ยนชื่อแล้ว");
@@ -81,9 +91,7 @@ export default function MoodboardPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-800">
-              Moodboard
-            </h1>
+            <h1 className="text-2xl font-semibold text-slate-800">Moodboard</h1>
             <p className="text-slate-400 text-sm mt-1">
               Plan your weekly social content
             </p>
@@ -91,10 +99,7 @@ export default function MoodboardPage() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="card-premium p-6 animate-pulse"
-            >
+            <div key={i} className="card-premium p-6 animate-pulse">
               <div className="h-5 bg-slate-200 rounded w-2/3 mb-3" />
               <div className="h-3 bg-slate-100 rounded w-1/2" />
             </div>

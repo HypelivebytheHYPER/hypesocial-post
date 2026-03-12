@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -90,10 +90,20 @@ export default function DiagnosticsPage() {
   } = useWebhooks();
 
   // Track whether all queries have settled (loaded or errored)
-  const queriesSettled =
-    !accountsLoading && !postsLoading && !webhooksLoading;
+  const queriesSettled = !accountsLoading && !postsLoading && !webhooksLoading;
 
-  const runDiagnostics = async () => {
+  const updateTest = useCallback(
+    (id: string, status: DiagnosticTest["status"], message?: string) => {
+      setTests((prev) =>
+        prev.map((test) =>
+          test.id === id ? { ...test, status, message } : test,
+        ),
+      );
+    },
+    [],
+  );
+
+  const runDiagnostics = useCallback(async () => {
     setIsRunning(true);
     setLastRun(new Date());
 
@@ -112,11 +122,7 @@ export default function DiagnosticsPage() {
       postsError?.message?.includes("401");
     updateTest(
       "api-key",
-      apiAuthError
-        ? "error"
-        : apiWorking
-          ? "success"
-          : "warning",
+      apiAuthError ? "error" : apiWorking ? "success" : "warning",
       apiAuthError
         ? "API key is invalid or expired (401)"
         : apiWorking
@@ -199,19 +205,15 @@ export default function DiagnosticsPage() {
     );
 
     setIsRunning(false);
-  };
-
-  const updateTest = (
-    id: string,
-    status: DiagnosticTest["status"],
-    message?: string,
-  ) => {
-    setTests((prev) =>
-      prev.map((test) =>
-        test.id === id ? { ...test, status, message } : test,
-      ),
-    );
-  };
+  }, [
+    accountsData,
+    postsData,
+    postsError,
+    accountsError,
+    webhooksData,
+    webhooksError,
+    updateTest,
+  ]);
 
   const delay = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
@@ -223,7 +225,7 @@ export default function DiagnosticsPage() {
       autoRan.current = true;
       runDiagnostics();
     }
-  }, [queriesSettled]);
+  }, [queriesSettled, runDiagnostics]);
 
   const getStatusIcon = (status: DiagnosticTest["status"]) => {
     switch (status) {

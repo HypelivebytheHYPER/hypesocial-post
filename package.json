@@ -30,8 +30,8 @@
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
-    "@aws-sdk/client-s3": "^3.1000.0",
-    "@aws-sdk/s3-request-presigner": "^3.1000.0",
+    "@aws-sdk/client-s3": "^3.1007.0",
+    "@aws-sdk/s3-request-presigner": "^3.1007.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -80,6 +80,7 @@
     "@eslint/js": "^10.0.1",
     "@magnusrodseth/shadcn-mcp-server": "^1.1.2",
     "@next/bundle-analyzer": "^16.1.6",
+    "@next/eslint-plugin-next": "^16.1.6",
     "@playwright/test": "^1.58.2",
     "@robinson_ai_systems/vercel-mcp": "^1.0.1",
     "@storybook/addon-essentials": "^8.5.8",

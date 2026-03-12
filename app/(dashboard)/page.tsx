@@ -45,6 +45,9 @@ const PLATFORM_COLORS: Record<string, string> = {
   pinterest: "bg-red-700",
 };
 
+// Stable empty array reference for fallbacks (2026 best practice)
+const EMPTY_ARRAY: never[] = [];
+
 function getPlatformIcon(platform: string) {
   return platformIconsMap[platform.toLowerCase()];
 }
@@ -81,16 +84,32 @@ const fadeUp = {
 
 export default function HomePage() {
   // Data fetching
-  const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useAccounts();
-  const { data: postsData, isLoading: postsLoading, error: postsError } = usePosts();
-  const { data: resultsData, isLoading: resultsLoading, error: resultsError } = usePostResultsList({
+  const {
+    data: accountsData,
+    isLoading: accountsLoading,
+    error: accountsError,
+  } = useAccounts();
+  const {
+    data: postsData,
+    isLoading: postsLoading,
+    error: postsError,
+  } = usePosts();
+  const {
+    data: resultsData,
+    isLoading: resultsLoading,
+    error: resultsError,
+  } = usePostResultsList({
     limit: 20,
   });
-  const { data: webhooksData, isLoading: webhooksLoading, error: webhooksError } = useWebhooks();
+  const {
+    data: webhooksData,
+    isLoading: webhooksLoading,
+    error: webhooksError,
+  } = useWebhooks();
 
-  const accounts = accountsData?.data || [];
-  const posts = postsData?.data || [];
-  const results = resultsData?.data || [];
+  const accounts = accountsData?.data ?? EMPTY_ARRAY;
+  const posts = postsData?.data ?? EMPTY_ARRAY;
+  const results = resultsData?.data ?? EMPTY_ARRAY;
   const connectedAccounts = accounts.filter((a) => a.status === "connected");
 
   const isLoading = accountsLoading || postsLoading || resultsLoading;
@@ -98,13 +117,17 @@ export default function HomePage() {
   // Diagnostics state
   const [tests, setTests] = useState<DiagnosticTest[]>([
     { id: "api-key", name: "API Key", status: "pending", icon: Key },
-    { id: "api-connection", name: "API Connected", status: "pending", icon: Server },
+    {
+      id: "api-connection",
+      name: "API Connected",
+      status: "pending",
+      icon: Server,
+    },
     { id: "accounts", name: "Accounts", status: "pending", icon: Users },
     { id: "webhooks", name: "Webhooks", status: "pending", icon: Webhook },
     { id: "mcp", name: "MCP Server", status: "pending", icon: Terminal },
   ]);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
-  const [lastRun, setLastRun] = useState<Date | null>(null);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
 
   const updateTest = useCallback(
@@ -118,12 +141,14 @@ export default function HomePage() {
 
   const runDiagnostics = useCallback(() => {
     setIsRunningDiag(true);
-    setLastRun(new Date());
-    setTests((prev) => prev.map((t) => ({ ...t, status: "running", message: undefined })));
+    setTests((prev) =>
+      prev.map((t) => ({ ...t, status: "running", message: undefined })),
+    );
 
     const apiWorking = !!(accountsData?.data || postsData);
     const apiAuthError =
-      accountsError?.message?.includes("401") || postsError?.message?.includes("401");
+      accountsError?.message?.includes("401") ||
+      postsError?.message?.includes("401");
     updateTest(
       "api-key",
       apiAuthError ? "error" : apiWorking ? "success" : "warning",
@@ -135,7 +160,11 @@ export default function HomePage() {
     );
 
     if (postsError) {
-      updateTest("api-connection", "error", `Connection failed: ${postsError.message}`);
+      updateTest(
+        "api-connection",
+        "error",
+        `Connection failed: ${postsError.message}`,
+      );
     } else if (postsData) {
       updateTest("api-connection", "success", "Connected to Post For Me API");
     } else {
@@ -145,7 +174,9 @@ export default function HomePage() {
     if (accountsError) {
       updateTest("accounts", "error", `Failed: ${accountsError.message}`);
     } else if (accountsData?.data) {
-      const connected = accountsData.data.filter((a) => a.status === "connected").length;
+      const connected = accountsData.data.filter(
+        (a) => a.status === "connected",
+      ).length;
       const total = accountsData.data.length;
       updateTest(
         "accounts",
@@ -171,9 +202,18 @@ export default function HomePage() {
 
     updateTest("mcp", "success", "MCP server configured");
     setIsRunningDiag(false);
-  }, [accountsData, postsData, accountsError, postsError, webhooksData, webhooksError, updateTest]);
+  }, [
+    accountsData,
+    postsData,
+    accountsError,
+    postsError,
+    webhooksData,
+    webhooksError,
+    updateTest,
+  ]);
 
-  const queriesSettled = !accountsLoading && !postsLoading && !resultsLoading && !webhooksLoading;
+  const queriesSettled =
+    !accountsLoading && !postsLoading && !resultsLoading && !webhooksLoading;
   const autoRan = useRef(false);
   useEffect(() => {
     if (queriesSettled && !autoRan.current) {
@@ -194,7 +234,9 @@ export default function HomePage() {
   const successfulResults = results.filter((r) => r.success).length;
   const failedResults = results.filter((r) => !r.success).length;
   const successRate =
-    results.length > 0 ? Math.round((successfulResults / results.length) * 100) : 0;
+    results.length > 0
+      ? Math.round((successfulResults / results.length) * 100)
+      : 0;
 
   // Get recent posts with their results
   const recentPosts = useMemo(() => {
@@ -258,7 +300,9 @@ export default function HomePage() {
           <h1 className="greeting-title">
             Welcome to <span>HypePost</span>
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Your social media dashboard</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Your social media dashboard
+          </p>
         </div>
         <div className="card-premium p-12 text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
@@ -275,8 +319,12 @@ export default function HomePage() {
           Welcome to <span>HypePost</span>
         </h1>
         <div className="card-premium p-12 text-center border-red-200">
-          <p className="text-red-500 mb-2">{fetchError.message || "Failed to load dashboard"}</p>
-          <p className="text-xs text-slate-400">Please try refreshing the page</p>
+          <p className="text-red-500 mb-2">
+            {fetchError.message || "Failed to load dashboard"}
+          </p>
+          <p className="text-xs text-slate-400">
+            Please try refreshing the page
+          </p>
         </div>
       </div>
     );
@@ -305,7 +353,10 @@ export default function HomePage() {
       animate="visible"
     >
       {/* ── Header ── */}
-      <motion.div variants={fadeUp} className="flex items-end justify-between gap-4 mb-8">
+      <motion.div
+        variants={fadeUp}
+        className="flex items-end justify-between gap-4 mb-8"
+      >
         <div>
           <Badge variant="outline" className="badge-soft live mb-2">
             Live
@@ -313,7 +364,9 @@ export default function HomePage() {
           <h1 className="greeting-title">
             Welcome to <span>HypePost</span>
           </h1>
-          <p className="text-slate-400 text-sm mt-1">Your social media dashboard</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Your social media dashboard
+          </p>
         </div>
         <Link href="/posts/new">
           <Button variant="gradient" className="shadow-lg shadow-blue-500/20">
@@ -325,7 +378,6 @@ export default function HomePage() {
 
       {/* ── Bento Grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 auto-rows-[minmax(0,1fr)] gap-3 lg:gap-4">
-
         {/* ━━ HERO: System Health — spans 2 cols ━━ */}
         <motion.section
           variants={fadeUp}
@@ -334,11 +386,15 @@ export default function HomePage() {
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${healthBg}`}>
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center ${healthBg}`}
+              >
                 <Activity className={`w-4 h-4 ${healthColor}`} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-800">System Health</h2>
+                <h2 className="text-sm font-semibold text-slate-800">
+                  System Health
+                </h2>
                 <p className="text-xs text-slate-400">
                   {diagErrorCount > 0
                     ? "Connection Issues"
@@ -357,9 +413,16 @@ export default function HomePage() {
                 disabled={isRunningDiag}
                 className="text-slate-400 hover:text-slate-600 h-7 w-7 p-0"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRunningDiag ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isRunningDiag ? "animate-spin" : ""}`}
+                />
               </Button>
-              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-slate-600 h-7 text-xs px-2" asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-slate-400 hover:text-slate-600 h-7 text-xs px-2"
+                asChild
+              >
                 <Link href="/diagnostics">
                   Details <ChevronRight className="ml-0.5 h-3 w-3" />
                 </Link>
@@ -411,9 +474,14 @@ export default function HomePage() {
                   }`}
                 />
               );
-              const cls = "flex items-center gap-1.5 text-[11px] text-slate-500 transition-colors";
+              const cls =
+                "flex items-center gap-1.5 text-[11px] text-slate-500 transition-colors";
               return href ? (
-                <Link key={test.id} href={href} className={`${cls} hover:text-slate-700`}>
+                <Link
+                  key={test.id}
+                  href={href}
+                  className={`${cls} hover:text-slate-700`}
+                >
                   <Icon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{test.name}</span>
                   {dot}
@@ -453,7 +521,9 @@ export default function HomePage() {
                     className="overflow-hidden mt-2 space-y-1 text-xs text-slate-500"
                   >
                     {tests
-                      .filter((t) => t.status === "error" || t.status === "warning")
+                      .filter(
+                        (t) => t.status === "error" || t.status === "warning",
+                      )
                       .map((t) => (
                         <li key={t.id} className="flex items-start gap-1.5">
                           <ChevronRight className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
@@ -470,28 +540,49 @@ export default function HomePage() {
         </motion.section>
 
         {/* ━━ KPI: Total Posts ━━ */}
-        <motion.div variants={fadeUp} className="col-span-1 card-premium p-5 flex flex-col justify-between">
+        <motion.div
+          variants={fadeUp}
+          className="col-span-1 card-premium p-5 flex flex-col justify-between"
+        >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Posts</span>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              Posts
+            </span>
             <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
               <BarChart3 className="w-3.5 h-3.5 text-blue-600" />
             </div>
           </div>
           <div className="mt-auto">
-            <p className="text-3xl font-bold text-slate-800 tracking-tight">{totalPosts}</p>
+            <p className="text-3xl font-bold text-slate-800 tracking-tight">
+              {totalPosts}
+            </p>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-[11px] text-emerald-600 font-medium">{publishedPosts} published</span>
+              <span className="text-[11px] text-emerald-600 font-medium">
+                {publishedPosts} published
+              </span>
               <span className="text-slate-300">·</span>
-              <span className="text-[11px] text-slate-400">{scheduledPosts} scheduled</span>
+              <span className="text-[11px] text-slate-400">
+                {scheduledPosts} scheduled
+              </span>
             </div>
           </div>
         </motion.div>
 
         {/* ━━ KPI: Success Rate — radial ring ━━ */}
-        <motion.div variants={fadeUp} className="col-span-1 card-premium p-5 flex flex-col items-center justify-center">
+        <motion.div
+          variants={fadeUp}
+          className="col-span-1 card-premium p-5 flex flex-col items-center justify-center"
+        >
           <div className="relative w-20 h-20">
             <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-              <circle cx="40" cy="40" r="34" fill="none" className="stroke-slate-100 dark:stroke-slate-800" strokeWidth="6" />
+              <circle
+                cx="40"
+                cy="40"
+                r="34"
+                fill="none"
+                className="stroke-slate-100 dark:stroke-slate-800"
+                strokeWidth="6"
+              />
               <circle
                 cx="40"
                 cy="40"
@@ -511,9 +602,13 @@ export default function HomePage() {
               </span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-2 font-medium">Success Rate</p>
+          <p className="text-[11px] text-slate-400 mt-2 font-medium">
+            Success Rate
+          </p>
           {failedResults > 0 && (
-            <p className="text-[10px] text-red-400 mt-0.5">{failedResults} failed</p>
+            <p className="text-[10px] text-red-400 mt-0.5">
+              {failedResults} failed
+            </p>
           )}
         </motion.div>
 
@@ -521,10 +616,38 @@ export default function HomePage() {
         <motion.div variants={fadeUp} className="col-span-2 lg:col-span-4">
           <div className="flex items-stretch rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-slate-100/80 dark:border-slate-800/80 p-1.5 gap-1">
             {[
-              { label: "Feed", href: "/feed", icon: MessageSquare, sub: "ไล่ดูโพสต์จากแต่ละช่อง", gradient: "bg-gradient-to-br from-indigo-500 to-blue-600", shadow: "shadow-indigo-500/25" },
-              { label: "All Posts", href: "/posts", icon: Send, sub: `${posts.length} โพสต์ · ดูและจัดการทั้งหมด`, gradient: "bg-gradient-to-br from-cyan-500 to-blue-500", shadow: "shadow-cyan-500/25" },
-              { label: "Analytics", href: "/analytics", icon: BarChart3, sub: "เช็กยอดผลลัพธ์แต่ละแพลตฟอร์ม", gradient: "bg-gradient-to-br from-amber-500 to-orange-500", shadow: "shadow-amber-500/25" },
-              { label: "Accounts", href: "/accounts/connect", icon: Users, sub: `${connectedAccounts.length} บัญชี · เพิ่มช่องทางใหม่`, gradient: "bg-gradient-to-br from-emerald-500 to-teal-500", shadow: "shadow-emerald-500/25" },
+              {
+                label: "Feed",
+                href: "/feed",
+                icon: MessageSquare,
+                sub: "ไล่ดูโพสต์จากแต่ละช่อง",
+                gradient: "bg-gradient-to-br from-indigo-500 to-blue-600",
+                shadow: "shadow-indigo-500/25",
+              },
+              {
+                label: "All Posts",
+                href: "/posts",
+                icon: Send,
+                sub: `${posts.length} โพสต์ · ดูและจัดการทั้งหมด`,
+                gradient: "bg-gradient-to-br from-cyan-500 to-blue-500",
+                shadow: "shadow-cyan-500/25",
+              },
+              {
+                label: "Analytics",
+                href: "/analytics",
+                icon: BarChart3,
+                sub: "เช็กยอดผลลัพธ์แต่ละแพลตฟอร์ม",
+                gradient: "bg-gradient-to-br from-amber-500 to-orange-500",
+                shadow: "shadow-amber-500/25",
+              },
+              {
+                label: "Accounts",
+                href: "/accounts/connect",
+                icon: Users,
+                sub: `${connectedAccounts.length} บัญชี · เพิ่มช่องทางใหม่`,
+                gradient: "bg-gradient-to-br from-emerald-500 to-teal-500",
+                shadow: "shadow-emerald-500/25",
+              },
             ].map((action) => {
               const Icon = action.icon;
               return (
@@ -533,12 +656,18 @@ export default function HomePage() {
                   href={action.href}
                   className="flex-1 flex flex-col items-center gap-2 py-4 px-2 rounded-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all duration-200 group"
                 >
-                  <div className={`w-11 h-11 rounded-2xl ${action.gradient} flex items-center justify-center shadow-lg ${action.shadow} group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-300`}>
+                  <div
+                    className={`w-11 h-11 rounded-2xl ${action.gradient} flex items-center justify-center shadow-lg ${action.shadow} group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-300`}
+                  >
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="text-center min-w-0">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">{action.label}</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight line-clamp-2">{action.sub}</p>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 block">
+                      {action.label}
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight line-clamp-2">
+                      {action.sub}
+                    </p>
                   </div>
                 </Link>
               );
@@ -553,7 +682,9 @@ export default function HomePage() {
           data-testid="recent-posts"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-800">Recent Posts</h2>
+            <h2 className="text-sm font-semibold text-slate-800">
+              Recent Posts
+            </h2>
             <Link
               href="/posts"
               className="text-[11px] text-slate-400 hover:text-slate-600 font-medium flex items-center gap-0.5 transition-colors"
@@ -565,11 +696,16 @@ export default function HomePage() {
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
               <Calendar className="w-10 h-10 mb-2 opacity-40" />
               <p className="text-sm">No posts yet</p>
-              <p className="text-[11px] mt-1">Create your first post to get started</p>
+              <p className="text-[11px] mt-1">
+                Create your first post to get started
+              </p>
             </div>
           ) : (
-            <div className="flex-1 space-y-2 overflow-y-auto" data-testid="posts-list">
-              {recentPosts.map((post, i) => (
+            <div
+              className="flex-1 space-y-2 overflow-y-auto"
+              data-testid="posts-list"
+            >
+              {recentPosts.map((post) => (
                 <Link
                   key={post.id}
                   href="/posts"
@@ -609,7 +745,8 @@ export default function HomePage() {
                         {post.status}
                       </Badge>
                       <span className="text-[10px] text-slate-400">
-                        {post.results.filter((r) => r.success).length}/{post.results.length} delivered
+                        {post.results.filter((r) => r.success).length}/
+                        {post.results.length} delivered
                       </span>
                     </div>
                   </div>
@@ -644,9 +781,15 @@ export default function HomePage() {
             <div className="flex-1 flex flex-col justify-between">
               {platformStats.map(([platform, data]) => {
                 const Icon = getPlatformIcon(platform);
-                const maxPosts = Math.max(...platformStats.map(([, d]) => d.posts), 1);
+                const maxPosts = Math.max(
+                  ...platformStats.map(([, d]) => d.posts),
+                  1,
+                );
                 const pct = (data.posts / maxPosts) * 100;
-                const successPct = data.posts > 0 ? Math.round((data.success / data.posts) * 100) : 0;
+                const successPct =
+                  data.posts > 0
+                    ? Math.round((data.success / data.posts) * 100)
+                    : 0;
 
                 return (
                   <div key={platform} className="group">
@@ -662,12 +805,19 @@ export default function HomePage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-[11px]">
-                        <span className="text-slate-400">{data.posts} posts</span>
-                        <span className="text-emerald-600 font-medium">{successPct}%</span>
+                        <span className="text-slate-400">
+                          {data.posts} posts
+                        </span>
+                        <span className="text-emerald-600 font-medium">
+                          {successPct}%
+                        </span>
                       </div>
                     </div>
                     {/* Dual-tone bar: success + failed */}
-                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex" style={{ width: `${pct}%`, minWidth: "2rem" }}>
+                    <div
+                      className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex"
+                      style={{ width: `${pct}%`, minWidth: "2rem" }}
+                    >
                       <div
                         className="h-full bg-emerald-500 rounded-l-full"
                         style={{ width: `${successPct}%` }}
@@ -688,7 +838,10 @@ export default function HomePage() {
       </div>
 
       {/* ── Footer ── */}
-      <motion.div variants={fadeUp} className="flex items-center justify-between pt-6 mt-2">
+      <motion.div
+        variants={fadeUp}
+        className="flex items-center justify-between pt-6 mt-2"
+      >
         <div className="flex items-center gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">

@@ -30,10 +30,17 @@ export async function GET(
     const hasError = searchParams.has("error");
 
     // Log the interception (redact sensitive OAuth params)
-    const SENSITIVE_PARAMS = new Set(["code", "access_token", "refresh_token", "token"]);
+    const SENSITIVE_PARAMS = new Set([
+      "code",
+      "access_token",
+      "refresh_token",
+      "token",
+    ]);
     const redactedParams: Record<string, string> = {};
     searchParams.forEach((value, key) => {
-      redactedParams[key] = SENSITIVE_PARAMS.has(key) ? `[REDACTED ${value.length}chars]` : value;
+      redactedParams[key] = SENSITIVE_PARAMS.has(key)
+        ? `[REDACTED ${value.length}chars]`
+        : value;
     });
     console.log("[Callback] OAuth redirect intercepted", {
       platform,

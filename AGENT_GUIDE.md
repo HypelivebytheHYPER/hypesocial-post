@@ -10,7 +10,7 @@
 ### DO ✅
 
 - **Read CLAUDE.md first** before making changes
-- **Check types/post-for-me.ts** for API type definitions
+- **Check types/post-for-me-types.ts** for API type definitions
 - **Follow the SSOT** (Single Source of Truth in `docs/SINGLE_SOURCE_OF_TRUTH.md`)
 - **Run type-check** after modifications: `pnpm type-check`
 - **Use existing hooks** in `lib/hooks/usePostForMe.ts`
@@ -19,7 +19,7 @@
 ### DON'T ❌
 
 - Don't guess API types - check OpenAPI JSON at `/Users/mdch/Downloads/api-post-for-me.json`
-- Don't create duplicate types - use existing ones from `types/post-for-me.ts`
+- Don't create duplicate types - use existing ones from `types/post-for-me-types.ts`
 - Don't use `object` or `unknown` - define proper interfaces
 - Don't modify `docs/SINGLE_SOURCE_OF_TRUTH.md` manually (auto-generated)
 - Don't break the build - always run `pnpm type-check`
@@ -31,7 +31,7 @@
 | File                                         | Purpose          | When to Read                  |
 | -------------------------------------------- | ---------------- | ----------------------------- |
 | `CLAUDE.md`                                  | Project guide    | **Before ANY work**           |
-| `types/post-for-me.ts`                       | API types        | When working with data models |
+| `types/post-for-me-types.ts`                 | API types        | When working with data models |
 | `lib/hooks/usePostForMe.ts`                  | API hooks        | When adding API calls         |
 | `lib/social-platforms.ts`                    | Platform config  | When working with platforms   |
 | `docs/SINGLE_SOURCE_OF_TRUTH.md`             | Type reference   | To verify type sources        |
@@ -59,7 +59,7 @@ export function useNewFeature() {
    ```bash
    grep -A 10 '"NewTypeDto"' /Users/mdch/Downloads/api-post-for-me.json
    ```
-2. Add to `types/post-for-me.ts`
+2. Add to `types/post-for-me-types.ts`
 3. Export it
 4. Run `pnpm type-check`
 
@@ -160,7 +160,7 @@ rm -rf .next && pnpm build
 ```typescript
 // app/api/resource/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import type { ResourceType } from "@/types/post-for-me";
+import type { ResourceType } from "@/types/post-for-me-types";
 
 export async function GET() {
   try {
@@ -178,7 +178,7 @@ export async function GET() {
 "use client";
 
 import { usePosts } from "@/lib/hooks/usePostForMe";
-import type { SocialPost } from "@/types/post-for-me";
+import type { SocialPost } from "@/types/post-for-me-types";
 
 interface Props {
   post: SocialPost;
@@ -245,13 +245,13 @@ If stuck or confused:
 
 ### Available MCP Servers
 
-| MCP Server | Purpose | Configuration |
-|------------|---------|---------------|
-| `post-for-me` | Post For Me API operations | `POST_FOR_ME_API_KEY` required |
-| `supabase` | Database operations | HTTP endpoint with bearer token |
-| `perplexity` | Web search & research | `PERPLEXITY_API_KEY` required |
-| `vercel` | Deployment management | `VERCEL_TOKEN` required |
-| `shadcn_ui` | Component generation | No auth required |
+| MCP Server    | Purpose                    | Configuration                   |
+| ------------- | -------------------------- | ------------------------------- |
+| `post-for-me` | Post For Me API operations | `POST_FOR_ME_API_KEY` required  |
+| `supabase`    | Database operations        | HTTP endpoint with bearer token |
+| `perplexity`  | Web search & research      | `PERPLEXITY_API_KEY` required   |
+| `vercel`      | Deployment management      | `VERCEL_TOKEN` required         |
+| `shadcn_ui`   | Component generation       | No auth required                |
 
 ### MCP Configuration
 
@@ -279,13 +279,13 @@ If stuck or confused:
 
 ### Key Libraries for AI Agents
 
-| Library | Version | Use Case |
-|---------|---------|----------|
-| `post-for-me` | 2.6.1 | Official Post For Me SDK |
-| `post-for-me-mcp` | 2.6.1 | MCP server for AI integration |
-| `@tanstack/react-query` | 5.90.21 | Data fetching & caching |
-| `zod` | 3.25.76 | Schema validation |
-| `framer-motion` | 11.18.2 | Animations |
+| Library                 | Version | Use Case                      |
+| ----------------------- | ------- | ----------------------------- |
+| `post-for-me`           | 2.6.1   | Official Post For Me SDK      |
+| `post-for-me-mcp`       | 2.6.1   | MCP server for AI integration |
+| `@tanstack/react-query` | 5.90.21 | Data fetching & caching       |
+| `zod`                   | 3.25.76 | Schema validation             |
+| `framer-motion`         | 11.18.2 | Animations                    |
 
 ### AI-Ready Patterns
 
@@ -334,12 +334,12 @@ type CreatePostInput = z.infer<typeof CreatePostSchema>;
 
 ### When to Use Skills
 
-| Skill | Trigger | Purpose |
-|-------|---------|---------|
-| `vercel-deployment-guide` | Deploy issues, vercel.json config | Deployment troubleshooting |
-| `vercel-react-best-practices` | React/Next.js code review | Performance optimization |
-| `frontend-design` | UI component creation | Distinctive interface design |
-| `claude-developer-platform` | Claude API integration | Building AI features |
+| Skill                         | Trigger                           | Purpose                      |
+| ----------------------------- | --------------------------------- | ---------------------------- |
+| `vercel-deployment-guide`     | Deploy issues, vercel.json config | Deployment troubleshooting   |
+| `vercel-react-best-practices` | React/Next.js code review         | Performance optimization     |
+| `frontend-design`             | UI component creation             | Distinctive interface design |
+| `claude-developer-platform`   | Claude API integration            | Building AI features         |
 
 ### Using Skills
 
@@ -467,12 +467,13 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const API_KEY = process.env.POST_FOR_ME_API_KEY;
-  const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+  const API_BASE =
+    process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 
   if (!API_KEY) {
     return NextResponse.json(
       { error: "POST_FOR_ME_API_KEY not configured" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -491,7 +492,7 @@ export async function GET() {
           status: response.status,
           statusText: response.statusText,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -510,7 +511,7 @@ export async function GET() {
         error: "API connection failed",
         message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -544,6 +545,7 @@ curl -v -H "Authorization: Bearer $POST_FOR_ME_API_KEY" \
 **Symptom:** Changed env var but app still uses old value.
 
 **Solution:**
+
 ```bash
 # Must use --force to bypass build cache
 vercel --prod --force
@@ -554,6 +556,7 @@ vercel --prod --force
 **Symptom:** Env var works locally but not in production.
 
 **Diagnosis:**
+
 ```bash
 # Check which env vars are set for production
 vercel env ls production
@@ -566,6 +569,7 @@ vercel env ls development
 ```
 
 **Solution:**
+
 ```bash
 # Add to specific environment
 printf "value" | vercel env add KEY production
@@ -578,12 +582,14 @@ printf "value" | vercel env add KEY development
 **Symptom:** `process.env.KEY` is undefined in production.
 
 **Checklist:**
+
 - [ ] Env var added to correct environment (production/preview)
 - [ ] Redeployed with `--force` flag
 - [ ] Variable name matches exactly (case-sensitive)
 - [ ] Not using `NEXT_PUBLIC_` prefix for server-only vars incorrectly
 
 **Debug:**
+
 ```bash
 # Pull env vars and check
 vercel env pull .env.production.local
@@ -595,6 +601,7 @@ cat .env.production.local
 **Symptom:** API returns 401 "Unauthorized" even with correct key.
 
 **Diagnosis:**
+
 ```bash
 # Check if key has newline (should be 40 chars, not 41)
 echo "$POST_FOR_ME_API_KEY" | wc -c
@@ -603,6 +610,7 @@ echo "$POST_FOR_ME_API_KEY" | wc -c
 ```
 
 **Solution:**
+
 ```bash
 # Remove and re-add without newline
 vercel env rm POST_FOR_ME_API_KEY production
@@ -617,6 +625,7 @@ vercel --prod --force
 **Explanation:** Only `NEXT_PUBLIC_` prefixed vars are available in browser.
 
 **Solution:**
+
 ```typescript
 // ❌ Won't work in client components
 const apiKey = process.env.POST_FOR_ME_API_KEY;
@@ -670,7 +679,8 @@ vercel logs --production
 ```typescript
 // Always validate env vars at runtime
 const API_KEY = process.env.POST_FOR_ME_API_KEY;
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+const API_BASE =
+  process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 
 if (!API_KEY) {
   throw new Error("POST_FOR_ME_API_KEY is not configured");
@@ -700,7 +710,7 @@ try {
       message: error instanceof Error ? error.message : "Unknown error",
       statusCode: 500,
     },
-    { status: 500 }
+    { status: 500 },
   );
 }
 ```
@@ -748,7 +758,9 @@ export async function POST(request: NextRequest) {
 console.log("[Agent] Starting operation", {
   timestamp: new Date().toISOString(),
   operation: "createPost",
-  params: { /* sanitized params */ }
+  params: {
+    /* sanitized params */
+  },
 });
 
 console.error("[Agent] Operation failed", {
@@ -804,7 +816,7 @@ await createPost(validation.data);
 try {
   const result = await withTimeout(
     fetchPosts(),
-    10000 // 10 second timeout
+    10000, // 10 second timeout
   );
   return result;
 } catch (error) {
@@ -850,13 +862,13 @@ if (SENSITIVE_OPERATIONS.includes(operation)) {
 
 ### Project-Specific Knowledge
 
-| Document | Purpose |
-|----------|---------|
-| `CLAUDE.md` | Project overview & quick start |
-| `AGENT_GUIDE.md` | This file - AI agent operations |
-| `ENVIRONMENT_VARIABLES.md` | Env var reference |
-| `TESTING.md` | Testing procedures |
-| `docs/SINGLE_SOURCE_OF_TRUTH.md` | API type reference |
+| Document                         | Purpose                         |
+| -------------------------------- | ------------------------------- |
+| `CLAUDE.md`                      | Project overview & quick start  |
+| `AGENT_GUIDE.md`                 | This file - AI agent operations |
+| `ENVIRONMENT_VARIABLES.md`       | Env var reference               |
+| `TESTING.md`                     | Testing procedures              |
+| `docs/SINGLE_SOURCE_OF_TRUTH.md` | API type reference              |
 
 ### External Resources
 

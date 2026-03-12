@@ -1,5 +1,8 @@
 "use client";
 
+// Stable empty array reference for fallbacks (2026 best practice)
+const EMPTY_ARRAY: never[] = [];
+
 import {
   ArrowLeft,
   ImageIcon,
@@ -20,6 +23,7 @@ import {
   ChevronRight,
   Plus,
   Tag,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
@@ -35,6 +39,7 @@ import {
   useUploadThumbnail,
   usePausedAccounts,
   usePostPreview,
+  useTiktokTrendingMusic,
 } from "@/lib/hooks/usePostForMe";
 import type {
   PlatformConfig,
@@ -44,14 +49,21 @@ import type {
   AccountConfig,
   MediaItem,
   MediaTag,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
 import { platformIconsMap } from "@/lib/social-platforms";
-import { cn, proxyMediaUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
+  PLATFORM_CHARACTER_LIMITS,
   getMostRestrictiveLimit,
   getWarningThreshold,
-  getDangerThreshold,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
+import {
+  getMediaCompatWarnings,
+  getDimensionWarnings,
+  getRecommendedRatios,
+  buildPlatformMediaOverrides,
+} from "@/lib/media-compat";
+import type { MediaCompatWarning, MediaDimensions } from "@/lib/media-compat";
 
 // Auto-save draft key
 const DRAFT_STORAGE_KEY = "hypesocial_post_draft";
@@ -67,6 +79,9 @@ interface MediaFile {
   uploadProgress?: number;
   error?: string;
   skipProcessing?: boolean;
+  /** Detected dimensions (width × height) from file metadata */
+  width?: number;
+  height?: number;
 }
 
 // Animation variants
@@ -84,15 +99,6 @@ const itemVariants = {
     opacity: 1,
     y: 0,
     transition: { type: "spring", stiffness: 300, damping: 30 },
-  },
-};
-
-const slideInVariants = {
-  hidden: { opacity: 0, x: 20 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { type: "spring", stiffness: 400, damping: 30 },
   },
 };
 
@@ -122,7 +128,11 @@ const PLATFORM_OVERRIDE_FIELDS: Record<string, OverrideFieldConfig[]> = {
     { key: "is_draft", label: "Save as Draft", type: "boolean" },
     { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
     { key: "disclose_your_brand", label: "Disclose Brand", type: "boolean" },
-    { key: "disclose_branded_content", label: "Branded Content", type: "boolean" },
+    {
+      key: "disclose_branded_content",
+      label: "Branded Content",
+      type: "boolean",
+    },
   ],
   tiktok_business: [
     {
@@ -141,7 +151,11 @@ const PLATFORM_OVERRIDE_FIELDS: Record<string, OverrideFieldConfig[]> = {
     { key: "is_draft", label: "Save as Draft", type: "boolean" },
     { key: "is_ai_generated", label: "AI Generated", type: "boolean" },
     { key: "disclose_your_brand", label: "Disclose Brand", type: "boolean" },
-    { key: "disclose_branded_content", label: "Branded Content", type: "boolean" },
+    {
+      key: "disclose_branded_content",
+      label: "Branded Content",
+      type: "boolean",
+    },
   ],
   instagram: [
     {
@@ -333,11 +347,16 @@ function PreviewCard({
               className={`grid gap-2 ${preview.media.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
             >
               {preview.media.slice(0, 4).map((mediaItem, idx) => {
-                const mediaWithType = mediaItem as typeof mediaItem & { content_type?: string };
-                const isVideo = mediaWithType.content_type?.startsWith("video/") ||
+                const mediaWithType = mediaItem as typeof mediaItem & {
+                  content_type?: string;
+                };
+                const isVideo =
+                  mediaWithType.content_type?.startsWith("video/") ||
                   mediaItem.url.match(/\.(mp4|mov|webm)($|\?)/);
                 // Local previews are always images (blob URL for images, JPEG data URL for video frame captures)
-                const isLocalPreview = mediaItem.url.startsWith("blob:") || mediaItem.url.startsWith("data:");
+                const isLocalPreview =
+                  mediaItem.url.startsWith("blob:") ||
+                  mediaItem.url.startsWith("data:");
                 return (
                   <motion.div
                     key={idx}
@@ -355,13 +374,18 @@ function PreviewCard({
                         preload="metadata"
                       />
                     ) : (
-                      <img
-                        src={mediaItem.url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        crossOrigin={isLocalPreview ? undefined : "anonymous"}
-                        referrerPolicy={isLocalPreview ? undefined : "no-referrer"}
-                      />
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={mediaItem.url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          crossOrigin={isLocalPreview ? undefined : "anonymous"}
+                          referrerPolicy={
+                            isLocalPreview ? undefined : "no-referrer"
+                          }
+                        />
+                      </>
                     )}
                     {/* Media Type Badge */}
                     <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 text-white text-[10px] rounded-full">
@@ -381,10 +405,12 @@ function PreviewCard({
               )}
             </div>
             {/* Media URLs */}
-            <div className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"} space-y-1`}>
+            <div
+              className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"} space-y-1`}
+            >
               {preview.media.map((mediaItem, idx) => (
                 <div key={idx} className="truncate font-mono">
-                  {idx + 1}. {mediaItem.url.split('/').pop()?.split('?')[0]}
+                  {idx + 1}. {mediaItem.url.split("/").pop()?.split("?")[0]}
                 </div>
               ))}
             </div>
@@ -488,13 +514,17 @@ function MediaTagInput({
             handleAdd();
           }
         }}
-        placeholder={platform === "instagram" ? "@username or product ID" : "User ID"}
+        placeholder={
+          platform === "instagram" ? "@username or product ID" : "User ID"
+        }
         className="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200 min-w-0"
       />
       {tagPlatforms.length > 1 && (
         <select
           value={platform}
-          onChange={(e) => setPlatform(e.target.value as "facebook" | "instagram")}
+          onChange={(e) =>
+            setPlatform(e.target.value as "facebook" | "instagram")
+          }
           className="px-2 py-1.5 bg-white rounded-lg text-[10px] border border-slate-200"
         >
           {tagPlatforms.map((p) => (
@@ -680,7 +710,10 @@ function AccountOverrides({
   const fields = PLATFORM_OVERRIDE_FIELDS[platform];
   const platformAccountIds = accountIds.filter((id) => {
     const account = accounts.find((a) => a.id === id);
-    return account?.platform === platform || (platform === "x" && account?.platform === "twitter");
+    return (
+      account?.platform === platform ||
+      (platform === "x" && account?.platform === "twitter")
+    );
   });
 
   if (!fields || platformAccountIds.length < 2) return null;
@@ -698,7 +731,10 @@ function AccountOverrides({
           const isExpanded = expandedAccounts.includes(accountId);
 
           return (
-            <div key={accountId} className="rounded-lg bg-white border border-slate-100">
+            <div
+              key={accountId}
+              className="rounded-lg bg-white border border-slate-100"
+            >
               <button
                 type="button"
                 onClick={() =>
@@ -742,7 +778,9 @@ function AccountOverrides({
                             onSetOverride(
                               accountId,
                               field.key,
-                              platformValues[field.key] as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                              platformValues[
+                                field.key
+                              ] as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
                             );
                           } else {
                             onClearOverride(accountId, field.key);
@@ -777,6 +815,323 @@ function AccountOverrides({
   );
 }
 
+// Per-account content customization (caption + media overrides)
+function AccountContentCustomization({
+  selectedAccountIds,
+  accounts,
+  mediaFiles,
+  defaultCaption,
+  accountOverrides,
+  onSetOverride,
+  onClearOverride,
+}: {
+  selectedAccountIds: string[];
+  accounts: { id: string; platform: string; username: string | null }[];
+  mediaFiles: MediaFile[];
+  defaultCaption: string;
+  accountOverrides: Record<string, Partial<AccountConfigurationDetailsDto>>;
+  onSetOverride: (
+    accountId: string,
+    field: keyof AccountConfigurationDetailsDto,
+    value: AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+  ) => void;
+  onClearOverride: (
+    accountId: string,
+    field: keyof AccountConfigurationDetailsDto,
+  ) => void;
+}) {
+  const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
+  const uploadedMedia = mediaFiles.filter(
+    (m) => m.status === "success" && m.uploadedUrl,
+  );
+
+  if (selectedAccountIds.length < 2) return null;
+
+  const hasAnyOverride = selectedAccountIds.some((id) => {
+    const o = accountOverrides[id];
+    return o && (o.caption !== undefined || o.media !== undefined);
+  });
+
+  return (
+    <div className="border-t border-slate-100 dark:border-slate-700/50 pt-4">
+      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <FileEdit className="w-3 h-3" />
+        Per-Account Content
+        {hasAnyOverride && (
+          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full text-[9px] font-bold ml-1">
+            Customized
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400 mb-3">
+        Override caption or media for specific accounts. Empty = uses default.
+      </p>
+      <div className="space-y-2">
+        {selectedAccountIds.map((accountId) => {
+          const account = accounts.find((a) => a.id === accountId);
+          if (!account) return null;
+          const PlatformIcon = getPlatformIcon(account.platform);
+          const overrides = accountOverrides[accountId] || {};
+          const hasCaption = overrides.caption !== undefined;
+          const hasMedia = overrides.media !== undefined;
+          const overrideCount = (hasCaption ? 1 : 0) + (hasMedia ? 1 : 0);
+          const isExpanded = expandedAccounts.includes(accountId);
+          const charLimit =
+            PLATFORM_CHARACTER_LIMITS[account.platform] || Infinity;
+          const captionText = hasCaption ? String(overrides.caption ?? "") : "";
+          const isOverCharLimit = hasCaption && captionText.length > charLimit;
+
+          // Which media URLs are selected for this account
+          const overrideMediaUrls = hasMedia
+            ? ((overrides.media as MediaItem[]) || []).map((m) => m.url)
+            : uploadedMedia.map((m) => m.uploadedUrl!);
+
+          return (
+            <div
+              key={accountId}
+              className="rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedAccounts((prev) =>
+                    prev.includes(accountId)
+                      ? prev.filter((id) => id !== accountId)
+                      : [...prev, accountId],
+                  )
+                }
+                className="w-full flex items-center gap-2.5 p-2.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors"
+              >
+                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                  {PlatformIcon ? (
+                    <PlatformIcon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                  ) : (
+                    <span className="text-[10px] text-slate-500">
+                      {account.platform[0]}
+                    </span>
+                  )}
+                </div>
+                <span className="text-slate-700 dark:text-slate-200 font-medium truncate flex-1 text-left">
+                  @{account.username || account.platform}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {overrideCount > 0 && (
+                    <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full text-[9px] font-bold">
+                      {overrideCount}
+                    </span>
+                  )}
+                  {isExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-2.5 pb-2.5 space-y-3">
+                      {/* Caption override */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            Caption
+                          </span>
+                          {hasCaption ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onClearOverride(accountId, "caption")
+                              }
+                              className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors"
+                            >
+                              Use default
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onSetOverride(
+                                  accountId,
+                                  "caption",
+                                  defaultCaption as unknown as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                                )
+                              }
+                              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                              Customize
+                            </button>
+                          )}
+                        </div>
+                        {hasCaption ? (
+                          <div>
+                            <textarea
+                              value={captionText}
+                              onChange={(e) =>
+                                onSetOverride(
+                                  accountId,
+                                  "caption",
+                                  e.target
+                                    .value as unknown as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                                )
+                              }
+                              placeholder={
+                                defaultCaption ||
+                                "Custom caption for this account..."
+                              }
+                              rows={3}
+                              className={cn(
+                                "w-full px-3 py-2 text-xs border rounded-lg resize-none focus:ring-2 focus:ring-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200",
+                                isOverCharLimit
+                                  ? "border-red-300 focus:ring-red-200"
+                                  : "border-slate-200",
+                              )}
+                            />
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[10px] text-slate-400">
+                                {account.platform}
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-[10px]",
+                                  isOverCharLimit
+                                    ? "text-red-500 font-medium"
+                                    : "text-slate-400",
+                                )}
+                              >
+                                {captionText.length}
+                                {charLimit !== Infinity && ` / ${charLimit}`}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 italic truncate">
+                            {defaultCaption || "No caption yet"}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Media override */}
+                      {uploadedMedia.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                              Media ({overrideMediaUrls.length}/
+                              {uploadedMedia.length})
+                            </span>
+                            {hasMedia ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onClearOverride(accountId, "media")
+                                }
+                                className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors"
+                              >
+                                Use all
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">
+                                All included
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {uploadedMedia.map((media) => {
+                              const isIncluded = overrideMediaUrls.includes(
+                                media.uploadedUrl!,
+                              );
+                              const isVideo =
+                                /\.(mp4|mov|webm|avi|3gp)($|\?)/i.test(
+                                  media.file.name,
+                                );
+                              return (
+                                <button
+                                  key={media.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const currentMedia = hasMedia
+                                      ? (overrides.media as MediaItem[]) || []
+                                      : uploadedMedia.map((m) => ({
+                                          url: m.uploadedUrl!,
+                                        }));
+                                    const newMedia = isIncluded
+                                      ? currentMedia.filter(
+                                          (m) => m.url !== media.uploadedUrl,
+                                        )
+                                      : [
+                                          ...currentMedia,
+                                          { url: media.uploadedUrl! },
+                                        ];
+                                    if (
+                                      newMedia.length ===
+                                        uploadedMedia.length &&
+                                      !hasMedia
+                                    )
+                                      return;
+                                    if (
+                                      newMedia.length === uploadedMedia.length
+                                    ) {
+                                      onClearOverride(accountId, "media");
+                                    } else {
+                                      onSetOverride(
+                                        accountId,
+                                        "media",
+                                        newMedia as unknown as AccountConfigurationDetailsDto[keyof AccountConfigurationDetailsDto],
+                                      );
+                                    }
+                                  }}
+                                  className={cn(
+                                    "relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all",
+                                    isIncluded
+                                      ? "border-blue-500 opacity-100"
+                                      : "border-slate-200 opacity-40 grayscale",
+                                  )}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={media.preview}
+                                    alt={media.file.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {isVideo && (
+                                    <Play className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />
+                                  )}
+                                  {isIncluded && (
+                                    <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center">
+                                      <Check className="w-2 h-2 text-white" />
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {hasMedia && overrideMediaUrls.length === 0 && (
+                            <p className="text-[10px] text-amber-500 mt-1">
+                              No media selected — this account will post text
+                              only.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function NewPostPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -792,7 +1147,9 @@ export default function NewPostPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
-  const [thumbnailUploadedUrl, setThumbnailUploadedUrl] = useState<string | null>(null);
+  const [thumbnailUploadedUrl, setThumbnailUploadedUrl] = useState<
+    string | null
+  >(null);
   const [isThumbnailUploading, setIsThumbnailUploading] = useState(false);
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts();
@@ -804,12 +1161,14 @@ export default function NewPostPage() {
   const postPreviewRef = useRef(postPreview);
   postPreviewRef.current = postPreview;
 
-  const accounts = accountsData?.data || [];
+  const accounts = accountsData?.data ?? EMPTY_ARRAY;
   const connectedAccounts = accounts.filter(
     (a) => a.status === "connected" && !isPaused(a.id),
   );
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
-  const [activeComposeTab, setActiveComposeTab] = useState<"media" | "accounts" | "schedule" | null>(null);
+  const [activeComposeTab, setActiveComposeTab] = useState<
+    "media" | "accounts" | "schedule" | null
+  >(null);
   const [showTagsExpanded, setShowTagsExpanded] = useState(false);
 
   // Ref to avoid stale closure in handleMediaSelect
@@ -819,14 +1178,15 @@ export default function NewPostPage() {
   }, [selectedAccountIds]);
 
   // Platform configs
-  const [tiktokPrivacy, setTiktokPrivacy] = useState<"public" | "private">(
-    "public",
+  const [tiktokPrivacy, setTiktokPrivacy] = useState<"public" | "private" | "">(
+    "",
   );
   const [tiktokAllowDuet, setTiktokAllowDuet] = useState(true);
   const [tiktokAllowStitch, setTiktokAllowStitch] = useState(true);
-  const [tiktokAllowComment, setTiktokAllowComment] = useState(true);
+  const [tiktokAllowComment, setTiktokAllowComment] = useState(false);
   const [tiktokAutoAddMusic, setTiktokAutoAddMusic] = useState(true);
   const [tiktokIsDraft, setTiktokIsDraft] = useState(false);
+  const [tiktokDiscloseToggle, setTiktokDiscloseToggle] = useState(false);
   const [tiktokDiscloseBrand, setTiktokDiscloseBrand] = useState(false);
   const [tiktokDiscloseBrandedContent, setTiktokDiscloseBrandedContent] =
     useState(false);
@@ -857,25 +1217,19 @@ export default function NewPostPage() {
   // Media tags (keyed by media file id) — UserTagDto for Facebook/Instagram
   const [mediaTags, setMediaTags] = useState<Record<string, MediaTag[]>>({});
 
-  const addMediaTag = useCallback(
-    (mediaId: string, tag: MediaTag) => {
-      setMediaTags((prev) => ({
-        ...prev,
-        [mediaId]: [...(prev[mediaId] || []), tag],
-      }));
-    },
-    [],
-  );
+  const addMediaTag = useCallback((mediaId: string, tag: MediaTag) => {
+    setMediaTags((prev) => ({
+      ...prev,
+      [mediaId]: [...(prev[mediaId] || []), tag],
+    }));
+  }, []);
 
-  const removeMediaTag = useCallback(
-    (mediaId: string, tagIndex: number) => {
-      setMediaTags((prev) => ({
-        ...prev,
-        [mediaId]: (prev[mediaId] || []).filter((_, i) => i !== tagIndex),
-      }));
-    },
-    [],
-  );
+  const removeMediaTag = useCallback((mediaId: string, tagIndex: number) => {
+    setMediaTags((prev) => ({
+      ...prev,
+      [mediaId]: (prev[mediaId] || []).filter((_, i) => i !== tagIndex),
+    }));
+  }, []);
 
   // Per-account configuration overrides (keyed by account ID)
   const [accountOverrides, setAccountOverrides] = useState<
@@ -901,7 +1255,8 @@ export default function NewPostPage() {
       setAccountOverrides((prev) => {
         const updated = { ...prev };
         if (updated[accountId]) {
-          const { [field]: _, ...rest } = updated[accountId];
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [field]: _unused, ...rest } = updated[accountId];
           if (Object.keys(rest).length === 0) {
             delete updated[accountId];
           } else {
@@ -950,7 +1305,35 @@ export default function NewPostPage() {
   const hasVideoMedia = mediaFiles.some(
     (f) => f.file.type.startsWith("video/") && f.status === "success",
   );
-  const THUMBNAIL_PLATFORMS = ["facebook", "instagram", "tiktok_business", "youtube"];
+  const hasImageMedia = mediaFiles.some(
+    (f) => !f.file.type.startsWith("video/") && f.status === "success",
+  );
+  // TikTok photo slideshows need music — show discovery when images uploaded without video
+  const tiktokNeedsMusic = hasImageMedia && !hasVideoMedia;
+
+  // CML trending music: find first TikTok Business account for API calls
+  const tiktokBusinessAccountId = useMemo(
+    () =>
+      selectedAccountIds.find(
+        (id) =>
+          accounts.find((a) => a.id === id)?.platform === "tiktok_business",
+      ),
+    [selectedAccountIds, accounts],
+  );
+  const trendingMusic = useTiktokTrendingMusic(
+    tiktokNeedsMusic ? tiktokBusinessAccountId : undefined,
+  );
+  const [cmlExpanded, setCmlExpanded] = useState(false);
+  const [cmlPlayingId, setCmlPlayingId] = useState<string | null>(null);
+  const [cmlGenreFilter, setCmlGenreFilter] = useState<string>("all");
+  const cmlAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const THUMBNAIL_PLATFORMS = [
+    "facebook",
+    "instagram",
+    "tiktok_business",
+    "youtube",
+  ];
   const showThumbnailUpload =
     hasVideoMedia &&
     selectedPlatforms.some((p) => THUMBNAIL_PLATFORMS.includes(p));
@@ -980,16 +1363,58 @@ export default function NewPostPage() {
     () => getWarningThreshold(characterLimit),
     [characterLimit],
   );
-  const dangerThreshold = useMemo(
-    () => getDangerThreshold(characterLimit),
-    [characterLimit],
-  );
   const isOverLimit =
     characterLimit !== Infinity && content.length > characterLimit;
   const isNearLimit =
     characterLimit !== Infinity && content.length >= warningThreshold;
   const charactersRemaining =
     characterLimit !== Infinity ? characterLimit - content.length : null;
+
+  // Media compatibility warnings for multi-platform posting
+  const mediaCompatWarnings: MediaCompatWarning[] = useMemo(() => {
+    const successMedia = mediaFiles.filter((f) => f.status === "success");
+    if (successMedia.length === 0 || selectedPlatforms.length === 0) return [];
+    const mediaItems: MediaItem[] = successMedia.map((f) => ({
+      url: f.uploadedUrl || f.preview,
+      skip_processing: f.skipProcessing || false,
+    }));
+    return getMediaCompatWarnings(mediaItems, selectedPlatforms);
+  }, [mediaFiles, selectedPlatforms]);
+
+  // Dimension/aspect ratio warnings
+  const dimensionWarnings: MediaCompatWarning[] = useMemo(() => {
+    const successMedia = mediaFiles.filter(
+      (f) => f.status === "success" && f.width && f.height,
+    );
+    if (successMedia.length === 0 || selectedPlatforms.length === 0) return [];
+    const dims: MediaDimensions[] = successMedia.map((f) => ({
+      width: f.width!,
+      height: f.height!,
+    }));
+    const placements: Record<string, string> = {};
+    if (selectedPlatforms.includes("instagram"))
+      placements.instagram = instagramPlacement;
+    if (selectedPlatforms.includes("facebook"))
+      placements.facebook = facebookPlacement;
+    return getDimensionWarnings(dims, selectedPlatforms, placements);
+  }, [mediaFiles, selectedPlatforms, instagramPlacement, facebookPlacement]);
+
+  // Recommended aspect ratios for selected platforms
+  const recommendedRatios = useMemo(() => {
+    if (selectedPlatforms.length === 0) return [];
+    const placements: Record<string, string> = {};
+    if (selectedPlatforms.includes("instagram"))
+      placements.instagram = instagramPlacement;
+    if (selectedPlatforms.includes("facebook"))
+      placements.facebook = facebookPlacement;
+    return getRecommendedRatios(selectedPlatforms, placements);
+  }, [selectedPlatforms, instagramPlacement, facebookPlacement]);
+
+  // Combine all warnings
+  const allMediaWarnings = useMemo(
+    () => [...mediaCompatWarnings, ...dimensionWarnings],
+    [mediaCompatWarnings, dimensionWarnings],
+  );
 
   // Auto-save draft to localStorage
   useEffect(() => {
@@ -1090,7 +1515,8 @@ export default function NewPostPage() {
           if (draft.scheduledTime) setScheduledTime(draft.scheduledTime);
           if (draft.selectedAccountIds?.length > 0)
             setSelectedAccountIds(draft.selectedAccountIds);
-          if (draft.accountOverrides) setAccountOverrides(draft.accountOverrides);
+          if (draft.accountOverrides)
+            setAccountOverrides(draft.accountOverrides);
           // Restore platform configs
           const pc = draft.platformConfigs;
           if (pc?.tiktok) {
@@ -1109,7 +1535,9 @@ export default function NewPostPage() {
             if (pc.tiktok.tiktokDiscloseBrand !== undefined)
               setTiktokDiscloseBrand(pc.tiktok.tiktokDiscloseBrand);
             if (pc.tiktok.tiktokDiscloseBrandedContent !== undefined)
-              setTiktokDiscloseBrandedContent(pc.tiktok.tiktokDiscloseBrandedContent);
+              setTiktokDiscloseBrandedContent(
+                pc.tiktok.tiktokDiscloseBrandedContent,
+              );
             if (pc.tiktok.tiktokIsAIGenerated !== undefined)
               setTiktokIsAIGenerated(pc.tiktok.tiktokIsAIGenerated);
           }
@@ -1136,10 +1564,8 @@ export default function NewPostPage() {
               setYoutubeTitle(pc.youtube.youtubeTitle);
           }
           if (pc?.x) {
-            if (pc.x.xReplySettings)
-              setXReplySettings(pc.x.xReplySettings);
-            if (pc.x.xQuoteTweetId)
-              setXQuoteTweetId(pc.x.xQuoteTweetId);
+            if (pc.x.xReplySettings) setXReplySettings(pc.x.xReplySettings);
+            if (pc.x.xQuoteTweetId) setXQuoteTweetId(pc.x.xQuoteTweetId);
           }
           if (pc?.pinterest) {
             if (pc.pinterest.pinterestBoardId)
@@ -1231,42 +1657,35 @@ export default function NewPostPage() {
             accounts.find((a) => a.id === id)?.platform === "tiktok_business",
         );
 
+        const tiktokConfig = {
+          privacy_status: tiktokPrivacy as "public" | "private",
+          allow_comment: tiktokAllowComment,
+          allow_duet: tiktokAllowDuet,
+          allow_stitch: tiktokAllowStitch,
+          // auto_add_music only works with DIRECT_POST, ignored in inbox/MEDIA_UPLOAD mode
+          auto_add_music: tiktokIsDraft ? false : tiktokAutoAddMusic,
+          is_draft: tiktokIsDraft,
+          disclose_your_brand: tiktokDiscloseBrand,
+          disclose_branded_content: tiktokDiscloseBrandedContent,
+          is_ai_generated: tiktokIsAIGenerated,
+        };
         if (hasTikTok) {
-          platformConfigs.tiktok = {
-            privacy_status: tiktokPrivacy,
-            allow_comment: tiktokAllowComment,
-            allow_duet: tiktokAllowDuet,
-            allow_stitch: tiktokAllowStitch,
-            auto_add_music: tiktokAutoAddMusic,
-            is_draft: tiktokIsDraft,
-            disclose_your_brand: tiktokDiscloseBrand,
-            disclose_branded_content: tiktokDiscloseBrandedContent,
-            is_ai_generated: tiktokIsAIGenerated,
-          };
+          platformConfigs.tiktok = tiktokConfig;
         }
         if (hasTikTokBusiness) {
-          platformConfigs.tiktok_business = {
-            privacy_status: tiktokPrivacy,
-            allow_comment: tiktokAllowComment,
-            allow_duet: tiktokAllowDuet,
-            allow_stitch: tiktokAllowStitch,
-            auto_add_music: tiktokAutoAddMusic,
-            is_draft: tiktokIsDraft,
-            disclose_your_brand: tiktokDiscloseBrand,
-            disclose_branded_content: tiktokDiscloseBrandedContent,
-            is_ai_generated: tiktokIsAIGenerated,
-          };
+          platformConfigs.tiktok_business = tiktokConfig;
         }
         if (hasInstagram)
           platformConfigs.instagram = {
             placement: instagramPlacement,
             share_to_feed:
-              instagramPlacement === "reels"
-                ? instagramShareToFeed
-                : undefined,
+              instagramPlacement === "reels" ? instagramShareToFeed : undefined,
             trial_reel_type: instagramTrialReelType || undefined,
             collaborators: instagramCollaborators
-              ? instagramCollaborators.split(",").map((s) => s.trim()).filter(Boolean)
+              ? instagramCollaborators
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
               : undefined,
           };
         if (hasFacebook)
@@ -1296,6 +1715,21 @@ export default function NewPostPage() {
             configuration: config as AccountConfigurationDetailsDto,
           }));
 
+        // Auto-build per-platform media overrides for preview accuracy
+        if (uploadedMedia.length > 0) {
+          const previewPlatforms = previewAccounts.map((a) => a.platform);
+          const mediaItems: MediaItem[] = uploadedMedia.map((m) => ({
+            url: m.url,
+            skip_processing: m.skip_processing,
+          }));
+          const overriddenConfigs = buildPlatformMediaOverrides(
+            mediaItems,
+            previewPlatforms,
+            platformConfigs,
+          );
+          Object.assign(platformConfigs, overriddenConfigs);
+        }
+
         const result = await postPreviewRef.current.mutateAsync({
           caption: content,
           preview_social_accounts: previewAccounts,
@@ -1306,8 +1740,12 @@ export default function NewPostPage() {
           media:
             uploadedMedia.length > 0
               ? uploadedMedia.map((m, i) => {
-                  const successFiles = mediaFiles.filter((f) => f.status === "success");
-                  const tags = successFiles[i] ? mediaTags[successFiles[i].id] : undefined;
+                  const successFiles = mediaFiles.filter(
+                    (f) => f.status === "success",
+                  );
+                  const tags = successFiles[i]
+                    ? mediaTags[successFiles[i].id]
+                    : undefined;
                   return {
                     url: m.url,
                     skip_processing: m.skip_processing,
@@ -1322,7 +1760,9 @@ export default function NewPostPage() {
         });
 
         // API returns array directly, not { data: [...] }
-        const previewsArray = Array.isArray(result) ? result : (result.data || []);
+        const previewsArray = Array.isArray(result)
+          ? result
+          : result.data || [];
         // Use local preview URLs for instant rendering (remote URLs may be slow/blocked)
         const previewsWithMedia = previewsArray.map((preview: any) => ({
           ...preview,
@@ -1337,7 +1777,9 @@ export default function NewPostPage() {
         setPreviews(previewsWithMedia);
       } catch (error) {
         console.error("Preview generation failed:", error);
-        setPreviewError(error instanceof Error ? error.message : "Failed to generate preview");
+        setPreviewError(
+          error instanceof Error ? error.message : "Failed to generate preview",
+        );
       } finally {
         setIsGeneratingPreview(false);
       }
@@ -1373,6 +1815,9 @@ export default function NewPostPage() {
     pinterestLink,
     previewRefreshTrigger,
     accountOverrides,
+    hasUploadingMedia,
+    mediaFiles,
+    mediaTags,
   ]);
 
   const handleMediaSelect = useCallback(
@@ -1390,7 +1835,9 @@ export default function NewPostPage() {
           if (file.size > limit) {
             const sizeMB = Math.round(file.size / 1024 / 1024);
             const limitMB = Math.round(limit / 1024 / 1024);
-            toast.error(`${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`);
+            toast.error(
+              `${file.name} is too large (${sizeMB} MB). Max: ${limitMB} MB`,
+            );
             continue;
           }
           validFiles.push(file);
@@ -1401,12 +1848,20 @@ export default function NewPostPage() {
           validFiles.map(async (file) => {
             const isVideo = file.type.startsWith("video/");
             let preview: string;
+            let width: number | undefined;
+            let height: number | undefined;
 
             if (isVideo) {
-              preview = await new Promise((resolve) => {
+              const result = await new Promise<{
+                preview: string;
+                w: number;
+                h: number;
+              }>((resolve) => {
                 const video = document.createElement("video");
                 video.preload = "metadata";
                 video.onloadedmetadata = () => {
+                  width = video.videoWidth;
+                  height = video.videoHeight;
                   video.currentTime = Math.min(1, video.duration * 0.1);
                 };
                 video.onseeked = () => {
@@ -1415,13 +1870,33 @@ export default function NewPostPage() {
                   canvas.height = video.videoHeight;
                   const ctx = canvas.getContext("2d");
                   ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-                  resolve(canvas.toDataURL("image/jpeg"));
+                  resolve({
+                    preview: canvas.toDataURL("image/jpeg"),
+                    w: video.videoWidth,
+                    h: video.videoHeight,
+                  });
                 };
-                video.onerror = () => resolve(URL.createObjectURL(file));
+                video.onerror = () =>
+                  resolve({ preview: URL.createObjectURL(file), w: 0, h: 0 });
                 video.src = URL.createObjectURL(file);
               });
+              preview = result.preview;
+              width = result.w || undefined;
+              height = result.h || undefined;
             } else {
               preview = URL.createObjectURL(file);
+              // Detect image dimensions
+              const dims = await new Promise<{ w: number; h: number }>(
+                (resolve) => {
+                  const img = new Image();
+                  img.onload = () =>
+                    resolve({ w: img.naturalWidth, h: img.naturalHeight });
+                  img.onerror = () => resolve({ w: 0, h: 0 });
+                  img.src = preview;
+                },
+              );
+              width = dims.w || undefined;
+              height = dims.h || undefined;
             }
 
             return {
@@ -1429,6 +1904,8 @@ export default function NewPostPage() {
               file,
               preview,
               status: "uploading" as UploadStatus,
+              width,
+              height,
             };
           }),
         );
@@ -1436,13 +1913,19 @@ export default function NewPostPage() {
         setMediaFiles((prev) => [...prev, ...newFiles]);
 
         // Inform user about TikTok photo post behavior
-        const hasImages = newFiles.some((f) => !f.file.type.startsWith("video/"));
+        const hasImages = newFiles.some(
+          (f) => !f.file.type.startsWith("video/"),
+        );
         const currentPlatforms = selectedAccountIdsRef.current
           .map((id) => accounts.find((a) => a.id === id)?.platform)
           .filter(Boolean);
-        const hasOnlyTikTok = currentPlatforms.length === 1 && currentPlatforms[0] === "tiktok";
-        if (hasImages && hasOnlyTikTok) {
-          toast.info("TikTok will convert images into a photo slideshow. Toggle 'Auto Add Music' to control background music.");
+        const hasTikTok = currentPlatforms.some(
+          (p) => p === "tiktok" || p === "tiktok_business",
+        );
+        if (hasImages && hasTikTok) {
+          toast.info(
+            "TikTok will convert images into a photo slideshow with auto-added music.",
+          );
         }
 
         // Upload all files in parallel — each gets its own presigned URL
@@ -1469,7 +1952,9 @@ export default function NewPostPage() {
               file: mediaFile.file,
             });
 
-            const isLargeVideo = mediaFile.file.type.startsWith("video/") && mediaFile.file.size > 50 * 1024 * 1024;
+            const isLargeVideo =
+              mediaFile.file.type.startsWith("video/") &&
+              mediaFile.file.size > 50 * 1024 * 1024;
 
             clearInterval(progressInterval);
 
@@ -1490,7 +1975,8 @@ export default function NewPostPage() {
             toast.success(`${mediaFile.file.name} uploaded`);
           } catch (error) {
             clearInterval(progressInterval);
-            const errorMsg = error instanceof Error ? error.message : "Upload failed";
+            const errorMsg =
+              error instanceof Error ? error.message : "Upload failed";
             console.error("[Upload] Error:", errorMsg);
             setMediaFiles((prev) =>
               prev.map((f) =>
@@ -1510,7 +1996,7 @@ export default function NewPostPage() {
 
         // Wait for all uploads then refresh preview once
         await Promise.allSettled(uploadPromises);
-        setPreviewRefreshTrigger(prev => prev + 1);
+        setPreviewRefreshTrigger((prev) => prev + 1);
       };
 
       processFiles();
@@ -1568,46 +2054,38 @@ export default function NewPostPage() {
       (id) => accounts.find((a) => a.id === id)?.platform === "pinterest",
     );
     const hasTikTokBusiness = selectedAccountIds.some(
-      (id) =>
-        accounts.find((a) => a.id === id)?.platform === "tiktok_business",
+      (id) => accounts.find((a) => a.id === id)?.platform === "tiktok_business",
     );
 
+    const tiktokSubmitConfig = {
+      privacy_status: tiktokPrivacy as "public" | "private",
+      allow_comment: tiktokAllowComment,
+      allow_duet: tiktokAllowDuet,
+      allow_stitch: tiktokAllowStitch,
+      // auto_add_music only works with DIRECT_POST, ignored in inbox/MEDIA_UPLOAD mode
+      auto_add_music: tiktokIsDraft ? false : tiktokAutoAddMusic,
+      is_draft: tiktokIsDraft,
+      disclose_your_brand: tiktokDiscloseBrand,
+      disclose_branded_content: tiktokDiscloseBrandedContent,
+      is_ai_generated: tiktokIsAIGenerated,
+    };
     if (hasTikTok) {
-      platformConfigs.tiktok = {
-        privacy_status: tiktokPrivacy,
-        allow_comment: tiktokAllowComment,
-        allow_duet: tiktokAllowDuet,
-        allow_stitch: tiktokAllowStitch,
-        auto_add_music: tiktokAutoAddMusic,
-        is_draft: tiktokIsDraft,
-        disclose_your_brand: tiktokDiscloseBrand,
-        disclose_branded_content: tiktokDiscloseBrandedContent,
-        is_ai_generated: tiktokIsAIGenerated,
-      };
+      platformConfigs.tiktok = tiktokSubmitConfig;
     }
     if (hasTikTokBusiness) {
-      platformConfigs.tiktok_business = {
-        privacy_status: tiktokPrivacy,
-        allow_comment: tiktokAllowComment,
-        allow_duet: tiktokAllowDuet,
-        allow_stitch: tiktokAllowStitch,
-        auto_add_music: tiktokAutoAddMusic,
-        is_draft: tiktokIsDraft,
-        disclose_your_brand: tiktokDiscloseBrand,
-        disclose_branded_content: tiktokDiscloseBrandedContent,
-        is_ai_generated: tiktokIsAIGenerated,
-      };
+      platformConfigs.tiktok_business = tiktokSubmitConfig;
     }
     if (hasInstagram)
       platformConfigs.instagram = {
         placement: instagramPlacement,
         share_to_feed:
-          instagramPlacement === "reels"
-            ? instagramShareToFeed
-            : undefined,
+          instagramPlacement === "reels" ? instagramShareToFeed : undefined,
         trial_reel_type: instagramTrialReelType || undefined,
         collaborators: instagramCollaborators
-          ? instagramCollaborators.split(",").map((s) => s.trim()).filter(Boolean)
+          ? instagramCollaborators
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
           : undefined,
       };
     if (hasFacebook)
@@ -1664,6 +2142,23 @@ export default function NewPostPage() {
         configuration: config as AccountConfigurationDetailsDto,
       }));
 
+    // Auto-build per-platform media overrides for compatibility
+    if (mediaForPost.length > 0) {
+      const uniquePlatforms = [
+        ...new Set(
+          selectedAccountIds
+            .map((id) => accounts.find((a) => a.id === id)?.platform)
+            .filter(Boolean) as string[],
+        ),
+      ];
+      const overriddenConfigs = buildPlatformMediaOverrides(
+        mediaForPost,
+        uniquePlatforms,
+        platformConfigs,
+      );
+      Object.assign(platformConfigs, overriddenConfigs);
+    }
+
     try {
       await createPost.mutateAsync({
         caption: content,
@@ -1672,8 +2167,7 @@ export default function NewPostPage() {
           scheduledDate && scheduledTime
             ? `${scheduledDate}T${scheduledTime}`
             : undefined,
-        media:
-          mediaForPost.length > 0 ? mediaForPost : undefined,
+        media: mediaForPost.length > 0 ? mediaForPost : undefined,
         platform_configurations:
           Object.keys(platformConfigs).length > 0 ? platformConfigs : undefined,
         account_configurations:
@@ -1683,11 +2177,37 @@ export default function NewPostPage() {
       // Clear draft on success
       localStorage.removeItem(DRAFT_STORAGE_KEY);
 
-      toast.success(
-        scheduledDate
-          ? "Post scheduled successfully!"
-          : "Post created successfully!",
-      );
+      const hasTiktokPlatform = selectedAccountIds.some((id) => {
+        const p = accounts.find((a) => a.id === id)?.platform;
+        return p === "tiktok" || p === "tiktok_business";
+      });
+      const hasNonTiktokPlatform = selectedAccountIds.some((id) => {
+        const p = accounts.find((a) => a.id === id)?.platform;
+        return p && p !== "tiktok" && p !== "tiktok_business";
+      });
+
+      if (scheduledDate) {
+        toast.success("Post scheduled successfully!");
+      } else if (hasTiktokPlatform && tiktokIsDraft) {
+        // Inbox mode — always show TikTok inbox instruction
+        toast.info(
+          "TikTok: Content sent to your inbox. Open the TikTok app, tap the inbox notification, then pick music and publish.",
+          { duration: 8000 },
+        );
+        // If other platforms are also selected, confirm they posted normally
+        if (hasNonTiktokPlatform) {
+          toast.success("Other platforms: Post created successfully!");
+        }
+      } else if (hasTiktokPlatform) {
+        // Direct post to TikTok — processing notice
+        toast.success(
+          hasNonTiktokPlatform
+            ? "Post created! TikTok content may take a few minutes to process and appear."
+            : "Post created! It may take a few minutes for your content to be processed and visible on TikTok.",
+        );
+      } else {
+        toast.success("Post created successfully!");
+      }
       router.push("/posts");
     } catch (error) {
       toast.error(
@@ -1733,6 +2253,13 @@ export default function NewPostPage() {
     mediaTags,
   ]);
 
+  const hasMediaCompatErrors = allMediaWarnings.some(
+    (w) => w.severity === "error",
+  );
+
+  const tiktokSelected = selectedPlatforms.some(
+    (p) => p === "tiktok" || p === "tiktok_business",
+  );
   const canSubmit =
     content.trim().length > 0 &&
     selectedAccountIds.length > 0 &&
@@ -1740,7 +2267,15 @@ export default function NewPostPage() {
     !isThumbnailUploading &&
     !hasUploadErrors &&
     !isOverLimit &&
-    !isGeneratingPreview;
+    !isGeneratingPreview &&
+    !hasMediaCompatErrors &&
+    // TikTok requires explicit privacy selection (no default per Developer Guidelines)
+    (!tiktokSelected || tiktokPrivacy !== "") &&
+    // TikTok: if disclosure toggle is on, at least one option must be selected
+    (!tiktokSelected ||
+      !tiktokDiscloseToggle ||
+      tiktokDiscloseBrand ||
+      tiktokDiscloseBrandedContent);
 
   return (
     <motion.div
@@ -1793,11 +2328,14 @@ export default function NewPostPage() {
       <motion.div variants={itemVariants} className="divider-soft" />
 
       {/* 50:50 Layout - Preview first on mobile */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
         {/* LEFT SIDE - Editor (first on mobile, first on desktop) */}
         <motion.div variants={containerVariants} className="order-1 lg:order-1">
           {/* Content Editor */}
-          <motion.section variants={itemVariants} className="card-premium p-6">
+          <motion.section
+            variants={itemVariants}
+            className="card-premium p-4 sm:p-6"
+          >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-slate-800 dark:text-slate-100 font-semibold flex items-center gap-2">
                 <FileEdit className="w-4 h-4" />
@@ -1836,10 +2374,12 @@ export default function NewPostPage() {
               )}
             </div>
 
-            <div className={cn(
-              "bg-slate-50 dark:bg-slate-800/50 rounded-2xl overflow-hidden transition-all",
-              isOverLimit && "ring-2 ring-red-200 dark:ring-red-800",
-            )}>
+            <div
+              className={cn(
+                "bg-slate-50 dark:bg-slate-800/50 rounded-2xl overflow-hidden transition-all",
+                isOverLimit && "ring-2 ring-red-200 dark:ring-red-800",
+              )}
+            >
               <textarea
                 data-testid="post-caption-input"
                 className="min-h-[160px] w-full resize-none p-4 bg-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm focus:outline-none transition-all"
@@ -1854,7 +2394,8 @@ export default function NewPostPage() {
                   className="text-xs text-red-500 px-4 pb-2 flex items-center gap-1"
                 >
                   <AlertCircle className="w-3 h-3" />
-                  เกินลิมิต {content.length - characterLimit} ตัวอักษร ({selectedPlatforms.find((p) => {
+                  เกินลิมิต {content.length - characterLimit} ตัวอักษร (
+                  {selectedPlatforms.find((p) => {
                     const limits: Record<string, number> = {
                       x: 280,
                       twitter: 280,
@@ -1868,7 +2409,8 @@ export default function NewPostPage() {
                       bluesky: 300,
                     };
                     return limits[p.toLowerCase()] === characterLimit;
-                  })})
+                  })}
+                  )
                 </motion.p>
               )}
               {isNearLimit && !isOverLimit && characterLimit !== Infinity && (
@@ -1891,7 +2433,11 @@ export default function NewPostPage() {
               />
               <div className="flex items-center gap-1 px-2 py-1.5 border-t border-slate-100 dark:border-slate-700/50">
                 <button
-                  onClick={() => setActiveComposeTab(activeComposeTab === "media" ? null : "media")}
+                  onClick={() =>
+                    setActiveComposeTab(
+                      activeComposeTab === "media" ? null : "media",
+                    )
+                  }
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
                     activeComposeTab === "media"
@@ -1902,11 +2448,17 @@ export default function NewPostPage() {
                   <ImageIcon className="w-3.5 h-3.5" />
                   Media
                   {mediaFiles.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-full text-[9px] font-bold">{mediaFiles.length}</span>
+                    <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-full text-[9px] font-bold">
+                      {mediaFiles.length}
+                    </span>
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveComposeTab(activeComposeTab === "accounts" ? null : "accounts")}
+                  onClick={() =>
+                    setActiveComposeTab(
+                      activeComposeTab === "accounts" ? null : "accounts",
+                    )
+                  }
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
                     activeComposeTab === "accounts"
@@ -1917,11 +2469,17 @@ export default function NewPostPage() {
                   <Smartphone className="w-3.5 h-3.5" />
                   Accounts
                   {selectedAccountIds.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full text-[9px] font-bold">{selectedAccountIds.length}</span>
+                    <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full text-[9px] font-bold">
+                      {selectedAccountIds.length}
+                    </span>
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveComposeTab(activeComposeTab === "schedule" ? null : "schedule")}
+                  onClick={() =>
+                    setActiveComposeTab(
+                      activeComposeTab === "schedule" ? null : "schedule",
+                    )
+                  }
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all",
                     activeComposeTab === "schedule"
@@ -1966,232 +2524,301 @@ export default function NewPostPage() {
                   <div className="pt-4">
                     {/* Upload status indicator */}
                     <AnimatePresence mode="popLayout">
-              {mediaFiles.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-4"
-                >
-                  <div className="flex flex-wrap gap-2">
-                    {mediaFiles.map((media) => (
-                      <motion.div
-                        key={media.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs",
-                          media.status === "uploading" &&
-                            "bg-amber-50 text-amber-600",
-                          media.status === "success" &&
-                            "bg-emerald-50 text-emerald-600",
-                          media.status === "error" && "bg-red-50 text-red-600",
-                        )}
-                      >
-                        {media.status === "uploading" && (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        )}
-                        {media.status === "success" && !isGeneratingPreview && (
-                          <Check className="w-3 h-3" />
-                        )}
-                        {media.status === "success" && isGeneratingPreview && (
-                          <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
-                        )}
-                        {media.status === "error" && (
-                          <AlertCircle className="w-3 h-3" />
-                        )}
-                        <span className="truncate max-w-[120px]">
-                          {media.file.name}
-                          {media.status === "success" && isGeneratingPreview && (
-                            <span className="ml-1 text-[10px] text-amber-600">(syncing preview...)</span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => removeMedia(media.id)}
-                          className="hover:text-slate-600"
+                      {mediaFiles.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-4"
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                          <div className="flex flex-wrap gap-2">
+                            {mediaFiles.map((media) => (
+                              <motion.div
+                                key={media.id}
+                                layout
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                className={cn(
+                                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs",
+                                  media.status === "uploading" &&
+                                    "bg-amber-50 text-amber-600",
+                                  media.status === "success" &&
+                                    "bg-emerald-50 text-emerald-600",
+                                  media.status === "error" &&
+                                    "bg-red-50 text-red-600",
+                                )}
+                              >
+                                {media.status === "uploading" && (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                )}
+                                {media.status === "success" &&
+                                  !isGeneratingPreview && (
+                                    <Check className="w-3 h-3" />
+                                  )}
+                                {media.status === "success" &&
+                                  isGeneratingPreview && (
+                                    <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                                  )}
+                                {media.status === "error" && (
+                                  <AlertCircle className="w-3 h-3" />
+                                )}
+                                <span className="truncate max-w-[120px]">
+                                  {media.file.name}
+                                  {media.status === "success" &&
+                                    isGeneratingPreview && (
+                                      <span className="ml-1 text-[10px] text-amber-600">
+                                        (syncing preview...)
+                                      </span>
+                                    )}
+                                </span>
+                                <button
+                                  onClick={() => removeMedia(media.id)}
+                                  className="p-1.5 -m-1.5 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
-            {/* Thumbnail Upload */}
-            {showThumbnailUpload && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="mt-4"
-              >
-                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Custom Thumbnail
-                </div>
-                <input
-                  ref={thumbnailInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    // Show preview immediately
-                    const reader = new FileReader();
-                    reader.onload = async (ev) => {
-                      const dataUrl = ev.target?.result as string;
-                      setThumbnailDataUrl(dataUrl);
-                      setIsThumbnailUploading(true);
-                      try {
-                        const result = await uploadThumbnail.mutateAsync({
-                          dataUrl,
-                          filename: file.name,
-                        });
-                        setThumbnailUploadedUrl(result.url);
-                      } catch {
-                        toast.error("Failed to upload thumbnail");
-                        setThumbnailDataUrl(null);
-                      } finally {
-                        setIsThumbnailUploading(false);
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                    e.target.value = "";
-                  }}
-                />
-                {thumbnailDataUrl ? (
-                  <div className="relative inline-block">
-                    <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 relative">
-                      <img
-                        src={thumbnailDataUrl}
-                        alt="Thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                      {isThumbnailUploading && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    {/* Media Compatibility & Dimension Warnings */}
+                    {allMediaWarnings.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="mt-3 space-y-1.5"
+                      >
+                        {allMediaWarnings.map((warning, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]",
+                              warning.severity === "error"
+                                ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
+                                : warning.severity === "warning"
+                                  ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400"
+                                  : "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400",
+                            )}
+                          >
+                            <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                            <span>{warning.message}</span>
+                          </div>
+                        ))}
+                        {!allMediaWarnings.some(
+                          (w) => w.severity === "error",
+                        ) && (
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 px-1">
+                            Media will be automatically adapted per platform
+                            when posting.
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Recommended Aspect Ratios */}
+                    {recommendedRatios.length > 0 &&
+                      mediaFiles.length === 0 && (
+                        <div className="mt-2 px-1">
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                            Recommended: {recommendedRatios.join(" · ")}
+                          </p>
                         </div>
                       )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setThumbnailDataUrl(null);
-                        setThumbnailUploadedUrl(null);
-                      }}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => thumbnailInputRef.current?.click()}
-                    className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-300 flex flex-col items-center justify-center gap-1 transition-colors"
-                  >
-                    <ImageIcon className="w-5 h-5 text-slate-400" />
-                    <span className="text-[10px] text-slate-400">Upload</span>
-                  </button>
-                )}
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  Supported by{" "}
-                  {selectedPlatforms
-                    .filter((p) => THUMBNAIL_PLATFORMS.includes(p))
-                    .map((p) => p.replace("_", " "))
-                    .join(", ")}
-                </p>
-              </motion.div>
-            )}
 
-            {/* Media Tags (Facebook/Instagram) — collapsed by default, power-user feature */}
-            {showMediaTags && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowTagsExpanded((v) => !v)}
-                  className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-500 transition-colors"
-                >
-                  <Tag className="w-3 h-3" />
-                  <span>แท็กคนหรือสินค้าในรูป (FB/IG)</span>
-                  {showTagsExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-                <AnimatePresence>
-                  {showTagsExpanded && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="space-y-3 mt-3">
-                        {mediaFiles
-                          .filter((f) => f.status === "success")
-                          .map((media) => {
-                            const tags = mediaTags[media.id] || [];
-                            const isVideo = media.file.type.startsWith("video/");
-                            return (
-                              <div
-                                key={media.id}
-                                className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3"
-                              >
-                                <div className="flex items-center gap-2 mb-2">
-                                  {isVideo ? (
-                                    <Play className="w-3 h-3 text-slate-400" />
-                                  ) : (
-                                    <ImageIcon className="w-3 h-3 text-slate-400" />
-                                  )}
-                                  <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
-                                    {media.file.name}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400">
-                                    {tags.length} tag{tags.length !== 1 ? "s" : ""}
-                                  </span>
+                    {/* Thumbnail Upload */}
+                    {showThumbnailUpload && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="mt-4"
+                      >
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                          Custom Thumbnail
+                        </div>
+                        <input
+                          ref={thumbnailInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            // Show preview immediately
+                            const reader = new FileReader();
+                            reader.onload = async (ev) => {
+                              const dataUrl = ev.target?.result as string;
+                              setThumbnailDataUrl(dataUrl);
+                              setIsThumbnailUploading(true);
+                              try {
+                                const result =
+                                  await uploadThumbnail.mutateAsync({
+                                    dataUrl,
+                                    filename: file.name,
+                                  });
+                                setThumbnailUploadedUrl(result.url);
+                              } catch {
+                                toast.error("Failed to upload thumbnail");
+                                setThumbnailDataUrl(null);
+                              } finally {
+                                setIsThumbnailUploading(false);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        {thumbnailDataUrl ? (
+                          <div className="relative inline-block">
+                            <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 relative">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={thumbnailDataUrl}
+                                alt="Thumbnail"
+                                className="w-full h-full object-cover"
+                              />
+                              {isThumbnailUploading && (
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                  <Loader2 className="w-5 h-5 text-white animate-spin" />
                                 </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setThumbnailDataUrl(null);
+                                setThumbnailUploadedUrl(null);
+                              }}
+                              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => thumbnailInputRef.current?.click()}
+                            className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-300 flex flex-col items-center justify-center gap-1 transition-colors"
+                          >
+                            <ImageIcon className="w-5 h-5 text-slate-400" />
+                            <span className="text-[10px] text-slate-400">
+                              Upload
+                            </span>
+                          </button>
+                        )}
+                        <p className="text-[10px] text-slate-400 mt-1.5">
+                          Supported by{" "}
+                          {selectedPlatforms
+                            .filter((p) => THUMBNAIL_PLATFORMS.includes(p))
+                            .map((p) => p.replace("_", " "))
+                            .join(", ")}
+                        </p>
+                      </motion.div>
+                    )}
 
-                                {/* Existing tags */}
-                                {tags.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5 mb-2">
-                                    {tags.map((tag, idx) => (
-                                      <span
-                                        key={idx}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded-full text-[10px] border border-slate-200 dark:border-slate-600"
+                    {/* Media Tags (Facebook/Instagram) — collapsed by default, power-user feature */}
+                    {showMediaTags && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowTagsExpanded((v) => !v)}
+                          className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-500 transition-colors"
+                        >
+                          <Tag className="w-3 h-3" />
+                          <span>แท็กคนหรือสินค้าในรูป (FB/IG)</span>
+                          {showTagsExpanded ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                        </button>
+                        <AnimatePresence>
+                          {showTagsExpanded && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="space-y-3 mt-3">
+                                {mediaFiles
+                                  .filter((f) => f.status === "success")
+                                  .map((media) => {
+                                    const tags = mediaTags[media.id] || [];
+                                    const isVideo =
+                                      media.file.type.startsWith("video/");
+                                    return (
+                                      <div
+                                        key={media.id}
+                                        className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3"
                                       >
-                                        <span className="text-slate-500">
-                                          {tag.platform === "instagram" ? "IG" : "FB"}
-                                        </span>
-                                        <span className="text-slate-700 dark:text-slate-200 font-medium">
-                                          {tag.id}
-                                        </span>
-                                        <span className="text-slate-400">
-                                          ({tag.type})
-                                        </span>
-                                        <button
-                                          onClick={() => removeMediaTag(media.id, idx)}
-                                          className="text-slate-400 hover:text-red-500"
-                                        >
-                                          <X className="w-2.5 h-2.5" />
-                                        </button>
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                        <div className="flex items-center gap-2 mb-2">
+                                          {isVideo ? (
+                                            <Play className="w-3 h-3 text-slate-400" />
+                                          ) : (
+                                            <ImageIcon className="w-3 h-3 text-slate-400" />
+                                          )}
+                                          <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate">
+                                            {media.file.name}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400">
+                                            {tags.length} tag
+                                            {tags.length !== 1 ? "s" : ""}
+                                          </span>
+                                        </div>
 
-                                {/* Add tag form */}
-                                <MediaTagInput
-                                  tagPlatforms={tagPlatforms}
-                                  onAdd={(tag) => addMediaTag(media.id, tag)}
-                                />
+                                        {/* Existing tags */}
+                                        {tags.length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {tags.map((tag, idx) => (
+                                              <span
+                                                key={idx}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-700 rounded-full text-[10px] border border-slate-200 dark:border-slate-600"
+                                              >
+                                                <span className="text-slate-500">
+                                                  {tag.platform === "instagram"
+                                                    ? "IG"
+                                                    : "FB"}
+                                                </span>
+                                                <span className="text-slate-700 dark:text-slate-200 font-medium">
+                                                  {tag.id}
+                                                </span>
+                                                <span className="text-slate-400">
+                                                  ({tag.type})
+                                                </span>
+                                                <button
+                                                  onClick={() =>
+                                                    removeMediaTag(
+                                                      media.id,
+                                                      idx,
+                                                    )
+                                                  }
+                                                  className="text-slate-400 hover:text-red-500"
+                                                >
+                                                  <X className="w-2.5 h-2.5" />
+                                                </button>
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {/* Add tag form */}
+                                        <MediaTagInput
+                                          tagPlatforms={tagPlatforms}
+                                          onAdd={(tag) =>
+                                            addMediaTag(media.id, tag)
+                                          }
+                                        />
+                                      </div>
+                                    );
+                                  })}
                               </div>
-                            );
-                          })}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+                    )}
                     {mediaFiles.length === 0 && (
                       <button
                         type="button"
@@ -2199,8 +2826,12 @@ export default function NewPostPage() {
                         className="w-full py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all group"
                       >
                         <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2 group-hover:text-slate-400 transition-colors" />
-                        <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">คลิกเพื่อเพิ่มรูปหรือวิดีโอ</p>
-                        <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-1">รองรับ JPG, PNG, MP4, MOV</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
+                          คลิกเพื่อเพิ่มรูปหรือวิดีโอ
+                        </p>
+                        <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-1">
+                          รองรับ JPG, PNG, MP4, MOV
+                        </p>
                       </button>
                     )}
                   </div>
@@ -2216,863 +2847,2112 @@ export default function NewPostPage() {
                   className="overflow-hidden"
                 >
                   <div className="pt-4 space-y-4">
-
-            {accountsLoading ? (
-              <div className="grid grid-cols-2 gap-2">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 bg-slate-100 rounded-xl animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : connectedAccounts.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200"
-              >
-                <Smartphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 text-sm mb-3">
-                  No accounts connected
-                </p>
-                <Link href="/accounts/connect">
-                  <Button variant="soft" size="sm">
-                    Connect Account
-                  </Button>
-                </Link>
-              </motion.div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {connectedAccounts.map((account, idx) => {
-                  const PlatformIcon = getPlatformIcon(account.platform);
-                  const isSelected = selectedAccountIds.includes(account.id);
-                  return (
-                    <motion.button
-                      key={account.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      onClick={() => toggleAccount(account.id)}
-                      whileTap={{ scale: 0.98 }}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
-                        isSelected
-                          ? "bg-slate-800 border-slate-800 text-white"
-                          : "bg-transparent border-slate-100 hover:border-slate-200 text-slate-700",
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                          isSelected ? "bg-white/10" : "bg-slate-100",
-                        )}
+                    {accountsLoading ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div
+                            key={i}
+                            className="h-8 w-32 bg-slate-100 dark:bg-slate-700 rounded-full animate-pulse"
+                          />
+                        ))}
+                      </div>
+                    ) : connectedAccounts.length === 0 ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200"
                       >
-                        {PlatformIcon ? (
-                          <PlatformIcon
-                            className={cn(
-                              "w-5 h-5",
-                              isSelected ? "text-white" : "text-slate-600",
-                            )}
-                          />
-                        ) : (
-                          account.platform[0]
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium block truncate">
-                          @{account.username || account.platform}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-xs",
-                            isSelected ? "text-white/60" : "text-slate-400",
-                          )}
-                        >
-                          {account.platform}
-                        </span>
-                      </div>
-                      {isSelected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center"
-                        >
-                          <Check className="w-3 h-3 text-white" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            )}
-
-          {/* ── Platform Options ── */}
-          {selectedAccountIds.length > 0 && (
-            <div className="border-t border-slate-100 dark:border-slate-700/50 pt-4">
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3" />
-                Platform Options
-              </div>
-              <div className="space-y-3">
-                {/* TikTok */}
-                {selectedPlatforms.includes("tiktok") && (
-                  <PlatformOptions
-                    title="TikTok"
-                    platform="tiktok"
-                    isOpen={expandedPlatforms.includes("tiktok")}
-                    onToggle={() => togglePlatformSection("tiktok")}
-                  >
-                    {/* Visibility */}
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                      Visibility
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Privacy</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Who can view this video</p>
-                        </div>
-                        <select
-                          value={tiktokPrivacy}
-                          onChange={(e) =>
-                            setTiktokPrivacy(e.target.value as "public" | "private")
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="public">Public</option>
-                          <option value="private">Private</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Save as Draft</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Save to TikTok drafts instead of publishing</p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={tiktokIsDraft}
-                          onClick={() => setTiktokIsDraft(!tiktokIsDraft)}
-                          className={cn(
-                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                            tiktokIsDraft ? "bg-slate-800" : "bg-slate-200",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                              tiktokIsDraft ? "translate-x-4" : "translate-x-0",
-                            )}
-                          />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Engagement */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Engagement
-                      </div>
-                      <div className="space-y-3">
-                        {([
-                          {
-                            label: "Allow Duet",
-                            description: "Let others create side-by-side videos with yours",
-                            checked: tiktokAllowDuet,
-                            onChange: setTiktokAllowDuet,
-                          },
-                          {
-                            label: "Allow Stitch",
-                            description: "Let others clip and remix your video",
-                            checked: tiktokAllowStitch,
-                            onChange: setTiktokAllowStitch,
-                          },
-                          {
-                            label: "Comments",
-                            description: "Allow comments on this video",
-                            checked: tiktokAllowComment,
-                            onChange: setTiktokAllowComment,
-                          },
-                          {
-                            label: "Auto Add Music",
-                            description: "Add background music to photo slideshows",
-                            checked: tiktokAutoAddMusic,
-                            onChange: setTiktokAutoAddMusic,
-                          },
-                        ] as const).map(({ label, description, checked, onChange }) => (
-                          <div key={label} className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium text-slate-700">{label}</span>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={checked}
-                              onClick={() => onChange(!checked)}
+                        <Smartphone className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                        <p className="text-slate-500 text-sm mb-3">
+                          No accounts connected
+                        </p>
+                        <Link href="/accounts/connect">
+                          <Button variant="soft" size="sm">
+                            Connect Account
+                          </Button>
+                        </Link>
+                      </motion.div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {connectedAccounts.map((account, idx) => {
+                          const PlatformIcon = getPlatformIcon(
+                            account.platform,
+                          );
+                          const isSelected = selectedAccountIds.includes(
+                            account.id,
+                          );
+                          return (
+                            <motion.button
+                              key={account.id}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: idx * 0.03 }}
+                              onClick={() => toggleAccount(account.id)}
+                              whileTap={{ scale: 0.95 }}
                               className={cn(
-                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                                checked ? "bg-slate-800" : "bg-slate-200",
+                                "flex items-center gap-1.5 pl-1.5 pr-2.5 py-1.5 rounded-full border transition-all text-left",
+                                isSelected
+                                  ? "bg-slate-800 border-slate-800 text-white"
+                                  : "bg-transparent border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400",
                               )}
                             >
-                              <span
+                              <div
                                 className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                                  checked ? "translate-x-4" : "translate-x-0",
+                                  "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                                  isSelected
+                                    ? "bg-white/15"
+                                    : "bg-slate-100 dark:bg-slate-700",
                                 )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Disclosure */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Disclosure
-                      </div>
-                      <div className="space-y-3">
-                        {([
-                          {
-                            label: "Disclose Brand",
-                            description: "Declare this promotes your own brand",
-                            checked: tiktokDiscloseBrand,
-                            onChange: setTiktokDiscloseBrand,
-                          },
-                          {
-                            label: "Branded Content",
-                            description: "Declare this is paid partnership content",
-                            checked: tiktokDiscloseBrandedContent,
-                            onChange: setTiktokDiscloseBrandedContent,
-                          },
-                          {
-                            label: "AI Generated",
-                            description: "Declare this content was AI-generated",
-                            checked: tiktokIsAIGenerated,
-                            onChange: setTiktokIsAIGenerated,
-                          },
-                        ] as const).map(({ label, description, checked, onChange }) => (
-                          <div key={label} className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium text-slate-700">{label}</span>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={checked}
-                              onClick={() => onChange(!checked)}
-                              className={cn(
-                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                                checked ? "bg-slate-800" : "bg-slate-200",
+                              >
+                                {PlatformIcon ? (
+                                  <PlatformIcon
+                                    className={cn(
+                                      "w-3 h-3",
+                                      isSelected
+                                        ? "text-white"
+                                        : "text-slate-500 dark:text-slate-400",
+                                    )}
+                                  />
+                                ) : (
+                                  <span className="text-[9px]">
+                                    {account.platform[0]}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs font-medium truncate max-w-[120px]">
+                                {account.username
+                                  ? `@${account.username}`
+                                  : account.platform}
+                              </span>
+                              {isSelected && (
+                                <Check className="w-3 h-3 text-emerald-400 flex-shrink-0 -ml-0.5" />
                               )}
-                            >
-                              <span
-                                className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                                  checked ? "translate-x-4" : "translate-x-0",
-                                )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <AccountOverrides
-                      platform="tiktok"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        privacy_status: tiktokPrivacy,
-                        allow_duet: tiktokAllowDuet,
-                        allow_stitch: tiktokAllowStitch,
-                        allow_comment: tiktokAllowComment,
-                        auto_add_music: tiktokAutoAddMusic,
-                        is_draft: tiktokIsDraft,
-                        is_ai_generated: tiktokIsAIGenerated,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* TikTok Business */}
-                {selectedPlatforms.includes("tiktok_business") && (
-                  <PlatformOptions
-                    title="TikTok Business"
-                    platform="tiktok_business"
-                    isOpen={expandedPlatforms.includes("tiktok_business")}
-                    onToggle={() => togglePlatformSection("tiktok_business")}
-                  >
-                    {/* Thumbnail badge */}
-                    {hasVideoMedia && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-50 to-pink-50 rounded-lg mb-3">
-                        <ImageIcon className="w-3.5 h-3.5 text-cyan-600" />
-                        <span className="text-[11px] text-cyan-700 font-medium">Custom thumbnail supported</span>
+                            </motion.button>
+                          );
+                        })}
                       </div>
                     )}
 
-                    {/* Visibility */}
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                      Visibility
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Privacy</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Who can view this video</p>
+                    {/* ── Platform Options ── */}
+                    {selectedAccountIds.length > 0 && (
+                      <div className="border-t border-slate-100 dark:border-slate-700/50 pt-4">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <Sparkles className="w-3 h-3" />
+                          Platform Options
                         </div>
-                        <select
-                          value={tiktokPrivacy}
-                          onChange={(e) =>
-                            setTiktokPrivacy(e.target.value as "public" | "private")
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="public">Public</option>
-                          <option value="private">Private</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Save as Draft</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Save to TikTok drafts instead of publishing</p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={tiktokIsDraft}
-                          onClick={() => setTiktokIsDraft(!tiktokIsDraft)}
-                          className={cn(
-                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                            tiktokIsDraft ? "bg-slate-800" : "bg-slate-200",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                              tiktokIsDraft ? "translate-x-4" : "translate-x-0",
-                            )}
-                          />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Engagement */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Engagement
-                      </div>
-                      <div className="space-y-3">
-                        {([
-                          {
-                            label: "Allow Duet",
-                            description: "Let others create side-by-side videos with yours",
-                            checked: tiktokAllowDuet,
-                            onChange: setTiktokAllowDuet,
-                          },
-                          {
-                            label: "Allow Stitch",
-                            description: "Let others clip and remix your video",
-                            checked: tiktokAllowStitch,
-                            onChange: setTiktokAllowStitch,
-                          },
-                          {
-                            label: "Comments",
-                            description: "Allow comments on this video",
-                            checked: tiktokAllowComment,
-                            onChange: setTiktokAllowComment,
-                          },
-                          {
-                            label: "Auto Add Music",
-                            description: "Add background music to photo slideshows",
-                            checked: tiktokAutoAddMusic,
-                            onChange: setTiktokAutoAddMusic,
-                          },
-                        ] as const).map(({ label, description, checked, onChange }) => (
-                          <div key={label} className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium text-slate-700">{label}</span>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={checked}
-                              onClick={() => onChange(!checked)}
-                              className={cn(
-                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                                checked ? "bg-slate-800" : "bg-slate-200",
-                              )}
+                        <div className="space-y-3">
+                          {/* TikTok */}
+                          {selectedPlatforms.includes("tiktok") && (
+                            <PlatformOptions
+                              title="TikTok"
+                              platform="tiktok"
+                              isOpen={expandedPlatforms.includes("tiktok")}
+                              onToggle={() => togglePlatformSection("tiktok")}
                             >
-                              <span
-                                className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                                  checked ? "translate-x-4" : "translate-x-0",
+                              {/* Visibility */}
+                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Visibility
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Privacy
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Who can view this video
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={tiktokPrivacy}
+                                    onChange={(e) =>
+                                      setTiktokPrivacy(
+                                        e.target.value as "public" | "private",
+                                      )
+                                    }
+                                    className={cn(
+                                      "px-3 py-1.5 bg-white rounded-lg text-xs border focus:ring-2 focus:ring-slate-200",
+                                      !tiktokPrivacy
+                                        ? "border-amber-300 text-slate-400"
+                                        : "border-slate-200",
+                                    )}
+                                  >
+                                    <option value="" disabled>
+                                      Select privacy...
+                                    </option>
+                                    <option value="public">Public</option>
+                                    <option value="private">Private</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Send to Inbox
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Send to TikTok inbox — complete posting in
+                                      app (pick music, edit, etc.)
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={tiktokIsDraft}
+                                    onClick={() =>
+                                      setTiktokIsDraft(!tiktokIsDraft)
+                                    }
+                                    className={cn(
+                                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                      tiktokIsDraft
+                                        ? "bg-slate-800"
+                                        : "bg-slate-200",
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                        tiktokIsDraft
+                                          ? "translate-x-4"
+                                          : "translate-x-0",
+                                      )}
+                                    />
+                                  </button>
+                                </div>
+                                {tiktokIsDraft && (
+                                  <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5">
+                                    <div className="flex gap-2">
+                                      <svg
+                                        className="w-4 h-4 text-amber-500 shrink-0 mt-0.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        strokeWidth={1.5}
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+                                        />
+                                      </svg>
+                                      <div className="text-[11px] text-amber-800 leading-relaxed">
+                                        <p className="font-semibold mb-1">
+                                          โหมดส่งไปกล่องข้อความ:
+                                        </p>
+                                        <ol className="list-decimal ml-3.5 space-y-0.5">
+                                          <li>
+                                            คอนเทนต์จะถูกส่งไปยังกล่องข้อความ
+                                            TikTok
+                                          </li>
+                                          <li>
+                                            เปิดแอป TikTok
+                                            แล้วแตะการแจ้งเตือนในกล่องข้อความ
+                                          </li>
+                                          <li>
+                                            เลือกเพลง ใส่เอฟเฟกต์
+                                            แก้ไขตามต้องการ
+                                          </li>
+                                          <li>แตะโพสต์เพื่อเผยแพร่</li>
+                                        </ol>
+                                        <p className="mt-1.5 text-amber-600">
+                                          ส่งได้สูงสุด 5 รายการที่รอดำเนินการใน
+                                          24 ชั่วโมง
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                              </div>
 
-                    {/* Disclosure */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Disclosure
-                      </div>
-                      <div className="space-y-3">
-                        {([
-                          {
-                            label: "Disclose Brand",
-                            description: "Declare this promotes your own brand",
-                            checked: tiktokDiscloseBrand,
-                            onChange: setTiktokDiscloseBrand,
-                          },
-                          {
-                            label: "Branded Content",
-                            description: "Declare this is paid partnership content",
-                            checked: tiktokDiscloseBrandedContent,
-                            onChange: setTiktokDiscloseBrandedContent,
-                          },
-                          {
-                            label: "AI Generated",
-                            description: "Declare this content was AI-generated",
-                            checked: tiktokIsAIGenerated,
-                            onChange: setTiktokIsAIGenerated,
-                          },
-                        ] as const).map(({ label, description, checked, onChange }) => (
-                          <div key={label} className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-medium text-slate-700">{label}</span>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{description}</p>
-                            </div>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={checked}
-                              onClick={() => onChange(!checked)}
-                              className={cn(
-                                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                                checked ? "bg-slate-800" : "bg-slate-200",
+                              {/* Engagement */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Engagement
+                                </div>
+                                <div className="space-y-3">
+                                  {/* Duet & Stitch — only for videos, hidden for photo slideshows per TikTok guidelines */}
+                                  {!tiktokNeedsMusic &&
+                                    (
+                                      [
+                                        {
+                                          label: "Allow Duet",
+                                          description:
+                                            "Let others create side-by-side videos with yours",
+                                          checked: tiktokAllowDuet,
+                                          onChange: setTiktokAllowDuet,
+                                        },
+                                        {
+                                          label: "Allow Stitch",
+                                          description:
+                                            "Let others clip and remix your video",
+                                          checked: tiktokAllowStitch,
+                                          onChange: setTiktokAllowStitch,
+                                        },
+                                      ] as const
+                                    ).map(
+                                      ({
+                                        label,
+                                        description,
+                                        checked,
+                                        onChange,
+                                      }) => (
+                                        <div
+                                          key={label}
+                                          className="flex items-center justify-between gap-3"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <span className="text-xs font-medium text-slate-700">
+                                              {label}
+                                            </span>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                              {description}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={checked}
+                                            onClick={() => onChange(!checked)}
+                                            className={cn(
+                                              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                              checked
+                                                ? "bg-slate-800"
+                                                : "bg-slate-200",
+                                            )}
+                                          >
+                                            <span
+                                              className={cn(
+                                                "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                                checked
+                                                  ? "translate-x-4"
+                                                  : "translate-x-0",
+                                              )}
+                                            />
+                                          </button>
+                                        </div>
+                                      ),
+                                    )}
+                                  {/* Comments — always shown */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Comments
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Allow comments on this video
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokAllowComment}
+                                      onClick={() =>
+                                        setTiktokAllowComment(
+                                          !tiktokAllowComment,
+                                        )
+                                      }
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokAllowComment
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokAllowComment
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Auto Add Music — only for DIRECT_POST, disabled in inbox mode */}
+                                  <div
+                                    className={cn(
+                                      "flex items-center justify-between gap-3",
+                                      tiktokIsDraft && "opacity-40",
+                                    )}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Auto Add Music
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        {tiktokIsDraft
+                                          ? "Not available in inbox mode — pick music in TikTok app"
+                                          : "Add background music to photo slideshows"}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={
+                                        !tiktokIsDraft && tiktokAutoAddMusic
+                                      }
+                                      onClick={() =>
+                                        !tiktokIsDraft &&
+                                        setTiktokAutoAddMusic(
+                                          !tiktokAutoAddMusic,
+                                        )
+                                      }
+                                      disabled={tiktokIsDraft}
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokIsDraft
+                                          ? "cursor-not-allowed bg-slate-200"
+                                          : "cursor-pointer",
+                                        !tiktokIsDraft && tiktokAutoAddMusic
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          !tiktokIsDraft && tiktokAutoAddMusic
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Trending music tip — shown when auto_add_music is ON and not in inbox mode */}
+                                  {tiktokAutoAddMusic && !tiktokIsDraft && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 mt-1">
+                                      <div className="flex gap-2">
+                                        <svg
+                                          className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          strokeWidth={1.5}
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
+                                          />
+                                        </svg>
+                                        <div className="text-[11px] text-slate-500 leading-relaxed">
+                                          <p className="font-medium text-slate-600 mb-0.5">
+                                            เคล็ดลับให้ได้เพลงที่เหมาะ
+                                          </p>
+                                          <ul className="space-y-0.5 text-[10px]">
+                                            <li>
+                                              ใช้แฮชแท็กที่กำลังฮิต (#fyp,
+                                              แท็กชาเลนจ์)
+                                              เพื่อส่งสัญญาณธีมยอดนิยม
+                                            </li>
+                                            <li>
+                                              เขียนแคปชันให้สื่ออารมณ์ —
+                                              คำบรรยายมู้ด/ไวบ์อาจช่วยให้เลือกเพลงตรงธีม
+                                            </li>
+                                            <li>
+                                              ดู{" "}
+                                              <span className="font-medium">
+                                                เพลงมาแรง
+                                              </span>{" "}
+                                              ด้านล่างเพื่อเช็คเทรนด์ก่อนโพสต์
+                                            </li>
+                                          </ul>
+                                          <p className="text-[10px] text-slate-400 mt-1">
+                                            TikTok
+                                            เลือกเพลงจากเสียงที่กำลังเทรนด์ตามสัญญาณของคอนเทนต์
+                                            หากต้องการเลือกเพลงเอง
+                                            ให้ใช้ส่งไปกล่องข้อความแทน
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Disclosure — per TikTok Content Sharing Guidelines */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Disclosure
+                                </div>
+                                <div className="space-y-3">
+                                  {/* Content Disclosure toggle — off by default */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Content Disclosure
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Indicate if this content promotes a
+                                        brand, product, or service
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokDiscloseToggle}
+                                      onClick={() => {
+                                        const next = !tiktokDiscloseToggle;
+                                        setTiktokDiscloseToggle(next);
+                                        if (!next) {
+                                          setTiktokDiscloseBrand(false);
+                                          setTiktokDiscloseBrandedContent(
+                                            false,
+                                          );
+                                        }
+                                      }}
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokDiscloseToggle
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokDiscloseToggle
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Checkboxes — shown when toggle is on */}
+                                  {tiktokDiscloseToggle && (
+                                    <div className="ml-1 space-y-2 pl-3 border-l-2 border-slate-200">
+                                      <label className="flex items-start gap-2 cursor-pointer group">
+                                        <input
+                                          type="checkbox"
+                                          checked={tiktokDiscloseBrand}
+                                          onChange={(e) =>
+                                            setTiktokDiscloseBrand(
+                                              e.target.checked,
+                                            )
+                                          }
+                                          className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-300"
+                                        />
+                                        <div>
+                                          <span className="text-xs font-medium text-slate-700 group-hover:text-slate-900">
+                                            Your Brand
+                                          </span>
+                                          <p className="text-[10px] text-slate-400">
+                                            You are promoting yourself or your
+                                            own business. Content will be
+                                            labeled &quot;Promotional
+                                            content&quot;
+                                          </p>
+                                        </div>
+                                      </label>
+                                      <label
+                                        className={cn(
+                                          "flex items-start gap-2 cursor-pointer group",
+                                          tiktokPrivacy === "private" &&
+                                            "opacity-50 cursor-not-allowed",
+                                        )}
+                                        title={
+                                          tiktokPrivacy === "private"
+                                            ? "Branded content visibility cannot be set to private"
+                                            : undefined
+                                        }
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={tiktokDiscloseBrandedContent}
+                                          onChange={(e) => {
+                                            if (tiktokPrivacy !== "private")
+                                              setTiktokDiscloseBrandedContent(
+                                                e.target.checked,
+                                              );
+                                          }}
+                                          disabled={tiktokPrivacy === "private"}
+                                          className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-300"
+                                        />
+                                        <div>
+                                          <span className="text-xs font-medium text-slate-700 group-hover:text-slate-900">
+                                            Branded Content
+                                          </span>
+                                          <p className="text-[10px] text-slate-400">
+                                            You are promoting another brand or a
+                                            third party. Content will be labeled
+                                            &quot;Paid partnership&quot;
+                                          </p>
+                                          {tiktokPrivacy === "private" && (
+                                            <p className="text-[10px] text-red-400">
+                                              Branded content visibility cannot
+                                              be set to private
+                                            </p>
+                                          )}
+                                        </div>
+                                      </label>
+                                      {tiktokDiscloseToggle &&
+                                        !tiktokDiscloseBrand &&
+                                        !tiktokDiscloseBrandedContent && (
+                                          <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            You need to indicate if your content
+                                            promotes yourself, a third party, or
+                                            both
+                                          </p>
+                                        )}
+                                    </div>
+                                  )}
+                                  {/* AI Generated — separate from commercial disclosure */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        AI Generated
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Declare this content was AI-generated
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokIsAIGenerated}
+                                      onClick={() =>
+                                        setTiktokIsAIGenerated(
+                                          !tiktokIsAIGenerated,
+                                        )
+                                      }
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokIsAIGenerated
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokIsAIGenerated
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Music Usage Confirmation — required by TikTok Developer Guidelines for ALL posts */}
+                              {
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                                      By posting, you agree to TikTok&apos;s{" "}
+                                      {tiktokDiscloseBrandedContent && (
+                                        <>
+                                          <a
+                                            href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline hover:text-amber-900"
+                                          >
+                                            Branded Content Policy
+                                          </a>{" "}
+                                          and{" "}
+                                        </>
+                                      )}
+                                      <a
+                                        href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline hover:text-amber-900"
+                                      >
+                                        Music Usage Confirmation
+                                      </a>
+                                      .
+                                    </p>
+                                  </div>
+                                </div>
+                              }
+
+                              {/* Music Discovery — shown when images uploaded (TikTok converts to slideshow) */}
+                              {tiktokNeedsMusic && (
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                    Music
+                                  </div>
+                                  <div className="rounded-lg bg-gradient-to-r from-pink-50 to-violet-50 dark:from-pink-950/20 dark:to-violet-950/20 p-3">
+                                    <div className="flex items-start gap-2.5">
+                                      <span className="text-base leading-none mt-0.5">
+                                        🎵
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                          Photo slideshow — TikTok will auto-add
+                                          music
+                                        </p>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                          {tiktokAutoAddMusic
+                                            ? "A trending sound will be added automatically. Browse trending sounds to plan your content:"
+                                            : "Auto music is off — slideshow will be silent. Turn on 'Auto Add Music' above, or browse sounds:"}
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                          {(
+                                            [
+                                              {
+                                                href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/th",
+                                                icon: "🎵",
+                                                label: "Sounds",
+                                              },
+                                              {
+                                                href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/th",
+                                                icon: "#",
+                                                label: "Hashtags",
+                                              },
+                                              {
+                                                href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/creator/pc/th",
+                                                icon: "👤",
+                                                label: "Creators",
+                                              },
+                                              {
+                                                href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/th",
+                                                icon: "🔥",
+                                                label: "Trending",
+                                              },
+                                            ] as const
+                                          ).map(({ href, icon, label }) => (
+                                            <a
+                                              key={label}
+                                              href={href}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-pink-300 hover:text-pink-600 dark:hover:text-pink-400 transition-colors"
+                                            >
+                                              <span className="text-xs">
+                                                {icon}
+                                              </span>
+                                              {label}
+                                            </a>
+                                          ))}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-2">
+                                          TikTok Creative Center — browse
+                                          trending content (TikTok standard
+                                          accounts)
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
-                            >
-                              <span
-                                className={cn(
-                                  "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                                  checked ? "translate-x-4" : "translate-x-0",
-                                )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
 
-                    <AccountOverrides
-                      platform="tiktok_business"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        privacy_status: tiktokPrivacy,
-                        allow_duet: tiktokAllowDuet,
-                        allow_stitch: tiktokAllowStitch,
-                        allow_comment: tiktokAllowComment,
-                        auto_add_music: tiktokAutoAddMusic,
-                        is_draft: tiktokIsDraft,
-                        is_ai_generated: tiktokIsAIGenerated,
-                        disclose_your_brand: tiktokDiscloseBrand,
-                        disclose_branded_content: tiktokDiscloseBrandedContent,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Instagram */}
-                {selectedPlatforms.includes("instagram") && (
-                  <PlatformOptions
-                    title="Instagram"
-                    platform="instagram"
-                    isOpen={expandedPlatforms.includes("instagram")}
-                    onToggle={() => togglePlatformSection("instagram")}
-                  >
-                    {/* Account requirement note */}
-                    <div className="flex items-start gap-2 px-3 py-1.5 bg-purple-50 rounded-lg mb-3">
-                      <AlertCircle className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-[10px] text-purple-600 leading-relaxed">
-                        Requires a Professional or Creator Instagram account. Personal accounts cannot publish via API.
-                      </p>
-                    </div>
-
-                    {/* Placement */}
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                      Placement
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Placement</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Where to publish: Reels, Stories, or Feed</p>
-                        </div>
-                        <select
-                          value={instagramPlacement}
-                          onChange={(e) =>
-                            setInstagramPlacement(
-                              e.target.value as "reels" | "stories" | "timeline",
-                            )
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="timeline">Feed Post</option>
-                          <option value="reels">Reels</option>
-                          <option value="stories">Stories</option>
-                        </select>
-                      </div>
-                      {instagramPlacement === "reels" && (
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs font-medium text-slate-700">Share to Feed</span>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Also show Reel on your profile grid</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={instagramShareToFeed}
-                            onClick={() => setInstagramShareToFeed(!instagramShareToFeed)}
-                            className={cn(
-                              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                              instagramShareToFeed ? "bg-slate-800" : "bg-slate-200",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                                instagramShareToFeed ? "translate-x-4" : "translate-x-0",
+                              {/* Video detected — no music needed */}
+                              {hasVideoMedia && !hasImageMedia && (
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                    <span>🎬</span>
+                                    <span>
+                                      Video detected — audio from your video
+                                      will be used
+                                    </span>
+                                  </div>
+                                </div>
                               )}
-                            />
-                          </button>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Trial Reel</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Test reach before committing to your profile</p>
-                        </div>
-                        <select
-                          value={instagramTrialReelType}
-                          onChange={(e) =>
-                            setInstagramTrialReelType(
-                              e.target.value as "manual" | "performance" | "",
-                            )
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="">None</option>
-                          <option value="manual">Manual</option>
-                          <option value="performance">Performance</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    {/* Collaboration */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Collaboration
-                      </div>
-                      <div>
-                        <div className="flex-1 min-w-0 mb-1.5">
-                          <span className="text-xs font-medium text-slate-700">Collaborators</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Instagram usernames to invite as co-authors</p>
-                        </div>
-                        <input
-                          type="text"
-                          value={instagramCollaborators}
-                          onChange={(e) =>
-                            setInstagramCollaborators(e.target.value)
-                          }
-                          placeholder="username1, username2"
-                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        />
-                      </div>
-                    </div>
-
-                    <AccountOverrides
-                      platform="instagram"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        placement: instagramPlacement,
-                        ...(instagramPlacement === "reels"
-                          ? { share_to_feed: instagramShareToFeed }
-                          : {}),
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Facebook */}
-                {selectedPlatforms.includes("facebook") && (
-                  <PlatformOptions
-                    title="Facebook"
-                    platform="facebook"
-                    isOpen={expandedPlatforms.includes("facebook")}
-                    onToggle={() => togglePlatformSection("facebook")}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-medium text-slate-700">Placement</span>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Post as Reel or Timeline post</p>
-                      </div>
-                      <select
-                        value={facebookPlacement}
-                        onChange={(e) =>
-                          setFacebookPlacement(
-                            e.target.value as "timeline" | "reels",
-                          )
-                        }
-                        className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                      >
-                        <option value="timeline">Timeline</option>
-                        <option value="reels">Reels</option>
-                      </select>
-                    </div>
-                    <AccountOverrides
-                      platform="facebook"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        placement: facebookPlacement,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* YouTube */}
-                {selectedPlatforms.includes("youtube") && (
-                  <PlatformOptions
-                    title="YouTube"
-                    platform="youtube"
-                    isOpen={expandedPlatforms.includes("youtube")}
-                    onToggle={() => togglePlatformSection("youtube")}
-                  >
-                    {/* Visibility */}
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                      Visibility
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Privacy</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Who can see this video</p>
-                        </div>
-                        <select
-                          value={youtubePrivacy}
-                          onChange={(e) =>
-                            setYoutubePrivacy(
-                              e.target.value as "public" | "private" | "unlisted",
-                            )
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="public">Public</option>
-                          <option value="unlisted">Unlisted</option>
-                          <option value="private">Private</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Made for Kids</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Required by COPPA for children&apos;s content</p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={youtubeMadeForKids}
-                          onClick={() => setYoutubeMadeForKids(!youtubeMadeForKids)}
-                          className={cn(
-                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                            youtubeMadeForKids ? "bg-slate-800" : "bg-slate-200",
+                              <AccountOverrides
+                                platform="tiktok"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  privacy_status: tiktokPrivacy,
+                                  allow_duet: tiktokAllowDuet,
+                                  allow_stitch: tiktokAllowStitch,
+                                  allow_comment: tiktokAllowComment,
+                                  auto_add_music: tiktokAutoAddMusic,
+                                  is_draft: tiktokIsDraft,
+                                  is_ai_generated: tiktokIsAIGenerated,
+                                }}
+                              />
+                            </PlatformOptions>
                           )}
-                        >
-                          <span
-                            className={cn(
-                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
-                              youtubeMadeForKids ? "translate-x-4" : "translate-x-0",
-                            )}
-                          />
-                        </button>
-                      </div>
-                    </div>
 
-                    {/* Content */}
-                    <div className="border-t border-slate-200 mt-3 pt-3">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        Content
-                      </div>
-                      <div>
-                        <div className="flex-1 min-w-0 mb-1.5">
-                          <span className="text-xs font-medium text-slate-700">Title</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Override the video title (defaults to caption)</p>
+                          {/* TikTok Business */}
+                          {selectedPlatforms.includes("tiktok_business") && (
+                            <PlatformOptions
+                              title="TikTok Business"
+                              platform="tiktok_business"
+                              isOpen={expandedPlatforms.includes(
+                                "tiktok_business",
+                              )}
+                              onToggle={() =>
+                                togglePlatformSection("tiktok_business")
+                              }
+                            >
+                              {/* Thumbnail badge */}
+                              {hasVideoMedia && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-cyan-50 to-pink-50 rounded-lg mb-3">
+                                  <ImageIcon className="w-3.5 h-3.5 text-cyan-600" />
+                                  <span className="text-[11px] text-cyan-700 font-medium">
+                                    Custom thumbnail supported
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Visibility */}
+                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Visibility
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Privacy
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Who can view this video
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={tiktokPrivacy}
+                                    onChange={(e) =>
+                                      setTiktokPrivacy(
+                                        e.target.value as "public" | "private",
+                                      )
+                                    }
+                                    className={cn(
+                                      "px-3 py-1.5 bg-white rounded-lg text-xs border focus:ring-2 focus:ring-slate-200",
+                                      !tiktokPrivacy
+                                        ? "border-amber-300 text-slate-400"
+                                        : "border-slate-200",
+                                    )}
+                                  >
+                                    <option value="" disabled>
+                                      Select privacy...
+                                    </option>
+                                    <option value="public">Public</option>
+                                    <option value="private">Private</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Send to Inbox
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Send to TikTok inbox — complete posting in
+                                      app (pick music, edit, etc.)
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={tiktokIsDraft}
+                                    onClick={() =>
+                                      setTiktokIsDraft(!tiktokIsDraft)
+                                    }
+                                    className={cn(
+                                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                      tiktokIsDraft
+                                        ? "bg-slate-800"
+                                        : "bg-slate-200",
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                        tiktokIsDraft
+                                          ? "translate-x-4"
+                                          : "translate-x-0",
+                                      )}
+                                    />
+                                  </button>
+                                </div>
+                                {tiktokIsDraft && (
+                                  <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2.5">
+                                    <div className="flex gap-2">
+                                      <svg
+                                        className="w-4 h-4 text-amber-500 shrink-0 mt-0.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        strokeWidth={1.5}
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"
+                                        />
+                                      </svg>
+                                      <div className="text-[11px] text-amber-800 leading-relaxed">
+                                        <p className="font-semibold mb-1">
+                                          โหมดส่งไปกล่องข้อความ:
+                                        </p>
+                                        <ol className="list-decimal ml-3.5 space-y-0.5">
+                                          <li>
+                                            คอนเทนต์จะถูกส่งไปยังกล่องข้อความ
+                                            TikTok
+                                          </li>
+                                          <li>
+                                            เปิดแอป TikTok
+                                            แล้วแตะการแจ้งเตือนในกล่องข้อความ
+                                          </li>
+                                          <li>
+                                            เลือกเพลง ใส่เอฟเฟกต์
+                                            แก้ไขตามต้องการ
+                                          </li>
+                                          <li>แตะโพสต์เพื่อเผยแพร่</li>
+                                        </ol>
+                                        <p className="mt-1.5 text-amber-600">
+                                          ส่งได้สูงสุด 5 รายการที่รอดำเนินการใน
+                                          24 ชั่วโมง
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Engagement */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Engagement
+                                </div>
+                                <div className="space-y-3">
+                                  {/* Duet & Stitch — only for videos, hidden for photo slideshows per TikTok guidelines */}
+                                  {!tiktokNeedsMusic &&
+                                    (
+                                      [
+                                        {
+                                          label: "Allow Duet",
+                                          description:
+                                            "Let others create side-by-side videos with yours",
+                                          checked: tiktokAllowDuet,
+                                          onChange: setTiktokAllowDuet,
+                                        },
+                                        {
+                                          label: "Allow Stitch",
+                                          description:
+                                            "Let others clip and remix your video",
+                                          checked: tiktokAllowStitch,
+                                          onChange: setTiktokAllowStitch,
+                                        },
+                                      ] as const
+                                    ).map(
+                                      ({
+                                        label,
+                                        description,
+                                        checked,
+                                        onChange,
+                                      }) => (
+                                        <div
+                                          key={label}
+                                          className="flex items-center justify-between gap-3"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <span className="text-xs font-medium text-slate-700">
+                                              {label}
+                                            </span>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                              {description}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={checked}
+                                            onClick={() => onChange(!checked)}
+                                            className={cn(
+                                              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                              checked
+                                                ? "bg-slate-800"
+                                                : "bg-slate-200",
+                                            )}
+                                          >
+                                            <span
+                                              className={cn(
+                                                "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                                checked
+                                                  ? "translate-x-4"
+                                                  : "translate-x-0",
+                                              )}
+                                            />
+                                          </button>
+                                        </div>
+                                      ),
+                                    )}
+                                  {/* Comments — always shown */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Comments
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Allow comments on this video
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokAllowComment}
+                                      onClick={() =>
+                                        setTiktokAllowComment(
+                                          !tiktokAllowComment,
+                                        )
+                                      }
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokAllowComment
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokAllowComment
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Auto Add Music — only for DIRECT_POST, disabled in inbox mode */}
+                                  <div
+                                    className={cn(
+                                      "flex items-center justify-between gap-3",
+                                      tiktokIsDraft && "opacity-40",
+                                    )}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Auto Add Music
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        {tiktokIsDraft
+                                          ? "Not available in inbox mode — pick music in TikTok app"
+                                          : "Add background music to photo slideshows"}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={
+                                        !tiktokIsDraft && tiktokAutoAddMusic
+                                      }
+                                      onClick={() =>
+                                        !tiktokIsDraft &&
+                                        setTiktokAutoAddMusic(
+                                          !tiktokAutoAddMusic,
+                                        )
+                                      }
+                                      disabled={tiktokIsDraft}
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokIsDraft
+                                          ? "cursor-not-allowed bg-slate-200"
+                                          : "cursor-pointer",
+                                        !tiktokIsDraft && tiktokAutoAddMusic
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          !tiktokIsDraft && tiktokAutoAddMusic
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Trending music tip — shown when auto_add_music is ON and not in inbox mode */}
+                                  {tiktokAutoAddMusic && !tiktokIsDraft && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5 mt-1">
+                                      <div className="flex gap-2">
+                                        <svg
+                                          className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          strokeWidth={1.5}
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
+                                          />
+                                        </svg>
+                                        <div className="text-[11px] text-slate-500 leading-relaxed">
+                                          <p className="font-medium text-slate-600 mb-0.5">
+                                            เคล็ดลับให้ได้เพลงที่เหมาะ
+                                          </p>
+                                          <ul className="space-y-0.5 text-[10px]">
+                                            <li>
+                                              ใช้แฮชแท็กที่กำลังฮิต (#fyp,
+                                              แท็กชาเลนจ์)
+                                              เพื่อส่งสัญญาณธีมยอดนิยม
+                                            </li>
+                                            <li>
+                                              เขียนแคปชันให้สื่ออารมณ์ —
+                                              คำบรรยายมู้ด/ไวบ์อาจช่วยให้เลือกเพลงตรงธีม
+                                            </li>
+                                            <li>
+                                              ดู{" "}
+                                              <span className="font-medium">
+                                                เพลงมาแรง
+                                              </span>{" "}
+                                              ด้านล่างเพื่อเช็คเทรนด์ก่อนโพสต์
+                                            </li>
+                                          </ul>
+                                          <p className="text-[10px] text-slate-400 mt-1">
+                                            TikTok
+                                            เลือกเพลงจากเสียงที่กำลังเทรนด์ตามสัญญาณของคอนเทนต์
+                                            หากต้องการเลือกเพลงเอง
+                                            ให้ใช้ส่งไปกล่องข้อความแทน
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Disclosure — per TikTok Content Sharing Guidelines */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Disclosure
+                                </div>
+                                <div className="space-y-3">
+                                  {/* Content Disclosure toggle — off by default */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Content Disclosure
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Indicate if this content promotes a
+                                        brand, product, or service
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokDiscloseToggle}
+                                      onClick={() => {
+                                        const next = !tiktokDiscloseToggle;
+                                        setTiktokDiscloseToggle(next);
+                                        if (!next) {
+                                          setTiktokDiscloseBrand(false);
+                                          setTiktokDiscloseBrandedContent(
+                                            false,
+                                          );
+                                        }
+                                      }}
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokDiscloseToggle
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokDiscloseToggle
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                  {/* Checkboxes — shown when toggle is on */}
+                                  {tiktokDiscloseToggle && (
+                                    <div className="ml-1 space-y-2 pl-3 border-l-2 border-slate-200">
+                                      <label className="flex items-start gap-2 cursor-pointer group">
+                                        <input
+                                          type="checkbox"
+                                          checked={tiktokDiscloseBrand}
+                                          onChange={(e) =>
+                                            setTiktokDiscloseBrand(
+                                              e.target.checked,
+                                            )
+                                          }
+                                          className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-300"
+                                        />
+                                        <div>
+                                          <span className="text-xs font-medium text-slate-700 group-hover:text-slate-900">
+                                            Your Brand
+                                          </span>
+                                          <p className="text-[10px] text-slate-400">
+                                            You are promoting yourself or your
+                                            own business. Content will be
+                                            labeled &quot;Promotional
+                                            content&quot;
+                                          </p>
+                                        </div>
+                                      </label>
+                                      <label
+                                        className={cn(
+                                          "flex items-start gap-2 cursor-pointer group",
+                                          tiktokPrivacy === "private" &&
+                                            "opacity-50 cursor-not-allowed",
+                                        )}
+                                        title={
+                                          tiktokPrivacy === "private"
+                                            ? "Branded content visibility cannot be set to private"
+                                            : undefined
+                                        }
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={tiktokDiscloseBrandedContent}
+                                          onChange={(e) => {
+                                            if (tiktokPrivacy !== "private")
+                                              setTiktokDiscloseBrandedContent(
+                                                e.target.checked,
+                                              );
+                                          }}
+                                          disabled={tiktokPrivacy === "private"}
+                                          className="mt-0.5 rounded border-slate-300 text-slate-800 focus:ring-slate-300"
+                                        />
+                                        <div>
+                                          <span className="text-xs font-medium text-slate-700 group-hover:text-slate-900">
+                                            Branded Content
+                                          </span>
+                                          <p className="text-[10px] text-slate-400">
+                                            You are promoting another brand or a
+                                            third party. Content will be labeled
+                                            &quot;Paid partnership&quot;
+                                          </p>
+                                          {tiktokPrivacy === "private" && (
+                                            <p className="text-[10px] text-red-400">
+                                              Branded content visibility cannot
+                                              be set to private
+                                            </p>
+                                          )}
+                                        </div>
+                                      </label>
+                                      {tiktokDiscloseToggle &&
+                                        !tiktokDiscloseBrand &&
+                                        !tiktokDiscloseBrandedContent && (
+                                          <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            You need to indicate if your content
+                                            promotes yourself, a third party, or
+                                            both
+                                          </p>
+                                        )}
+                                    </div>
+                                  )}
+                                  {/* AI Generated — separate from commercial disclosure */}
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        AI Generated
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Declare this content was AI-generated
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={tiktokIsAIGenerated}
+                                      onClick={() =>
+                                        setTiktokIsAIGenerated(
+                                          !tiktokIsAIGenerated,
+                                        )
+                                      }
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        tiktokIsAIGenerated
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          tiktokIsAIGenerated
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Music Usage Confirmation — required by TikTok Developer Guidelines for ALL posts */}
+                              {
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                                      By posting, you agree to TikTok&apos;s{" "}
+                                      {tiktokDiscloseBrandedContent && (
+                                        <>
+                                          <a
+                                            href="https://www.tiktok.com/legal/page/global/bc-policy/en"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline hover:text-amber-900"
+                                          >
+                                            Branded Content Policy
+                                          </a>{" "}
+                                          and{" "}
+                                        </>
+                                      )}
+                                      <a
+                                        href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline hover:text-amber-900"
+                                      >
+                                        Music Usage Confirmation
+                                      </a>
+                                      .
+                                    </p>
+                                  </div>
+                                </div>
+                              }
+
+                              {/* CML Trending Music Browser — TikTok Business */}
+                              {tiktokNeedsMusic && (
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                    Trending Music (CML)
+                                  </div>
+                                  <div className="rounded-lg bg-gradient-to-r from-pink-50 to-violet-50 dark:from-pink-950/20 dark:to-violet-950/20 p-3">
+                                    <div className="flex items-start gap-2.5">
+                                      <span className="text-base leading-none mt-0.5">
+                                        🎵
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                          {tiktokAutoAddMusic
+                                            ? "TikTok will auto-add a trending sound. Browse the Commercial Music Library to see what's trending:"
+                                            : "Auto music is off — slideshow will be silent. Browse trending CML sounds:"}
+                                        </p>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setCmlExpanded(!cmlExpanded)
+                                          }
+                                          className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-pink-300 hover:text-pink-600 dark:hover:text-pink-400 transition-colors"
+                                        >
+                                          <span>🔥</span>
+                                          {cmlExpanded
+                                            ? "Hide Trending Sounds"
+                                            : "Browse Trending Sounds"}
+                                          {cmlExpanded ? (
+                                            <ChevronUp className="w-3 h-3" />
+                                          ) : (
+                                            <ChevronDown className="w-3 h-3" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded CML browser */}
+                                    <AnimatePresence>
+                                      {cmlExpanded && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{
+                                            height: "auto",
+                                            opacity: 1,
+                                          }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.2 }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="mt-3 pt-3 border-t border-pink-200/50">
+                                            {trendingMusic.isLoading && (
+                                              <div className="flex items-center gap-2 py-4 justify-center text-xs text-slate-400">
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                Loading trending sounds...
+                                              </div>
+                                            )}
+                                            {trendingMusic.error && (
+                                              <div className="flex items-center gap-2 py-3 text-xs text-red-500">
+                                                <AlertCircle className="w-3.5 h-3.5" />
+                                                Failed to load:{" "}
+                                                {
+                                                  (trendingMusic.error as Error)
+                                                    .message
+                                                }
+                                              </div>
+                                            )}
+                                            {trendingMusic.data && (
+                                              <>
+                                                {/* Genre filter */}
+                                                {(() => {
+                                                  const allGenres = Array.from(
+                                                    new Set(
+                                                      trendingMusic.data.music_list.flatMap(
+                                                        (t) => t.genres,
+                                                      ),
+                                                    ),
+                                                  ).sort();
+                                                  return allGenres.length >
+                                                    1 ? (
+                                                    <div className="flex flex-wrap gap-1 mb-2">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                          setCmlGenreFilter(
+                                                            "all",
+                                                          )
+                                                        }
+                                                        className={cn(
+                                                          "px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors",
+                                                          cmlGenreFilter ===
+                                                            "all"
+                                                            ? "bg-pink-500 text-white"
+                                                            : "bg-white/80 text-slate-500 hover:bg-white",
+                                                        )}
+                                                      >
+                                                        All
+                                                      </button>
+                                                      {allGenres
+                                                        .slice(0, 8)
+                                                        .map((g) => (
+                                                          <button
+                                                            type="button"
+                                                            key={g}
+                                                            onClick={() =>
+                                                              setCmlGenreFilter(
+                                                                g,
+                                                              )
+                                                            }
+                                                            className={cn(
+                                                              "px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors",
+                                                              cmlGenreFilter ===
+                                                                g
+                                                                ? "bg-pink-500 text-white"
+                                                                : "bg-white/80 text-slate-500 hover:bg-white",
+                                                            )}
+                                                          >
+                                                            {g}
+                                                          </button>
+                                                        ))}
+                                                    </div>
+                                                  ) : null;
+                                                })()}
+
+                                                {/* Track list */}
+                                                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                                                  {trendingMusic.data.music_list
+                                                    .filter(
+                                                      (t) =>
+                                                        cmlGenreFilter ===
+                                                          "all" ||
+                                                        t.genres.includes(
+                                                          cmlGenreFilter,
+                                                        ),
+                                                    )
+                                                    .slice(0, 30)
+                                                    .map((track) => (
+                                                      <div
+                                                        key={
+                                                          track.commercial_music_id
+                                                        }
+                                                        className={cn(
+                                                          "flex items-center gap-2.5 p-2 rounded-lg transition-colors",
+                                                          cmlPlayingId ===
+                                                            track.commercial_music_id
+                                                            ? "bg-pink-100 dark:bg-pink-900/30"
+                                                            : "bg-white/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/60",
+                                                        )}
+                                                      >
+                                                        {/* Rank */}
+                                                        <span className="text-[10px] font-bold text-pink-400 w-5 text-right shrink-0">
+                                                          #{track.rank_position}
+                                                        </span>
+                                                        {/* Thumbnail + play */}
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            if (
+                                                              cmlPlayingId ===
+                                                              track.commercial_music_id
+                                                            ) {
+                                                              cmlAudioRef.current?.pause();
+                                                              setCmlPlayingId(
+                                                                null,
+                                                              );
+                                                            } else {
+                                                              if (
+                                                                cmlAudioRef.current
+                                                              ) {
+                                                                cmlAudioRef.current.pause();
+                                                              }
+                                                              const audio =
+                                                                new Audio(
+                                                                  track.preview_url,
+                                                                );
+                                                              audio.volume = 0.5;
+                                                              audio.play();
+                                                              audio.onended =
+                                                                () =>
+                                                                  setCmlPlayingId(
+                                                                    null,
+                                                                  );
+                                                              cmlAudioRef.current =
+                                                                audio;
+                                                              setCmlPlayingId(
+                                                                track.commercial_music_id,
+                                                              );
+                                                            }
+                                                          }}
+                                                          className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 group"
+                                                        >
+                                                          {track.thumbnail_url ? (
+                                                            <>
+                                                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                              <img
+                                                                src={
+                                                                  track.thumbnail_url
+                                                                }
+                                                                alt=""
+                                                                className="w-full h-full object-cover"
+                                                              />
+                                                            </>
+                                                          ) : (
+                                                            <div className="w-full h-full bg-gradient-to-br from-pink-300 to-violet-400" />
+                                                          )}
+                                                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/50 transition-colors">
+                                                            {cmlPlayingId ===
+                                                            track.commercial_music_id ? (
+                                                              <div className="flex gap-0.5 items-end h-3">
+                                                                <span className="w-0.5 bg-white animate-pulse h-full rounded-full" />
+                                                                <span
+                                                                  className="w-0.5 bg-white animate-pulse h-2 rounded-full"
+                                                                  style={{
+                                                                    animationDelay:
+                                                                      "0.15s",
+                                                                  }}
+                                                                />
+                                                                <span
+                                                                  className="w-0.5 bg-white animate-pulse h-2.5 rounded-full"
+                                                                  style={{
+                                                                    animationDelay:
+                                                                      "0.3s",
+                                                                  }}
+                                                                />
+                                                              </div>
+                                                            ) : (
+                                                              <Play className="w-3.5 h-3.5 text-white fill-white" />
+                                                            )}
+                                                          </div>
+                                                        </button>
+                                                        {/* Info */}
+                                                        <div className="flex-1 min-w-0">
+                                                          <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate">
+                                                            {track.name}
+                                                          </p>
+                                                          <p className="text-[10px] text-slate-400 truncate">
+                                                            {track.artist} ·{" "}
+                                                            {Math.floor(
+                                                              track.duration /
+                                                                60,
+                                                            )}
+                                                            :
+                                                            {String(
+                                                              track.duration %
+                                                                60,
+                                                            ).padStart(2, "0")}
+                                                          </p>
+                                                        </div>
+                                                        {/* Genre tags */}
+                                                        <div className="hidden sm:flex gap-1 shrink-0">
+                                                          {track.genres
+                                                            .slice(0, 2)
+                                                            .map((g) => (
+                                                              <span
+                                                                key={g}
+                                                                className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded text-[9px]"
+                                                              >
+                                                                {g}
+                                                              </span>
+                                                            ))}
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 mt-2">
+                                                  {trendingMusic.data.total}{" "}
+                                                  tracks from TikTok Commercial
+                                                  Music Library — safe for
+                                                  commercial use
+                                                </p>
+                                              </>
+                                            )}
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+
+                                    {/* Creative Center quick links */}
+                                    <div className="mt-3 pt-3 border-t border-pink-200/30">
+                                      <p className="text-[10px] text-slate-400 mb-1.5">
+                                        Creative Center
+                                      </p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {(
+                                          [
+                                            {
+                                              href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/hashtag/pc/th",
+                                              icon: "#",
+                                              label: "Hashtags",
+                                            },
+                                            {
+                                              href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/creator/pc/th",
+                                              icon: "👤",
+                                              label: "Creators",
+                                            },
+                                            {
+                                              href: "https://ads.tiktok.com/business/creativecenter/inspiration/popular/pc/th",
+                                              icon: "🔥",
+                                              label: "Trending",
+                                            },
+                                          ] as const
+                                        ).map(({ href, icon, label }) => (
+                                          <a
+                                            key={label}
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/60 dark:bg-slate-800/40 rounded-md text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-pink-500 transition-colors"
+                                          >
+                                            <span>{icon}</span>
+                                            {label}
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {hasVideoMedia && !hasImageMedia && (
+                                <div className="border-t border-slate-200 mt-3 pt-3">
+                                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                    <span>🎬</span>
+                                    <span>
+                                      Video detected — audio from your video
+                                      will be used
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              <AccountOverrides
+                                platform="tiktok_business"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  privacy_status: tiktokPrivacy,
+                                  allow_duet: tiktokAllowDuet,
+                                  allow_stitch: tiktokAllowStitch,
+                                  allow_comment: tiktokAllowComment,
+                                  auto_add_music: tiktokAutoAddMusic,
+                                  is_draft: tiktokIsDraft,
+                                  is_ai_generated: tiktokIsAIGenerated,
+                                  disclose_your_brand: tiktokDiscloseBrand,
+                                  disclose_branded_content:
+                                    tiktokDiscloseBrandedContent,
+                                }}
+                              />
+                            </PlatformOptions>
+                          )}
+
+                          {/* Instagram */}
+                          {selectedPlatforms.includes("instagram") && (
+                            <PlatformOptions
+                              title="Instagram"
+                              platform="instagram"
+                              isOpen={expandedPlatforms.includes("instagram")}
+                              onToggle={() =>
+                                togglePlatformSection("instagram")
+                              }
+                            >
+                              {/* Account requirement note */}
+                              <div className="flex items-start gap-2 px-3 py-1.5 bg-purple-50 rounded-lg mb-3">
+                                <AlertCircle className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
+                                <p className="text-[10px] text-purple-600 leading-relaxed">
+                                  Requires a Professional or Creator Instagram
+                                  account. Personal accounts cannot publish via
+                                  API.
+                                </p>
+                              </div>
+
+                              {/* Placement */}
+                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Placement
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Placement
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Where to publish: Reels, Stories, or Feed
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={instagramPlacement}
+                                    onChange={(e) =>
+                                      setInstagramPlacement(
+                                        e.target.value as
+                                          | "reels"
+                                          | "stories"
+                                          | "timeline",
+                                      )
+                                    }
+                                    className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  >
+                                    <option value="timeline">Feed Post</option>
+                                    <option value="reels">Reels</option>
+                                    <option value="stories">Stories</option>
+                                  </select>
+                                </div>
+                                {instagramPlacement === "reels" && (
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-medium text-slate-700">
+                                        Share to Feed
+                                      </span>
+                                      <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Also show Reel on your profile grid
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      role="switch"
+                                      aria-checked={instagramShareToFeed}
+                                      onClick={() =>
+                                        setInstagramShareToFeed(
+                                          !instagramShareToFeed,
+                                        )
+                                      }
+                                      className={cn(
+                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                        instagramShareToFeed
+                                          ? "bg-slate-800"
+                                          : "bg-slate-200",
+                                      )}
+                                    >
+                                      <span
+                                        className={cn(
+                                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                          instagramShareToFeed
+                                            ? "translate-x-4"
+                                            : "translate-x-0",
+                                        )}
+                                      />
+                                    </button>
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Trial Reel
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Test reach before committing to your
+                                      profile
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={instagramTrialReelType}
+                                    onChange={(e) =>
+                                      setInstagramTrialReelType(
+                                        e.target.value as
+                                          | "manual"
+                                          | "performance"
+                                          | "",
+                                      )
+                                    }
+                                    className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  >
+                                    <option value="">None</option>
+                                    <option value="manual">Manual</option>
+                                    <option value="performance">
+                                      Performance
+                                    </option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Collaboration */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Collaboration
+                                </div>
+                                <div>
+                                  <div className="flex-1 min-w-0 mb-1.5">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Collaborators
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Instagram usernames to invite as
+                                      co-authors
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={instagramCollaborators}
+                                    onChange={(e) =>
+                                      setInstagramCollaborators(e.target.value)
+                                    }
+                                    placeholder="username1, username2"
+                                    className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  />
+                                </div>
+                              </div>
+
+                              <AccountOverrides
+                                platform="instagram"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  placement: instagramPlacement,
+                                  ...(instagramPlacement === "reels"
+                                    ? { share_to_feed: instagramShareToFeed }
+                                    : {}),
+                                }}
+                              />
+                            </PlatformOptions>
+                          )}
+
+                          {/* Facebook */}
+                          {selectedPlatforms.includes("facebook") && (
+                            <PlatformOptions
+                              title="Facebook"
+                              platform="facebook"
+                              isOpen={expandedPlatforms.includes("facebook")}
+                              onToggle={() => togglePlatformSection("facebook")}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-xs font-medium text-slate-700">
+                                    Placement
+                                  </span>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    Post as Reel or Timeline post
+                                  </p>
+                                </div>
+                                <select
+                                  value={facebookPlacement}
+                                  onChange={(e) =>
+                                    setFacebookPlacement(
+                                      e.target.value as "timeline" | "reels",
+                                    )
+                                  }
+                                  className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                >
+                                  <option value="timeline">Timeline</option>
+                                  <option value="reels">Reels</option>
+                                </select>
+                              </div>
+                              <AccountOverrides
+                                platform="facebook"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  placement: facebookPlacement,
+                                }}
+                              />
+                            </PlatformOptions>
+                          )}
+
+                          {/* YouTube */}
+                          {selectedPlatforms.includes("youtube") && (
+                            <PlatformOptions
+                              title="YouTube"
+                              platform="youtube"
+                              isOpen={expandedPlatforms.includes("youtube")}
+                              onToggle={() => togglePlatformSection("youtube")}
+                            >
+                              {/* Visibility */}
+                              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Visibility
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Privacy
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Who can see this video
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={youtubePrivacy}
+                                    onChange={(e) =>
+                                      setYoutubePrivacy(
+                                        e.target.value as
+                                          | "public"
+                                          | "private"
+                                          | "unlisted",
+                                      )
+                                    }
+                                    className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  >
+                                    <option value="public">Public</option>
+                                    <option value="unlisted">Unlisted</option>
+                                    <option value="private">Private</option>
+                                  </select>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Made for Kids
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Required by COPPA for children&apos;s
+                                      content
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={youtubeMadeForKids}
+                                    onClick={() =>
+                                      setYoutubeMadeForKids(!youtubeMadeForKids)
+                                    }
+                                    className={cn(
+                                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors touch-manipulation p-[10px] box-content",
+                                      youtubeMadeForKids
+                                        ? "bg-slate-800"
+                                        : "bg-slate-200",
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+                                        youtubeMadeForKids
+                                          ? "translate-x-4"
+                                          : "translate-x-0",
+                                      )}
+                                    />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Content */}
+                              <div className="border-t border-slate-200 mt-3 pt-3">
+                                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                  Content
+                                </div>
+                                <div>
+                                  <div className="flex-1 min-w-0 mb-1.5">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Title
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Override the video title (defaults to
+                                      caption)
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={youtubeTitle}
+                                    onChange={(e) =>
+                                      setYoutubeTitle(e.target.value)
+                                    }
+                                    placeholder="Video title (optional)"
+                                    className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  />
+                                </div>
+                              </div>
+
+                              <AccountOverrides
+                                platform="youtube"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  privacy_status: youtubePrivacy,
+                                  made_for_kids: youtubeMadeForKids,
+                                }}
+                              />
+                            </PlatformOptions>
+                          )}
+
+                          {/* X/Twitter */}
+                          {(selectedPlatforms.includes("x") ||
+                            selectedPlatforms.includes("twitter")) && (
+                            <PlatformOptions
+                              title="X (Twitter)"
+                              platform="x"
+                              isOpen={expandedPlatforms.includes("x")}
+                              onToggle={() => togglePlatformSection("x")}
+                            >
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Reply Settings
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Who can reply to this post
+                                    </p>
+                                  </div>
+                                  <select
+                                    value={xReplySettings}
+                                    onChange={(e) =>
+                                      setXReplySettings(
+                                        e.target.value as
+                                          | "following"
+                                          | "mentionedUsers"
+                                          | "subscribers"
+                                          | "verified",
+                                      )
+                                    }
+                                    className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  >
+                                    <option value="following">Everyone</option>
+                                    <option value="mentionedUsers">
+                                      People you follow
+                                    </option>
+                                    <option value="subscribers">
+                                      Only subscribers
+                                    </option>
+                                    <option value="verified">
+                                      Only verified
+                                    </option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <div className="flex-1 min-w-0 mb-1.5">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Quote Tweet
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      ID of a tweet to quote
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={xQuoteTweetId}
+                                    onChange={(e) =>
+                                      setXQuoteTweetId(e.target.value)
+                                    }
+                                    placeholder="Tweet ID to quote (optional)"
+                                    className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  />
+                                </div>
+                              </div>
+                              <AccountOverrides
+                                platform="x"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{
+                                  reply_settings: xReplySettings,
+                                }}
+                              />
+                            </PlatformOptions>
+                          )}
+
+                          {/* Pinterest */}
+                          {selectedPlatforms.includes("pinterest") && (
+                            <PlatformOptions
+                              title="Pinterest"
+                              platform="pinterest"
+                              isOpen={expandedPlatforms.includes("pinterest")}
+                              onToggle={() =>
+                                togglePlatformSection("pinterest")
+                              }
+                            >
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="flex-1 min-w-0 mb-1.5">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Board
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Pinterest board to pin to
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={pinterestBoardId}
+                                    onChange={(e) =>
+                                      setPinterestBoardId(e.target.value)
+                                    }
+                                    placeholder="Pinterest board ID"
+                                    className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  />
+                                </div>
+                                <div>
+                                  <div className="flex-1 min-w-0 mb-1.5">
+                                    <span className="text-xs font-medium text-slate-700">
+                                      Link
+                                    </span>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                      Destination URL when pin is clicked
+                                    </p>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={pinterestLink}
+                                    onChange={(e) =>
+                                      setPinterestLink(e.target.value)
+                                    }
+                                    placeholder="https://example.com"
+                                    className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
+                                  />
+                                </div>
+                              </div>
+                              <AccountOverrides
+                                platform="pinterest"
+                                accountIds={selectedAccountIds}
+                                accounts={connectedAccounts}
+                                accountOverrides={accountOverrides}
+                                onSetOverride={setAccountOverride}
+                                onClearOverride={clearAccountOverride}
+                                onClearAll={clearAllAccountOverrides}
+                                platformValues={{}}
+                              />
+                            </PlatformOptions>
+                          )}
                         </div>
-                        <input
-                          type="text"
-                          value={youtubeTitle}
-                          onChange={(e) => setYoutubeTitle(e.target.value)}
-                          placeholder="Video title (optional)"
-                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        />
                       </div>
-                    </div>
+                    )}
 
-                    <AccountOverrides
-                      platform="youtube"
-                      accountIds={selectedAccountIds}
+                    {/* Per-Account Content Customization */}
+                    <AccountContentCustomization
+                      selectedAccountIds={selectedAccountIds}
                       accounts={connectedAccounts}
+                      mediaFiles={mediaFiles}
+                      defaultCaption={content}
                       accountOverrides={accountOverrides}
                       onSetOverride={setAccountOverride}
                       onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        privacy_status: youtubePrivacy,
-                        made_for_kids: youtubeMadeForKids,
-                      }}
                     />
-                  </PlatformOptions>
-                )}
-
-                {/* X/Twitter */}
-                {(selectedPlatforms.includes("x") ||
-                  selectedPlatforms.includes("twitter")) && (
-                  <PlatformOptions
-                    title="X (Twitter)"
-                    platform="x"
-                    isOpen={expandedPlatforms.includes("x")}
-                    onToggle={() => togglePlatformSection("x")}
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium text-slate-700">Reply Settings</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Who can reply to this post</p>
-                        </div>
-                        <select
-                          value={xReplySettings}
-                          onChange={(e) =>
-                            setXReplySettings(
-                              e.target.value as
-                                | "following"
-                                | "mentionedUsers"
-                                | "subscribers"
-                                | "verified",
-                            )
-                          }
-                          className="px-3 py-1.5 bg-white rounded-lg text-xs border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        >
-                          <option value="following">Everyone</option>
-                          <option value="mentionedUsers">People you follow</option>
-                          <option value="subscribers">Only subscribers</option>
-                          <option value="verified">Only verified</option>
-                        </select>
-                      </div>
-                      <div>
-                        <div className="flex-1 min-w-0 mb-1.5">
-                          <span className="text-xs font-medium text-slate-700">Quote Tweet</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">ID of a tweet to quote</p>
-                        </div>
-                        <input
-                          type="text"
-                          value={xQuoteTweetId}
-                          onChange={(e) => setXQuoteTweetId(e.target.value)}
-                          placeholder="Tweet ID to quote (optional)"
-                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        />
-                      </div>
-                    </div>
-                    <AccountOverrides
-                      platform="x"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{
-                        reply_settings: xReplySettings,
-                      }}
-                    />
-                  </PlatformOptions>
-                )}
-
-                {/* Pinterest */}
-                {selectedPlatforms.includes("pinterest") && (
-                  <PlatformOptions
-                    title="Pinterest"
-                    platform="pinterest"
-                    isOpen={expandedPlatforms.includes("pinterest")}
-                    onToggle={() => togglePlatformSection("pinterest")}
-                  >
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex-1 min-w-0 mb-1.5">
-                          <span className="text-xs font-medium text-slate-700">Board</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Pinterest board to pin to</p>
-                        </div>
-                        <input
-                          type="text"
-                          value={pinterestBoardId}
-                          onChange={(e) => setPinterestBoardId(e.target.value)}
-                          placeholder="Pinterest board ID"
-                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex-1 min-w-0 mb-1.5">
-                          <span className="text-xs font-medium text-slate-700">Link</span>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Destination URL when pin is clicked</p>
-                        </div>
-                        <input
-                          type="text"
-                          value={pinterestLink}
-                          onChange={(e) => setPinterestLink(e.target.value)}
-                          placeholder="https://example.com"
-                          className="w-full px-3 py-2 bg-white rounded-lg text-sm border border-slate-200 focus:ring-2 focus:ring-slate-200"
-                        />
-                      </div>
-                    </div>
-                    <AccountOverrides
-                      platform="pinterest"
-                      accountIds={selectedAccountIds}
-                      accounts={connectedAccounts}
-                      accountOverrides={accountOverrides}
-                      onSetOverride={setAccountOverride}
-                      onClearOverride={clearAccountOverride}
-                      onClearAll={clearAllAccountOverrides}
-                      platformValues={{}}
-                    />
-                  </PlatformOptions>
-                )}
-              </div>
-            </div>
-          )}
                   </div>
                 </motion.div>
               )}
@@ -3086,91 +4966,102 @@ export default function NewPostPage() {
                   className="overflow-hidden"
                 >
                   <div className="pt-4">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div
-                className={cn(
-                  "w-10 h-6 rounded-full transition-colors relative flex-shrink-0",
-                  scheduledDate || scheduledTime
-                    ? "bg-slate-800 dark:bg-blue-600"
-                    : "bg-slate-200 dark:bg-slate-700",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={!!scheduledDate || !!scheduledTime}
-                  onChange={(e) => {
-                    if (!e.target.checked) {
-                      setScheduledDate("");
-                      setScheduledTime("");
-                    } else {
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      tomorrow.setHours(9, 0, 0, 0);
-                      setScheduledDate(tomorrow.toISOString().split("T")[0] ?? "");
-                      setScheduledTime("09:00");
-                    }
-                  }}
-                  className="sr-only"
-                />
-                <div
-                  className={cn(
-                    "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm",
-                    scheduledDate || scheduledTime
-                      ? "translate-x-5"
-                      : "translate-x-1",
-                  )}
-                />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">ตั้งเวลาโพสต์</span>
-                <p className="text-[11px] text-slate-400">
-                  {scheduledDate ? `${scheduledDate} เวลา ${scheduledTime || "—"}` : "โพสต์ทันทีถ้าไม่เลือก"}
-                </p>
-              </div>
-            </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div
+                        className={cn(
+                          "w-10 h-6 rounded-full transition-colors relative flex-shrink-0",
+                          scheduledDate || scheduledTime
+                            ? "bg-slate-800 dark:bg-blue-600"
+                            : "bg-slate-200 dark:bg-slate-700",
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!scheduledDate || !!scheduledTime}
+                          onChange={(e) => {
+                            if (!e.target.checked) {
+                              setScheduledDate("");
+                              setScheduledTime("");
+                            } else {
+                              const tomorrow = new Date();
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              tomorrow.setHours(9, 0, 0, 0);
+                              setScheduledDate(
+                                tomorrow.toISOString().split("T")[0] ?? "",
+                              );
+                              setScheduledTime("09:00");
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        <div
+                          className={cn(
+                            "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm",
+                            scheduledDate || scheduledTime
+                              ? "translate-x-5"
+                              : "translate-x-1",
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                          ตั้งเวลาโพสต์
+                        </span>
+                        <p className="text-[11px] text-slate-400">
+                          {scheduledDate
+                            ? `${scheduledDate} เวลา ${scheduledTime || "—"}`
+                            : "โพสต์ทันทีถ้าไม่เลือก"}
+                        </p>
+                      </div>
+                    </label>
 
-            <AnimatePresence>
-              {(scheduledDate || scheduledTime) && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <input
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
-                    />
-                    <input
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
-                    />
+                    <AnimatePresence>
+                      {(scheduledDate || scheduledTime) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <input
+                              type="date"
+                              value={scheduledDate}
+                              onChange={(e) => setScheduledDate(e.target.value)}
+                              min={new Date().toISOString().split("T")[0]}
+                              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
+                            />
+                            <input
+                              type="time"
+                              value={scheduledTime}
+                              onChange={(e) => setScheduledTime(e.target.value)}
+                              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm border-0 focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-600 transition-all"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            ตามเวลาท้องถิ่นของคุณ
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    ตามเวลาท้องถิ่นของคุณ
-                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
-
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-        </motion.section>
+          </motion.section>
         </motion.div>
 
         {/* RIGHT SIDE - Preview (below editor on mobile) */}
-        <motion.div variants={containerVariants} className="space-y-6 order-2 lg:order-2">
+        <motion.div
+          variants={containerVariants}
+          className="space-y-6 order-2 lg:order-2"
+        >
           {/* Live Preview */}
-          <motion.section variants={itemVariants} className="card-premium p-6">
+          <motion.section
+            variants={itemVariants}
+            className="card-premium p-4 sm:p-6"
+          >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-slate-800 font-semibold flex items-center gap-2">
                 <Eye className="w-4 h-4" />
@@ -3188,7 +5079,9 @@ export default function NewPostPage() {
                   className="text-xs text-amber-500 flex items-center gap-1.5"
                 >
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  {uploadedMedia.length > 0 && content.length > 0 ? 'Syncing preview...' : 'Updating...'}
+                  {uploadedMedia.length > 0 && content.length > 0
+                    ? "Syncing preview..."
+                    : "Updating..."}
                 </motion.span>
               )}
             </div>
@@ -3214,8 +5107,12 @@ export default function NewPostPage() {
                   <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center mx-auto mb-3">
                     <AlertCircle className="w-6 h-6 text-red-500" />
                   </div>
-                  <p className="text-red-600 font-medium mb-1">Preview failed</p>
-                  <p className="text-red-400 text-sm max-w-xs mx-auto">{previewError}</p>
+                  <p className="text-red-600 font-medium mb-1">
+                    Preview failed
+                  </p>
+                  <p className="text-red-400 text-sm max-w-xs mx-auto">
+                    {previewError}
+                  </p>
                 </motion.div>
               ) : previews.length === 0 ? (
                 <motion.div
@@ -3235,7 +5132,7 @@ export default function NewPostPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar"
+                  className="space-y-4 lg:max-h-[500px] lg:overflow-y-auto lg:pr-2 lg:custom-scrollbar"
                 >
                   <AnimatePresence>
                     {previews.map((preview, idx) => (
@@ -3250,7 +5147,6 @@ export default function NewPostPage() {
               )}
             </AnimatePresence>
           </motion.section>
-
         </motion.div>
       </div>
     </motion.div>

@@ -44,7 +44,7 @@ import {
   usePostResultsList,
   pfmKeys,
 } from "@/lib/hooks/usePostForMe";
-import type { SocialPost, SocialPostResult } from "@/types/post-for-me";
+import type { SocialPost, SocialPostResult } from "@/types/post-for-me-types";
 
 type ViewMode = "board" | "list";
 type StatusFilter =
@@ -119,32 +119,31 @@ function PostCard({
   onDelete,
   onRetry,
   onEdit,
-  account,
+  accounts,
   results,
 }: {
   post: SocialPost;
   onDelete: (id: string) => void;
   onRetry?: (post: SocialPost) => void;
   onEdit?: (post: SocialPost) => void;
-  account?: {
-    platform: string;
-    username: string | null;
-    profile_photo_url?: string | null;
-  };
+  accounts: Map<
+    string,
+    {
+      platform: string;
+      username: string | null;
+      profile_photo_url?: string | null;
+    }
+  >;
   results?: SocialPostResult[];
 }) {
-  const PlatformIcon = account?.platform
-    ? platformIconsMap[account.platform.toLowerCase()] || ExternalLink
-    : ExternalLink;
+  const primaryAccount = post.social_accounts?.[0]
+    ? accounts.get(post.social_accounts[0].id)
+    : undefined;
   const status = post.status as keyof typeof statusConfig;
   const config = statusConfig[status] || statusConfig.draft;
   const StatusIcon = config.icon;
 
-  // Get result for this post's account (if available)
-  const postResult = results?.find(
-    (r) => r.social_account_id === post.social_accounts?.[0]?.id,
-  );
-  const hasError = postResult?.success === false;
+  const hasError = results?.some((r) => !r.success) ?? false;
   const isPending = post.status === "processing";
 
   return (
@@ -152,20 +151,50 @@ function PostCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          {account ? (
-            <Avatar className="w-6 h-6">
-              <AvatarImage src={account.profile_photo_url ? proxyMediaUrl(account.profile_photo_url) : ""} />
-              <AvatarFallback className="text-[10px] bg-slate-100">
-                {account.username?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
-              <PlatformIcon className="w-3 h-3 text-slate-400" />
-            </div>
-          )}
-          <span className="text-xs text-slate-500 font-medium">
-            {account?.username || "Unknown Platform"}
+          {/* Show all account avatars for multi-channel posts */}
+          <div className="flex -space-x-1.5">
+            {(post.social_accounts || []).slice(0, 4).map((sa) => {
+              const acc = accounts.get(sa.id);
+              const Icon = acc?.platform
+                ? platformIconsMap[acc.platform.toLowerCase()] || ExternalLink
+                : ExternalLink;
+              return acc ? (
+                <Avatar
+                  key={sa.id}
+                  className="w-6 h-6 ring-2 ring-white dark:ring-slate-900"
+                >
+                  <AvatarImage
+                    src={
+                      acc.profile_photo_url
+                        ? proxyMediaUrl(acc.profile_photo_url)
+                        : ""
+                    }
+                  />
+                  <AvatarFallback className="text-[10px] bg-slate-100">
+                    <Icon className="w-3 h-3 text-slate-400" />
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <div
+                  key={sa.id}
+                  className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center ring-2 ring-white dark:ring-slate-900"
+                >
+                  <Icon className="w-3 h-3 text-slate-400" />
+                </div>
+              );
+            })}
+            {(post.social_accounts || []).length > 4 && (
+              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-2 ring-white dark:ring-slate-900 text-[9px] font-medium text-slate-500">
+                +{post.social_accounts!.length - 4}
+              </div>
+            )}
+          </div>
+          <span className="text-xs text-slate-500 font-medium truncate max-w-[120px]">
+            {post.social_accounts?.length === 1
+              ? primaryAccount?.username ||
+                primaryAccount?.platform ||
+                "Unknown"
+              : `${post.social_accounts?.length || 0} channels`}
           </span>
         </div>
         <Badge
@@ -193,14 +222,17 @@ function PostCard({
               preload="metadata"
             />
           ) : (
-            <img
-              src={proxyMediaUrl(post.media[0]!.url)}
-              alt="Post media"
-              className="w-full h-32 object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={proxyMediaUrl(post.media[0]!.url)}
+                alt="Post media"
+                className="w-full h-32 object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </>
           )}
           {post.media.length > 1 && (
             <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/50 rounded-full text-[10px] text-white">
@@ -212,49 +244,61 @@ function PostCard({
 
       {/* Per-Platform Results */}
       {post.status !== "draft" && post.status !== "scheduled" && (
-        <div className="mb-3">
-          {postResult ? (
-            <div
-              className={`flex items-center gap-2 text-xs ${postResult.success ? "text-emerald-600" : "text-red-600"}`}
-            >
-              {postResult.success ? (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Posted to {account?.platform || "platform"}</span>
-                  {postResult.platform_data?.url && (
-                    <a
-                      href={postResult.platform_data.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-400 hover:text-slate-600 ml-1"
-                      onClick={(e) => e.stopPropagation()}
+        <div className="mb-3 space-y-1">
+          {results && results.length > 0 ? (
+            results.map((result) => {
+              const resultAccount = accounts.get(result.social_account_id);
+              const ResultIcon = resultAccount?.platform
+                ? platformIconsMap[resultAccount.platform.toLowerCase()] ||
+                  ExternalLink
+                : ExternalLink;
+              return (
+                <div
+                  key={result.id}
+                  className={`flex items-center gap-2 text-xs ${result.success ? "text-emerald-600" : "text-red-600"}`}
+                >
+                  <ResultIcon className="w-3 h-3 flex-shrink-0" />
+                  {result.success ? (
+                    <>
+                      <span className="truncate">
+                        {resultAccount?.username ||
+                          resultAccount?.platform ||
+                          "platform"}
+                      </span>
+                      {result.platform_data?.url && (
+                        <a
+                          href={result.platform_data.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-slate-400 hover:text-slate-600 ml-auto flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <span
+                      className="truncate"
+                      title={
+                        result.error ? String(result.error) : "Failed to post"
+                      }
                     >
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                      {resultAccount?.username ||
+                        resultAccount?.platform ||
+                        "platform"}
+                      : {result.error ? String(result.error) : "Failed"}
+                    </span>
                   )}
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span
-                    className="truncate"
-                    title={
-                      postResult.error
-                        ? String(postResult.error)
-                        : "Failed to post"
-                    }
-                  >
-                    {postResult.error
-                      ? String(postResult.error)
-                      : "Failed to post"}
-                  </span>
-                </>
-              )}
-            </div>
+                </div>
+              );
+            })
           ) : isPending ? (
             <div className="flex items-center gap-2 text-xs text-amber-600">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Processing on {account?.platform || "platform"}...</span>
+              <span>
+                Processing {post.social_accounts?.length || 1} channel(s)...
+              </span>
             </div>
           ) : null}
         </div>
@@ -267,7 +311,9 @@ function PostCard({
             <Clock className="w-3.5 h-3.5" />
             <span>
               {post.status === "scheduled"
-                ? formatDistanceToNow(new Date(post.scheduled_at), { addSuffix: true })
+                ? formatDistanceToNow(new Date(post.scheduled_at), {
+                    addSuffix: true,
+                  })
                 : format(new Date(post.scheduled_at), "MMM d, h:mm a")}
             </span>
           </>
@@ -299,18 +345,19 @@ function PostCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-8 w-8 text-slate-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {onEdit && (post.status === "draft" || post.status === "scheduled") && (
-              <DropdownMenuItem onClick={() => onEdit(post)}>
-                <FileEdit className="w-4 h-4 mr-2" />
-                Edit
-              </DropdownMenuItem>
-            )}
+            {onEdit &&
+              (post.status === "draft" || post.status === "scheduled") && (
+                <DropdownMenuItem onClick={() => onEdit(post)}>
+                  <FileEdit className="w-4 h-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+              )}
             {hasError && onRetry && (
               <DropdownMenuItem onClick={() => onRetry(post)}>
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -372,7 +419,9 @@ function BoardColumn({
           >
             <Icon className="w-3.5 h-3.5" />
           </div>
-          <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">{config.label}</span>
+          <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">
+            {config.label}
+          </span>
         </div>
         <Badge variant="secondary" className="text-[11px] h-5 px-1.5">
           {posts.length}
@@ -395,7 +444,7 @@ function BoardColumn({
               onDelete={onDelete}
               onRetry={onRetry}
               onEdit={onEdit}
-              account={accounts.get(post.social_accounts?.[0]?.id || "")}
+              accounts={accounts}
               results={resultsMap.get(post.id)}
             />
           ))
@@ -421,7 +470,10 @@ export default function PostsPage() {
   const retryPost = useRetryPost();
 
   const posts = useMemo(() => postsResponse?.data ?? [], [postsResponse?.data]);
-  const accounts = useMemo(() => accountsResponse?.data ?? [], [accountsResponse?.data]);
+  const accounts = useMemo(
+    () => accountsResponse?.data ?? [],
+    [accountsResponse?.data],
+  );
 
   // Bulk-fetch all post results in one query (eliminates N+1 per-card fetching)
   const { data: allResultsResponse } = usePostResultsList({
@@ -541,9 +593,12 @@ export default function PostsPage() {
           </div>
           <Skeleton className="h-10 w-32" />
         </div>
-        <div className="flex gap-6">
+        <div className="flex gap-6 overflow-x-auto">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="w-[320px] h-[400px] rounded-3xl" />
+            <Skeleton
+              key={i}
+              className="min-w-[280px] flex-1 h-[400px] rounded-3xl"
+            />
           ))}
         </div>
       </div>
@@ -589,7 +644,10 @@ export default function PostsPage() {
       animate="visible"
     >
       {/* Header */}
-      <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+      <motion.div
+        variants={fadeUp}
+        className="flex flex-col lg:flex-row lg:items-end justify-between gap-4"
+      >
         <div>
           <h1 className="greeting-title">Posts</h1>
           <p className="text-slate-400 text-sm mt-1">
@@ -622,38 +680,65 @@ export default function PostsPage() {
       <motion.div variants={fadeUp}>
         <div className="flex items-center flex-wrap rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-slate-100/80 dark:border-slate-800/80 px-5 py-4 gap-x-5 gap-y-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">{stats.total}</span>
+            <span className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+              {stats.total}
+            </span>
             <span className="text-xs text-slate-400 font-medium">posts</span>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.scheduled}</span>
-            <span className="text-xs text-slate-400 hidden sm:inline">scheduled</span>
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+              {stats.scheduled}
+            </span>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              scheduled
+            </span>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.processed}</span>
-            <span className="text-xs text-slate-400 hidden sm:inline">published</span>
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+              {stats.processed}
+            </span>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              published
+            </span>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">{stats.failed}</span>
-            <span className="text-xs text-slate-400 hidden sm:inline">failed</span>
+            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+              {stats.failed}
+            </span>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              failed
+            </span>
           </div>
           {stats.total > 0 && (
             <div className="flex-1 min-w-[80px] hidden lg:block">
               <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                 {stats.processed > 0 && (
-                  <div className="bg-emerald-500 h-full transition-all duration-700" style={{ width: `${(stats.processed / stats.total) * 100}%` }} />
+                  <div
+                    className="bg-emerald-500 h-full transition-all duration-700"
+                    style={{
+                      width: `${(stats.processed / stats.total) * 100}%`,
+                    }}
+                  />
                 )}
                 {stats.scheduled > 0 && (
-                  <div className="bg-blue-500 h-full transition-all duration-700" style={{ width: `${(stats.scheduled / stats.total) * 100}%` }} />
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-700"
+                    style={{
+                      width: `${(stats.scheduled / stats.total) * 100}%`,
+                    }}
+                  />
                 )}
                 {stats.failed > 0 && (
-                  <div className="bg-red-400 h-full transition-all duration-700" style={{ width: `${(stats.failed / stats.total) * 100}%` }} />
+                  <div
+                    className="bg-red-400 h-full transition-all duration-700"
+                    style={{ width: `${(stats.failed / stats.total) * 100}%` }}
+                  />
                 )}
               </div>
             </div>
@@ -662,15 +747,43 @@ export default function PostsPage() {
       </motion.div>
 
       {/* Controls */}
-      <motion.div variants={fadeUp} className="flex items-center justify-between gap-3">
+      <motion.div
+        variants={fadeUp}
+        className="flex items-center justify-between gap-3"
+      >
         {/* Filter pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
           {[
-            { value: "all" as StatusFilter, label: "ทั้งหมด", dot: "", count: stats.total },
-            { value: "scheduled" as StatusFilter, label: "รอโพสต์", dot: "bg-blue-500", count: stats.scheduled },
-            { value: "processed" as StatusFilter, label: "โพสต์แล้ว", dot: "bg-emerald-500", count: stats.processed },
-            { value: "draft" as StatusFilter, label: "แบบร่าง", dot: "bg-slate-400", count: postsByStatus.draft?.length || 0 },
-            { value: "failed" as StatusFilter, label: "ล้มเหลว", dot: "bg-red-500", count: stats.failed },
+            {
+              value: "all" as StatusFilter,
+              label: "ทั้งหมด",
+              dot: "",
+              count: stats.total,
+            },
+            {
+              value: "scheduled" as StatusFilter,
+              label: "รอโพสต์",
+              dot: "bg-blue-500",
+              count: stats.scheduled,
+            },
+            {
+              value: "processed" as StatusFilter,
+              label: "โพสต์แล้ว",
+              dot: "bg-emerald-500",
+              count: stats.processed,
+            },
+            {
+              value: "draft" as StatusFilter,
+              label: "แบบร่าง",
+              dot: "bg-slate-400",
+              count: postsByStatus.draft?.length || 0,
+            },
+            {
+              value: "failed" as StatusFilter,
+              label: "ล้มเหลว",
+              dot: "bg-red-500",
+              count: stats.failed,
+            },
           ].map((filter) => (
             <button
               key={filter.value}
@@ -679,16 +792,20 @@ export default function PostsPage() {
                 "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0",
                 statusFilter === filter.value
                   ? "bg-slate-800 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                  : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800",
               )}
             >
-              {filter.dot && <span className={`w-1.5 h-1.5 rounded-full ${filter.dot}`} />}
+              {filter.dot && (
+                <span className={`w-1.5 h-1.5 rounded-full ${filter.dot}`} />
+              )}
               {filter.label}
               {filter.count > 0 && (
-                <span className={cn(
-                  "text-[10px] tabular-nums",
-                  statusFilter === filter.value ? "opacity-60" : "opacity-40"
-                )}>
+                <span
+                  className={cn(
+                    "text-[10px] tabular-nums",
+                    statusFilter === filter.value ? "opacity-60" : "opacity-40",
+                  )}
+                >
                   {filter.count}
                 </span>
               )}
@@ -703,7 +820,7 @@ export default function PostsPage() {
               "p-2 rounded-md transition-all duration-200",
               viewMode === "board"
                 ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
-                : "text-slate-400 hover:text-slate-600"
+                : "text-slate-400 hover:text-slate-600",
             )}
           >
             <LayoutGrid className="w-4 h-4" />
@@ -714,7 +831,7 @@ export default function PostsPage() {
               "p-2 rounded-md transition-all duration-200",
               viewMode === "list"
                 ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
-                : "text-slate-400 hover:text-slate-600"
+                : "text-slate-400 hover:text-slate-600",
             )}
           >
             <List className="w-4 h-4" />
@@ -724,105 +841,105 @@ export default function PostsPage() {
 
       {/* Content */}
       <motion.div variants={fadeUp}>
-      {posts.length === 0 ? (
-        <div className="card-premium p-16 text-center">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center mx-auto mb-6">
-            <Calendar className="w-8 h-8 text-slate-400" />
+        {posts.length === 0 ? (
+          <div className="card-premium p-16 text-center">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center mx-auto mb-6">
+              <Calendar className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
+              ยังไม่มีโพสต์
+            </h3>
+            <p className="text-slate-400 max-w-sm mx-auto mb-8">
+              สร้างโพสต์แรกเพื่อเริ่มจัดการคอนเทนต์ข้ามแพลตฟอร์ม
+            </p>
+            <Button variant="premium" size="lg" asChild>
+              <Link href="/posts/new">
+                <Plus className="w-5 h-5 mr-2" />
+                สร้างโพสต์แรก
+              </Link>
+            </Button>
           </div>
-          <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
-            ยังไม่มีโพสต์
-          </h3>
-          <p className="text-slate-400 max-w-sm mx-auto mb-8">
-            สร้างโพสต์แรกเพื่อเริ่มจัดการคอนเทนต์ข้ามแพลตฟอร์ม
-          </p>
-          <Button variant="premium" size="lg" asChild>
-            <Link href="/posts/new">
-              <Plus className="w-5 h-5 mr-2" />
-              สร้างโพสต์แรก
-            </Link>
-          </Button>
-        </div>
-      ) : viewMode === "board" ? (
-        <div className="flex gap-3 lg:gap-4 overflow-x-auto pb-4 -mx-4 px-4 lg:mx-0 lg:px-0">
-          {statusFilter === "all" ? (
-            <>
+        ) : viewMode === "board" ? (
+          <div className="flex gap-3 lg:gap-4 overflow-x-auto pb-4 -mx-4 px-4 lg:mx-0 lg:px-0">
+            {statusFilter === "all" ? (
+              <>
+                <BoardColumn
+                  status="draft"
+                  posts={postsByStatus.draft ?? []}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                  accounts={accountsMap}
+                  resultsMap={resultsMap}
+                />
+                <BoardColumn
+                  status="scheduled"
+                  posts={postsByStatus.scheduled ?? []}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                  accounts={accountsMap}
+                  resultsMap={resultsMap}
+                />
+                <BoardColumn
+                  status="processing"
+                  posts={postsByStatus.processing ?? []}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                  accounts={accountsMap}
+                  resultsMap={resultsMap}
+                />
+                <BoardColumn
+                  status="processed"
+                  posts={postsByStatus.processed ?? []}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                  accounts={accountsMap}
+                  resultsMap={resultsMap}
+                />
+                <BoardColumn
+                  status="failed"
+                  posts={postsByStatus.failed ?? []}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                  accounts={accountsMap}
+                  resultsMap={resultsMap}
+                />
+              </>
+            ) : (
               <BoardColumn
-                status="draft"
-                posts={postsByStatus.draft ?? []}
+                status={statusFilter}
+                posts={postsByStatus[statusFilter] || []}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 onEdit={handleEdit}
                 accounts={accountsMap}
                 resultsMap={resultsMap}
               />
-              <BoardColumn
-                status="scheduled"
-                posts={postsByStatus.scheduled ?? []}
+            )}
+          </div>
+        ) : (
+          // List View
+          <div className="space-y-3">
+            {(statusFilter === "all"
+              ? posts
+              : postsByStatus[statusFilter] || []
+            ).map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
                 onDelete={handleDelete}
                 onRetry={handleRetry}
                 onEdit={handleEdit}
                 accounts={accountsMap}
-                resultsMap={resultsMap}
+                results={resultsMap.get(post.id)}
               />
-              <BoardColumn
-                status="processing"
-                posts={postsByStatus.processing ?? []}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onEdit={handleEdit}
-                accounts={accountsMap}
-                resultsMap={resultsMap}
-              />
-              <BoardColumn
-                status="processed"
-                posts={postsByStatus.processed ?? []}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onEdit={handleEdit}
-                accounts={accountsMap}
-                resultsMap={resultsMap}
-              />
-              <BoardColumn
-                status="failed"
-                posts={postsByStatus.failed ?? []}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onEdit={handleEdit}
-                accounts={accountsMap}
-                resultsMap={resultsMap}
-              />
-            </>
-          ) : (
-            <BoardColumn
-              status={statusFilter}
-              posts={postsByStatus[statusFilter] || []}
-              onDelete={handleDelete}
-              onRetry={handleRetry}
-              onEdit={handleEdit}
-              accounts={accountsMap}
-              resultsMap={resultsMap}
-            />
-          )}
-        </div>
-      ) : (
-        // List View
-        <div className="space-y-3">
-          {(statusFilter === "all"
-            ? posts
-            : postsByStatus[statusFilter] || []
-          ).map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onDelete={handleDelete}
-              onRetry={handleRetry}
-              onEdit={handleEdit}
-              account={accountsMap.get(post.social_accounts?.[0]?.id || "")}
-              results={resultsMap.get(post.id)}
-            />
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

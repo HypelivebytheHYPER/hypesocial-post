@@ -176,7 +176,11 @@ export function useMoodboardDnD(
       let finalColumns = localColumns;
 
       // Handle same-column reorder
-      if (activeContainerId && overContainerId && activeContainerId === overContainerId) {
+      if (
+        activeContainerId &&
+        overContainerId &&
+        activeContainerId === overContainerId
+      ) {
         const col = colIndex.get(activeContainerId)!;
         const activeIndex = col.items.findIndex((i) => i.id === activeId);
         const overIndex = col.items.findIndex((i) => i.id === overId);

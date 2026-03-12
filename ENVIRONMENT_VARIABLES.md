@@ -4,11 +4,11 @@
 
 ### Required Variables
 
-| Variable | Format | Example | Required In |
-|----------|--------|---------|-------------|
-| `POST_FOR_ME_API_KEY` | `pfm_live_*` | `pfm_live_xxxxxxxx` | Production, Preview, Local |
-| `POST_FOR_ME_BASE_URL` | URL | `https://api.postforme.dev` | Production, Preview, Local |
-| `POST_FOR_ME_WEBHOOK_SECRET` | string | `whsec_xxxxxxxx` | Production, Preview (optional for local) |
+| Variable                     | Format       | Example                     | Required In                              |
+| ---------------------------- | ------------ | --------------------------- | ---------------------------------------- |
+| `POST_FOR_ME_API_KEY`        | `pfm_live_*` | `pfm_live_xxxxxxxx`         | Production, Preview, Local               |
+| `POST_FOR_ME_BASE_URL`       | URL          | `https://api.postforme.dev` | Production, Preview, Local               |
+| `POST_FOR_ME_WEBHOOK_SECRET` | string       | `whsec_xxxxxxxx`            | Production, Preview (optional for local) |
 
 ### Deprecated Variables (REMOVED)
 
@@ -27,16 +27,17 @@ This project uses **Post For Me's managed storage** for all social media assets.
 
 ### Post For Me Managed Storage (Automatic)
 
-| Asset Type | Storage URL | Managed By |
-|------------|-------------|------------|
+| Asset Type     | Storage URL                                            | Managed By  |
+| -------------- | ------------------------------------------------------ | ----------- |
 | Profile Photos | `https://cjsgitiiwhrsfolwmtby.supabase.co/storage/...` | Post For Me |
-| Post Media | `https://data.postforme.dev/storage/...` | Post For Me |
+| Post Media     | `https://data.postforme.dev/storage/...`               | Post For Me |
 
 **Note:** The Supabase URL above belongs to Post For Me's infrastructure, not this project. All storage is handled transparently through the Post For Me API.
 
 ### No Local Storage Required
 
 The following have been removed from the project:
+
 - ❌ Project-specific Supabase configuration
 - ❌ R2/Media Worker configuration
 - ❌ Custom storage buckets
@@ -45,7 +46,7 @@ All media uploads and storage are managed by Post For Me's API.
 
 ---
 
-## Migration Summary: POSTFORME_* to POST_FOR_ME_*
+## Migration Summary: POSTFORME*\* to POST_FOR_ME*\*
 
 ### Why This Change Was Needed
 
@@ -57,12 +58,12 @@ The official Post For Me SDK (`post-for-me-mcp`) uses `POST_FOR_ME_API_KEY` as i
 
 ### What Changed
 
-| Old Name | New Name | Status |
-|----------|----------|--------|
-| `POSTFORME_API_KEY` | `POST_FOR_ME_API_KEY` | Migrated |
-| `POSTFORME_API_URL` | `POST_FOR_ME_BASE_URL` | Migrated |
+| Old Name                   | New Name                     | Status   |
+| -------------------------- | ---------------------------- | -------- |
+| `POSTFORME_API_KEY`        | `POST_FOR_ME_API_KEY`        | Migrated |
+| `POSTFORME_API_URL`        | `POST_FOR_ME_BASE_URL`       | Migrated |
 | `POSTFORME_WEBHOOK_SECRET` | `POST_FOR_ME_WEBHOOK_SECRET` | Migrated |
-| `POSTFORME_BASE_URL` | `POST_FOR_ME_BASE_URL` | Migrated |
+| `POSTFORME_BASE_URL`       | `POST_FOR_ME_BASE_URL`       | Migrated |
 
 ---
 
@@ -70,54 +71,55 @@ The official Post For Me SDK (`post-for-me-mcp`) uses `POST_FOR_ME_API_KEY` as i
 
 ### Source Code Files (13)
 
-| # | File | Variable Usage |
-|---|------|----------------|
-| 1 | `app/api/posts/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 2 | `app/api/posts/[id]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 3 | `app/api/accounts/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 4 | `app/api/accounts/[id]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 5 | `app/api/post-results/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 6 | `app/api/post-results/[id]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 7 | `app/api/webhooks/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 8 | `app/api/webhooks/[id]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 9 | `app/api/webhooks/post-for-me/route.ts` | `POST_FOR_ME_WEBHOOK_SECRET` |
-| 10 | `app/api/media/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 11 | `app/api/social-post-previews/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 12 | `app/api/account-feeds/[accountId]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
-| 13 | `app/actions/webhooks.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| #   | File                                         | Variable Usage                                |
+| --- | -------------------------------------------- | --------------------------------------------- |
+| 1   | `app/api/posts/route.ts`                     | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 2   | `app/api/posts/[id]/route.ts`                | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 3   | `app/api/accounts/route.ts`                  | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 4   | `app/api/accounts/[id]/route.ts`             | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 5   | `app/api/post-results/route.ts`              | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 6   | `app/api/post-results/[id]/route.ts`         | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 7   | `app/api/webhooks/route.ts`                  | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 8   | `app/api/webhooks/[id]/route.ts`             | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 9   | `app/api/webhooks/post-for-me/route.ts`      | `POST_FOR_ME_WEBHOOK_SECRET`                  |
+| 10  | `app/api/media/route.ts`                     | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 11  | `app/api/social-post-previews/route.ts`      | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 12  | `app/api/account-feeds/[accountId]/route.ts` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| 13  | `app/actions/webhooks.ts`                    | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
 
 ### UI/Diagnostics Files (2)
 
-| # | File | Purpose |
-|---|------|---------|
-| 14 | `app/(dashboard)/diagnostics/page.tsx` | Displays `POST_FOR_ME_API_KEY` status |
-| 15 | `app/api/debug-env/route.ts` | Debug endpoint for env vars |
-| 16 | `app/api/debug-api/route.ts` | Debug endpoint for API testing |
+| #   | File                                   | Purpose                               |
+| --- | -------------------------------------- | ------------------------------------- |
+| 14  | `app/(dashboard)/diagnostics/page.tsx` | Displays `POST_FOR_ME_API_KEY` status |
+| 15  | `app/api/debug-env/route.ts`           | Debug endpoint for env vars           |
+| 16  | `app/api/debug-api/route.ts`           | Debug endpoint for API testing        |
 
 ### Configuration Files (5)
 
-| # | File | Variables Defined |
-|------|------|-------------------|
-| 17 | `.env.example` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`, `POST_FOR_ME_WEBHOOK_SECRET` |
-| 18 | `.env.local` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`, `POST_FOR_ME_WEBHOOK_SECRET` |
-| 19 | `.mcp.json` | `POST_FOR_ME_API_KEY` (for MCP server) |
-| 20 | `vercel.json` | `POST_FOR_ME_BASE_URL` |
-| 21 | `.github/workflows/ci.yml` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL` |
+| #   | File                       | Variables Defined                                                           |
+| --- | -------------------------- | --------------------------------------------------------------------------- |
+| 17  | `.env.example`             | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`, `POST_FOR_ME_WEBHOOK_SECRET` |
+| 18  | `.env.local`               | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`, `POST_FOR_ME_WEBHOOK_SECRET` |
+| 19  | `.mcp.json`                | `POST_FOR_ME_API_KEY` (for MCP server)                                      |
+| 20  | `vercel.json`              | `POST_FOR_ME_BASE_URL`                                                      |
+| 21  | `.github/workflows/ci.yml` | `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`                               |
 
 ### Documentation Files (4)
 
-| # | File | Purpose |
-|------|------|---------|
-| 22 | `README.md` | Setup instructions |
-| 23 | `CLAUDE.md` | Project guide for AI agents |
-| 24 | `AI_INTEGRATION.md` | MCP/AI integration docs |
-| 25 | `AGENT_GUIDE.md` | Agent troubleshooting |
+| #   | File                | Purpose                     |
+| --- | ------------------- | --------------------------- |
+| 22  | `README.md`         | Setup instructions          |
+| 23  | `CLAUDE.md`         | Project guide for AI agents |
+| 24  | `AI_INTEGRATION.md` | MCP/AI integration docs     |
+| 25  | `AGENT_GUIDE.md`    | Agent troubleshooting       |
 
 ---
 
 ## Current Status
 
 ### Vercel Production
+
 ```
 POST_FOR_ME_API_KEY         (set in Vercel dashboard)
 POST_FOR_ME_BASE_URL        https://api.postforme.dev
@@ -125,6 +127,7 @@ POST_FOR_ME_WEBHOOK_SECRET  (set in Vercel dashboard)
 ```
 
 ### Vercel Preview
+
 ```
 POST_FOR_ME_API_KEY         (set in Vercel dashboard)
 POST_FOR_ME_BASE_URL        https://api.postforme.dev
@@ -132,6 +135,7 @@ POST_FOR_ME_WEBHOOK_SECRET  (set in Vercel dashboard)
 ```
 
 ### Local Development (.env.local)
+
 ```
 POST_FOR_ME_API_KEY=your_api_key_here
 POST_FOR_ME_BASE_URL=https://api.postforme.dev
@@ -145,11 +149,13 @@ POST_FOR_ME_WEBHOOK_SECRET=your_webhook_secret
 All API routes use these exact variable names:
 
 ```typescript
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+const API_BASE =
+  process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
 const API_KEY = process.env.POST_FOR_ME_API_KEY;
 ```
 
 Webhook verification:
+
 ```typescript
 const secret = request.headers.get("Post-For-Me-Webhook-Secret");
 const expected = process.env.POST_FOR_ME_WEBHOOK_SECRET;
@@ -222,6 +228,7 @@ curl -H "Authorization: Bearer $POST_FOR_ME_API_KEY" \
 **Problem**: GitHub Actions or other CI/CD still uses old secret names.
 
 **Solution**: Update repository secrets:
+
 - Go to GitHub repo → Settings → Secrets and variables → Actions
 - Remove: `POSTFORME_API_KEY`, `POSTFORME_API_URL`, `POSTFORME_WEBHOOK_SECRET`
 - Add: `POST_FOR_ME_API_KEY`, `POST_FOR_ME_BASE_URL`, `POST_FOR_ME_WEBHOOK_SECRET`
@@ -291,6 +298,7 @@ vercel env add POST_FOR_ME_WEBHOOK_SECRET preview
 Use this checklist after migration:
 
 ### Codebase Verification
+
 - [ ] No `POSTFORME_*` references in any `.ts` files
 - [ ] No `POSTFORME_*` references in any `.tsx` files
 - [ ] No `POSTFORME_*` references in any `.json` files
@@ -299,6 +307,7 @@ Use this checklist after migration:
 - [ ] No `POSTFORME_*` references in any `.env*` files
 
 ### Configuration Verification
+
 - [ ] `.env.example` uses `POST_FOR_ME_*` naming
 - [ ] `.env.local` uses `POST_FOR_ME_*` naming
 - [ ] `.mcp.json` uses `POST_FOR_ME_API_KEY`
@@ -306,6 +315,7 @@ Use this checklist after migration:
 - [ ] `.github/workflows/ci.yml` uses `POST_FOR_ME_*` naming
 
 ### Vercel Verification
+
 - [ ] Production: `POST_FOR_ME_API_KEY` is set
 - [ ] Production: `POST_FOR_ME_BASE_URL` is set to `https://api.postforme.dev`
 - [ ] Production: `POST_FOR_ME_WEBHOOK_SECRET` is set
@@ -314,11 +324,13 @@ Use this checklist after migration:
 - [ ] Preview: `POST_FOR_ME_WEBHOOK_SECRET` is set
 
 ### CI/CD Verification
+
 - [ ] GitHub Actions secrets use `POST_FOR_ME_*` naming
 - [ ] CI workflow file references correct variable names
 - [ ] Build process can access the new variables
 
 ### Testing Verification
+
 - [ ] Local development works with new naming
 - [ ] Preview deployment works with new naming
 - [ ] Production deployment works with new naming
@@ -340,13 +352,13 @@ Required secrets in GitHub repository:
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
+| Task               | Command                                                    |
+| ------------------ | ---------------------------------------------------------- |
 | Check for old vars | `grep -r "POSTFORME" --include="*.ts" --include="*.tsx" .` |
-| Check Vercel env | `vercel env ls \| grep POST_FOR_ME` |
-| Test API | `curl https://hypesocial-post.vercel.app/api/posts` |
-| Type check | `pnpm type-check` |
-| Build | `pnpm build` |
+| Check Vercel env   | `vercel env ls \| grep POST_FOR_ME`                        |
+| Test API           | `curl https://hypesocial-post.vercel.app/api/posts`        |
+| Type check         | `pnpm type-check`                                          |
+| Build              | `pnpm build`                                               |
 
 ---
 

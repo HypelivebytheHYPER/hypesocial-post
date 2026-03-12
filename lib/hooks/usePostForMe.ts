@@ -15,8 +15,8 @@ import {
   PostForMeWebhook,
   PostForMeWebhookListResponse,
   PostForMeEventType,
-} from "@/types/webhooks";
-import { WebhookListResponseSchema } from "@/lib/validations/webhooks";
+} from "@/types/webhook-types";
+import { WebhookListResponseSchema } from "@/lib/validations/webhook-schemas";
 import { apiClient } from "@/lib/api-client";
 import type { WebhookEvent } from "@/lib/webhook-event-store";
 import {
@@ -31,7 +31,7 @@ import {
   CreateSocialPostDto,
   SocialPostPreviewResponse,
   SocialPostPreviewRequest,
-} from "@/types/post-for-me";
+} from "@/types/post-for-me-types";
 
 // Query Keys
 export const pfmKeys = {
@@ -50,7 +50,6 @@ export const pfmKeys = {
   feed: (accountId: string, cursor?: string) =>
     [...pfmKeys.feeds(), accountId, cursor ?? "initial"] as const,
 };
-
 
 // ==================== Webhooks ====================
 
@@ -96,7 +95,10 @@ export function useWebhooks(
       // Validate at fetch time — runs once per fetch, not on every render
       const result = WebhookListResponseSchema.safeParse(raw);
       if (!result.success) {
-        console.warn("Webhook response validation failed:", result.error.issues);
+        console.warn(
+          "Webhook response validation failed:",
+          result.error.issues,
+        );
         return raw; // Fallback to raw data if validation fails
       }
       return result.data;
@@ -199,8 +201,7 @@ export function usePosts(params?: { offset?: number; limit?: number }) {
   const searchParams = new URLSearchParams();
   if (params?.offset != null)
     searchParams.set("offset", params.offset.toString());
-  if (params?.limit != null)
-    searchParams.set("limit", params.limit.toString());
+  if (params?.limit != null) searchParams.set("limit", params.limit.toString());
   const query = searchParams.toString();
 
   return useQuery<SocialPostListResponse, Error>({
@@ -395,11 +396,7 @@ export function usePostResultsList(params?: {
  * Upload media mutation
  */
 export function useUploadMedia() {
-  return useMutation<
-    { url: string },
-    Error,
-    { file: File }
-  >({
+  return useMutation<{ url: string }, Error, { file: File }>({
     mutationFn: async ({ file }) => {
       // Step 1: Get presigned upload URL and public media URL
       const { upload_url, media_url } = await apiClient<{
@@ -425,7 +422,9 @@ export function useUploadMedia() {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        throw new Error(`Upload failed: ${response.status} ${errorText || response.statusText}`);
+        throw new Error(
+          `Upload failed: ${response.status} ${errorText || response.statusText}`,
+        );
       }
 
       // Step 3: Return the public media URL (for use in posts)
@@ -482,7 +481,9 @@ export function useUploadThumbnail() {
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text().catch(() => "");
-        throw new Error(`Thumbnail upload failed: ${uploadResponse.status} ${errorText || uploadResponse.statusText}`);
+        throw new Error(
+          `Thumbnail upload failed: ${uploadResponse.status} ${errorText || uploadResponse.statusText}`,
+        );
       }
 
       // Step 3: Return the public media URL (for use in posts)
@@ -623,15 +624,27 @@ export function useConnectAccount() {
       redirectUrlOverride?: string;
       /** Permissions to request. Defaults to ["posts", "feeds"] for posting + analytics. */
       permissions?: ("posts" | "feeds")[];
+      /** Platform-specific auth config (e.g. LinkedIn connection_type, Instagram connection_type, Bluesky handle) */
+      platform_data?: Record<string, unknown>;
+      /** Shorthand for platform_data connection_type (LinkedIn: "organization", Instagram: "instagram"|"facebook") */
+      connection_type?: string;
     }
   >({
-    mutationFn: ({ platform, redirectUrlOverride, permissions }) =>
+    mutationFn: ({
+      platform,
+      redirectUrlOverride,
+      permissions,
+      platform_data,
+      connection_type,
+    }) =>
       apiClient<{ url: string }>("/api/accounts/auth-url", {
         method: "POST",
         body: JSON.stringify({
           platform,
           redirect_url_override: redirectUrlOverride,
           permissions: permissions || ["posts", "feeds"],
+          ...(platform_data ? { platform_data } : {}),
+          ...(connection_type ? { connection_type } : {}),
         }),
       }),
     onSuccess: (data) => {
@@ -747,7 +760,15 @@ export function useAllAccountFeeds(
   const allItems: SocialAccountFeedItem[] = [];
   data.forEach((items) => allItems.push(...items));
 
-  return { data, allItems, isLoading, isAllLoaded, loadingAccountIds, errors, queries };
+  return {
+    data,
+    allItems,
+    isLoading,
+    isAllLoaded,
+    loadingAccountIds,
+    errors,
+    queries,
+  };
 }
 
 // ==================== Social Post Previews ====================
@@ -839,7 +860,9 @@ export function useRegisterAppWebhook() {
 /**
  * Map webhook event types to the React Query keys that should be invalidated.
  */
-function getInvalidationKeys(eventType: string): readonly (readonly string[])[] {
+function getInvalidationKeys(
+  eventType: string,
+): readonly (readonly string[])[] {
   if (eventType === "social.post.result.created") {
     return [pfmKeys.postResults(), pfmKeys.posts()];
   }
@@ -920,4 +943,29 @@ export function useWebhookStatus() {
       queryClient.invalidateQueries({ queryKey: key });
     }
   }, [data, queryClient]);
+}
+
+// ── TikTok CML Trending Music ──
+
+export interface CmlTrack {
+  commercial_music_id: string;
+  artist: string;
+  name: string;
+  genres: string[];
+  duration: number;
+  preview_url: string;
+  thumbnail_url: string;
+  rank_position: number;
+  trending_history: number[];
+}
+
+export function useTiktokTrendingMusic(accountId: string | undefined) {
+  return useQuery<{ music_list: CmlTrack[]; total: number }>({
+    queryKey: ["tiktok", "trending-music", accountId],
+    queryFn: () =>
+      apiClient(`/api/tiktok/trending-music?accountId=${accountId}`),
+    enabled: !!accountId,
+    staleTime: 5 * 60 * 1000, // 5 min — trending list doesn't change frequently
+    refetchOnWindowFocus: false,
+  });
 }

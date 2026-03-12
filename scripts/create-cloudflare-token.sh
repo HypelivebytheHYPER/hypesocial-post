@@ -79,7 +79,7 @@ echo "Step 4: Saving Token"
 echo "===================="
 
 # Add to .env.local
-ENV_FILE="/Users/mdch/PROJECTS/HypePostSocial/.env.local"
+ENV_FILE="/Users/mdch/hypelive/products/hype-social/.env.local"
 if [ -f "$ENV_FILE" ]; then
     # Remove old token if exists
     grep -v "CLOUDFLARE_API_TOKEN" "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
@@ -93,7 +93,7 @@ echo "CLOUDFLARE_API_TOKEN=$CF_TOKEN" >> "$ENV_FILE"
 echo "✅ Saved to .env.local"
 
 # Add to wrangler.toml
-WRANGLER_FILE="/Users/mdch/PROJECTS/HypePostSocial/workers/webhook/wrangler.toml"
+WRANGLER_FILE="/Users/mdch/hypelive/products/hype-social/workers/webhook/wrangler.toml"
 if [ -f "$WRANGLER_FILE" ]; then
     # Check if token already set
     if ! grep -q "CLOUDFLARE_API_TOKEN" "$WRANGLER_FILE"; then
@@ -112,5 +112,5 @@ echo ""
 echo "Next, run the setup script to configure the custom domain:"
 echo ""
 echo "  export CLOUDFLARE_API_TOKEN=$CF_TOKEN"
-echo "  npx tsx /Users/mdch/PROJECTS/HypePostSocial/scripts/cloudflare-mcp-setup.ts"
+echo "  npx tsx /Users/mdch/hypelive/products/hype-social/scripts/cloudflare-mcp-setup.ts"
 echo ""

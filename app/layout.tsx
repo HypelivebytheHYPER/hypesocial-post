@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -7,6 +7,14 @@ const inter = Inter({ subsets: ["latin"] });
 
 const LOGO_URL =
   "https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: {

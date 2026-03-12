@@ -98,7 +98,10 @@ const settingsSections = [
 // Map settings routes to prefetch configs
 // Query keys must match exactly what the destination page's hooks produce
 // Note: accounts + posts are already server-side prefetched via layout HydrationBoundary
-const PREFETCH_MAP: Record<string, { queryKey: readonly unknown[]; endpoint: string }[]> = {
+const PREFETCH_MAP: Record<
+  string,
+  { queryKey: readonly unknown[]; endpoint: string }[]
+> = {
   "/webhooks": [
     {
       queryKey: [...pfmKeys.webhooks(), undefined], // useWebhooks() appends filters (undefined when no filters)

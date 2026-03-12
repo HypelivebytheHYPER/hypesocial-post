@@ -29,12 +29,17 @@ export default function GlobalError({
           <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
             Something went wrong
           </h2>
-          <p
-            style={{ fontSize: 14, color: "#a1a1aa", marginBottom: 24 }}
-          >
+          <p style={{ fontSize: 14, color: "#a1a1aa", marginBottom: 24 }}>
             An unexpected error occurred. Please try again.
             {error.digest && (
-              <span style={{ display: "block", marginTop: 8, fontSize: 12, color: "#71717a" }}>
+              <span
+                style={{
+                  display: "block",
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: "#71717a",
+                }}
+              >
                 Error ID: {error.digest}
               </span>
             )}

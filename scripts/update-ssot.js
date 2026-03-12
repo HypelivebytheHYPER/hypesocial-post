@@ -63,7 +63,7 @@ function extractExports(filePath) {
 
 // Generate the SSOT markdown content
 function generateSSOT() {
-  const typesPath = path.join(PROJECT_ROOT, "types/post-for-me.ts");
+  const typesPath = path.join(PROJECT_ROOT, "types/post-for-me-types.ts");
   const hooksPath = path.join(PROJECT_ROOT, "lib/hooks/usePostForMe.ts");
   const platformsPath = path.join(PROJECT_ROOT, "lib/social-platforms.ts");
 
@@ -91,7 +91,7 @@ This document defines the canonical sources for types, configurations, and utili
 
 ## Type Definitions
 
-**Canonical Source:** \`types/post-for-me.ts\`
+**Canonical Source:** \`types/post-for-me-types.ts\`
 
 ### Core Types
 
@@ -104,15 +104,15 @@ ${typesExports.types.map((t) => `| \`${t}\` | Type Alias | Post For Me API type 
 
 | Function | Purpose |
 |----------|---------|
-${typesExports.functions.map((f) => `| \`${f}()\` | See types/post-for-me.ts |`).join("\n")}
+${typesExports.functions.map((f) => `| \`${f}()\` | See types/post-for-me-types.ts |`).join("\n")}
 ${typesExports.consts.map((c) => `| \`${c}\` | Constant |`).join("\n")}
 
 ### Import Pattern
 
 \`\`\`typescript
 // ✅ Correct
-import type { SocialPost, SocialAccount, CreateSocialPostDto } from "@/types/post-for-me";
-import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me";
+import type { SocialPost, SocialAccount, CreateSocialPostDto } from "@/types/post-for-me-types";
+import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me-types";
 \`\`\`
 
 ---
@@ -143,10 +143,10 @@ const Icon = platformIconsMap[platform.toLowerCase()];
 
 ## Character Limits
 
-**Canonical Source:** \`types/post-for-me.ts\`
+**Canonical Source:** \`types/post-for-me-types.ts\`
 
 \`\`\`typescript
-import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me";
+import { PLATFORM_CHARACTER_LIMITS, getMostRestrictiveLimit } from "@/types/post-for-me-types";
 
 // Get limit for platforms
 const limit = getMostRestrictiveLimit(["x", "instagram"]);
@@ -185,7 +185,7 @@ queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
 **Canonical Source:** \`types/webhooks.ts\`
 
 \`\`\`typescript
-import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhooks";
+import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhook-types";
 \`\`\`
 
 ---
@@ -194,8 +194,8 @@ import type { PostForMeWebhook, PostForMeEventType } from "@/types/webhooks";
 
 | File | Purpose |
 |------|---------|
-| \`types/post-for-me.ts\` | Post For Me API types |
-| \`types/webhooks.ts\` | Webhook-specific types |
+| \`types/post-for-me-types.ts\` | Post For Me API types |
+| \`types/webhook-types.ts\` | Webhook-specific types |
 | \`lib/hooks/usePostForMe.ts\` | API hooks |
 | \`lib/social-platforms.ts\` | Platform config |
 

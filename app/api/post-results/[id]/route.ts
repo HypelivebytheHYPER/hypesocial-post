@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pfm } from "@/lib/post-for-me";
+import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
 import { validateId } from "@/lib/validations";
 
@@ -20,13 +20,21 @@ export async function GET(
   } catch (error) {
     if (error instanceof APIError) {
       return NextResponse.json(
-        { error: "API Error", message: error.message, statusCode: error.status },
+        {
+          error: "API Error",
+          message: error.message,
+          statusCode: error.status,
+        },
         { status: error.status || 500 },
       );
     }
     console.error("[API] Error fetching post result:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Unknown error occurred", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Unknown error occurred",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

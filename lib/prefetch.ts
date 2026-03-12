@@ -1,5 +1,5 @@
 import { QueryClient, dehydrate } from "@tanstack/react-query";
-import { pfm } from "@/lib/post-for-me";
+import { pfm } from "@/lib/post-for-me-client";
 
 /**
  * Server-side prefetch for dashboard data.

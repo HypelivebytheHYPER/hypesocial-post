@@ -72,12 +72,23 @@ export default {
       !payload.data ||
       !VALID_EVENTS.has(payload.event_type)
     ) {
-      console.warn("[Webhook Relay] Rejected — invalid payload", { event_type: payload.event_type });
+      console.warn("[Webhook Relay] Rejected — invalid payload", {
+        event_type: payload.event_type,
+      });
       return json({ error: "Invalid payload" }, 400);
     }
 
     // Return 200 immediately, forward async
-    console.log("[Webhook Relay] Received", { event_type: payload.event_type });
+    const logCtx: Record<string, unknown> = { event_type: payload.event_type };
+    const payloadData = payload.data as Record<string, unknown>;
+    if (payloadData.post_id) logCtx.post_id = payloadData.post_id;
+    if (payloadData.id) logCtx.resource_id = payloadData.id;
+    if (payloadData.social_accounts)
+      logCtx.accounts = (payloadData.social_accounts as unknown[]).length;
+    if (payloadData.media)
+      logCtx.media_count = (payloadData.media as unknown[]).length;
+    if ("success" in payloadData) logCtx.success = payloadData.success;
+    console.log("[Webhook Relay] Received", logCtx);
     ctx.waitUntil(forwardToNextJs(payload, env));
 
     return json({ success: true }, 200);

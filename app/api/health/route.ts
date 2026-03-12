@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pfm } from "@/lib/post-for-me";
+import { pfm } from "@/lib/post-for-me-client";
 import packageJson from "@/package.json";
 
 interface HealthResponse {

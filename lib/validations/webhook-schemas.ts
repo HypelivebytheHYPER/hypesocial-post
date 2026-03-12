@@ -24,7 +24,10 @@ export const PostCreatedDataSchema = z
     id: z.string(),
     social_accounts: z.array(SocialAccountWebhookSchema),
     caption: z.string(),
-    media: z.array(z.object({ url: z.string() }).passthrough()).nullable(),
+    media: z
+      .array(z.object({ url: z.string() }).passthrough())
+      .nullable()
+      .optional(),
     status: z.enum(["draft", "scheduled", "processing", "processed"]),
     scheduled_at: z.string().nullable(),
     created_at: z.string(),
@@ -50,10 +53,12 @@ export const PostResultCreatedDataSchema = z
     details: z.unknown().nullable(),
     platform_data: z
       .object({
-        id: z.string(),
-        url: z.string(),
+        id: z.string().optional(),
+        url: z.string().optional(),
       })
-      .nullable(),
+      .passthrough()
+      .nullable()
+      .optional(),
   })
   .passthrough();
 

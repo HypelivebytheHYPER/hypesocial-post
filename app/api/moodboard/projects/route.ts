@@ -47,7 +47,11 @@ export async function GET() {
   } catch (error) {
     console.error("[API] List projects error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to list projects", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to list projects",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
@@ -95,7 +99,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Create project error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to create project", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to create project",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }

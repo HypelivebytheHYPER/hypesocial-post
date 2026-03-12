@@ -7,14 +7,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useDropzone } from "react-dropzone";
-import {
-  ImageIcon,
-  Video,
-  FileText,
-  Link as LinkIcon,
-  Upload,
-  Plus,
-} from "lucide-react";
+import { FileText, Link as LinkIcon, Upload } from "lucide-react";
 import { SortableMoodboardCard } from "./SortableMoodboardCard";
 import type { MoodboardItem, DayColumnType } from "@/lib/hooks/useMoodboard";
 
@@ -127,9 +120,7 @@ export function DayColumn({
             className="w-full p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
           >
             <Upload className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-400 font-medium">
-              Tap to upload
-            </p>
+            <p className="text-xs text-slate-400 font-medium">Tap to upload</p>
           </button>
         )}
       </div>

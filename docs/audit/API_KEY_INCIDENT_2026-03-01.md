@@ -20,21 +20,22 @@ On March 1, 2026, the HypeSocial Post platform experienced a complete API authen
 
 ### Phase 1: Initial Naming Mismatch (Pre-Incident)
 
-| Time | Event | Evidence |
-|------|-------|----------|
+| Time         | Event                                                        | Evidence                                                    |
+| ------------ | ------------------------------------------------------------ | ----------------------------------------------------------- |
 | Before 17:30 | Codebase used non-standard `POSTFORME_API_KEY` variable name | Git commit `6a16820^` shows `process.env.POSTFORME_API_KEY` |
-| Before 17:30 | SDK and documentation expected `POST_FOR_ME_API_KEY` | Post For Me official SDK documentation |
-| Before 17:30 | Vercel environment variables set with `POST_FOR_ME_*` naming | Vercel dashboard configuration |
+| Before 17:30 | SDK and documentation expected `POST_FOR_ME_API_KEY`         | Post For Me official SDK documentation                      |
+| Before 17:30 | Vercel environment variables set with `POST_FOR_ME_*` naming | Vercel dashboard configuration                              |
 
 ### Phase 2: Code Migration (17:30)
 
-| Time | Event | Details |
-|------|-------|---------|
+| Time  | Event                    | Details                                                               |
+| ----- | ------------------------ | --------------------------------------------------------------------- |
 | 17:30 | Commit `6a16820` created | "Fix environment variable names to match Post For Me official naming" |
-| 17:30 | All 12 files updated | Changed `POSTFORME_API_KEY` → `POST_FOR_ME_API_KEY` |
-| 17:30 | All 12 files updated | Changed `POSTFORME_API_URL` → `POST_FOR_ME_BASE_URL` |
+| 17:30 | All 12 files updated     | Changed `POSTFORME_API_KEY` → `POST_FOR_ME_API_KEY`                   |
+| 17:30 | All 12 files updated     | Changed `POSTFORME_API_URL` → `POST_FOR_ME_BASE_URL`                  |
 
 **Files Modified in Commit `6a16820`**:
+
 ```
 app/api/account-feeds/[accountId]/route.ts
 app/api/accounts/[id]/route.ts
@@ -52,26 +53,26 @@ vercel.json
 
 ### Phase 3: Deployment and Initial Failure (Post-17:30)
 
-| Time | Event | Observation |
-|------|-------|-------------|
-| Post-17:30 | Deployed to Vercel | Production deployment triggered |
-| Post-17:30 | **401 Unauthorized errors** | All API endpoints returned 401 |
-| Post-17:30 | Key `pfm_live_LrowCBrJizdSXsNd7JyjK8` appeared to fail | Initially suspected key issue |
+| Time       | Event                                                  | Observation                     |
+| ---------- | ------------------------------------------------------ | ------------------------------- |
+| Post-17:30 | Deployed to Vercel                                     | Production deployment triggered |
+| Post-17:30 | **401 Unauthorized errors**                            | All API endpoints returned 401  |
+| Post-17:30 | Key `pfm_live_LrowCBrJizdSXsNd7JyjK8` appeared to fail | Initially suspected key issue   |
 
 ### Phase 4: Diagnostic Confusion (Post-Deployment)
 
-| Time | Event | Result |
-|------|-------|--------|
-| Post-deployment | Direct curl to Post For Me API | **Worked** with same key |
-| Post-deployment | Vercel deployment test | **Failed** with 401 |
-| Post-deployment | Initial hypothesis | Suspected key expiration or Vercel env var issue |
+| Time            | Event                          | Result                                           |
+| --------------- | ------------------------------ | ------------------------------------------------ |
+| Post-deployment | Direct curl to Post For Me API | **Worked** with same key                         |
+| Post-deployment | Vercel deployment test         | **Failed** with 401                              |
+| Post-deployment | Initial hypothesis             | Suspected key expiration or Vercel env var issue |
 
 ### Phase 5: Resolution (Later Same Day)
 
-| Time | Event | Details |
-|------|-------|---------|
-| Later on 2026-03-01 | Key suddenly worked | No code changes made |
-| Later on 2026-03-01 | Deployment stabilized | 401 errors resolved |
+| Time                | Event                 | Details              |
+| ------------------- | --------------------- | -------------------- |
+| Later on 2026-03-01 | Key suddenly worked   | No code changes made |
+| Later on 2026-03-01 | Deployment stabilized | 401 errors resolved  |
 
 ---
 
@@ -83,13 +84,14 @@ vercel.json
 
 ```typescript
 // BEFORE (Commit 6a16820^) - Code level
-const API_KEY = process.env.POSTFORME_API_KEY;  // Code expected this
+const API_KEY = process.env.POSTFORME_API_KEY; // Code expected this
 
 // Vercel Environment - Actual variable name
-POST_FOR_ME_API_KEY=pfm_live_LrowCBrJizdSXsNd7JyjK8  // Vercel had this
+POST_FOR_ME_API_KEY = pfm_live_LrowCBrJizdSXsNd7JyjK8; // Vercel had this
 ```
 
 **Result**: `API_KEY` was `undefined` at runtime because:
+
 1. Code looked for `POSTFORME_API_KEY`
 2. Vercel only had `POST_FOR_ME_API_KEY`
 3. No fallback or error handling for missing key (beyond generic 500)
@@ -98,12 +100,13 @@ POST_FOR_ME_API_KEY=pfm_live_LrowCBrJizdSXsNd7JyjK8  // Vercel had this
 
 **Why Direct Curl Worked but Vercel Failed**:
 
-| Test Method | API Key Source | Result | Explanation |
-|-------------|----------------|--------|-------------|
-| Direct curl | Hardcoded in command | ✅ 200 OK | Key was always valid |
+| Test Method       | API Key Source                  | Result              | Explanation                |
+| ----------------- | ------------------------------- | ------------------- | -------------------------- |
+| Direct curl       | Hardcoded in command            | ✅ 200 OK           | Key was always valid       |
 | Vercel deployment | `process.env.POSTFORME_API_KEY` | ❌ 401 Unauthorized | Code couldn't read env var |
 
 The "sudden" fix was likely due to:
+
 1. **Vercel edge cache propagation**: New code took time to reach all edge nodes
 2. **Cold start cycles**: Serverless functions needed new deployments to pick up changes
 3. **Build cache invalidation**: `.next` cache may have held old code references
@@ -111,15 +114,18 @@ The "sudden" fix was likely due to:
 ### Code Evidence
 
 **Before Fix** (`app/api/posts/route.ts` @ `6a16820^`):
+
 ```typescript
 const API_BASE = process.env.POSTFORME_API_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POSTFORME_API_KEY;  // Returns undefined
+const API_KEY = process.env.POSTFORME_API_KEY; // Returns undefined
 ```
 
 **After Fix** (`app/api/posts/route.ts` @ `6a16820`):
+
 ```typescript
-const API_BASE = process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
-const API_KEY = process.env.POST_FOR_ME_API_KEY;  // Correctly reads env var
+const API_BASE =
+  process.env.POST_FOR_ME_BASE_URL || "https://api.postforme.dev";
+const API_KEY = process.env.POST_FOR_ME_API_KEY; // Correctly reads env var
 ```
 
 ### The "Mystery" Key Behavior Explained
@@ -138,6 +144,7 @@ The key `pfm_live_LrowCBrJizdSXsNd7JyjK8` was **never invalid**. The observed be
 ### Environment Variable States
 
 **Current Local Configuration** (`.env.local`):
+
 ```bash
 POST_FOR_ME_API_KEY=pfm_live_TBscRzfwwkSbsiPyvdrBKd
 POST_FOR_ME_BASE_URL=https://api.postforme.dev
@@ -145,6 +152,7 @@ POST_FOR_ME_WEBHOOK_SECRET=12f40104582c3a05e26a496438fe0e00aa74c2aa11b380fb1f012
 ```
 
 **Current Vercel Configuration** (`vercel.json`):
+
 ```json
 {
   "env": {
@@ -159,6 +167,7 @@ Note: `POST_FOR_ME_API_KEY` is set in Vercel dashboard (not in `vercel.json` for
 ### Git Commit Evidence
 
 **Commit `6a16820` - The Fix**:
+
 ```
 Author: hypelive <test@example.com>
 Date:   Sun Mar 1 17:30:01 2026 +0700
@@ -218,6 +227,7 @@ export async function GET(request: NextRequest) {
 ### Verification (Completed)
 
 1. ✅ Confirmed no `POSTFORME` references remain in codebase:
+
    ```bash
    grep -r "POSTFORME" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.yml" .
    # Returns no results
@@ -237,10 +247,7 @@ export async function GET(request: NextRequest) {
 
 ```typescript
 // scripts/validate-env.ts
-const requiredEnvVars = [
-  'POST_FOR_ME_API_KEY',
-  'POST_FOR_ME_BASE_URL',
-];
+const requiredEnvVars = ["POST_FOR_ME_API_KEY", "POST_FOR_ME_BASE_URL"];
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
@@ -258,7 +265,7 @@ for (const envVar of requiredEnvVars) {
 if (!API_KEY) {
   return NextResponse.json(
     { error: "Configuration Error", message: "API key not configured" },
-    { status: 500 }
+    { status: 500 },
   );
 }
 ```
@@ -267,9 +274,9 @@ if (!API_KEY) {
 
 **Recommendation**: Always use the official SDK naming convention from day one.
 
-| Provider | Official Naming | Our Initial Naming | Status |
-|----------|-----------------|-------------------|--------|
-| Post For Me | `POST_FOR_ME_API_KEY` | `POSTFORME_API_KEY` | ❌ Fixed |
+| Provider    | Official Naming        | Our Initial Naming  | Status   |
+| ----------- | ---------------------- | ------------------- | -------- |
+| Post For Me | `POST_FOR_ME_API_KEY`  | `POSTFORME_API_KEY` | ❌ Fixed |
 | Post For Me | `POST_FOR_ME_BASE_URL` | `POSTFORME_API_URL` | ❌ Fixed |
 
 ### 4. Deployment Verification Checklist
@@ -284,6 +291,7 @@ Before marking any deployment as successful:
 ### 5. Staged Rollout for Environment Variable Changes
 
 **Recommendation**: For future env var changes:
+
 1. Add new variable names while keeping old ones (backward compatibility)
 2. Deploy with dual support
 3. Verify new names work in production
@@ -348,6 +356,7 @@ grep -r "OLD_PREFIX" --include="*.ts" --include="*.tsx" --include="*.json" .
 ### Files Using `POST_FOR_ME_API_KEY` (23 files)
 
 **API Routes** (11 files):
+
 - `app/api/account-feeds/[accountId]/route.ts`
 - `app/api/accounts/[id]/route.ts`
 - `app/api/accounts/route.ts`
@@ -361,16 +370,20 @@ grep -r "OLD_PREFIX" --include="*.ts" --include="*.tsx" --include="*.json" .
 - `app/api/webhooks/route.ts`
 
 **Debug Routes** (2 files):
+
 - `app/api/debug-api/route.ts`
 - `app/api/debug-env/route.ts`
 
 **Actions** (1 file):
+
 - `app/actions/webhooks.ts`
 
 **Dashboard** (1 file):
+
 - `app/(dashboard)/diagnostics/page.tsx`
 
 **Documentation** (5 files):
+
 - `CLAUDE.md`
 - `ENVIRONMENT_VARIABLES.md`
 - `README.md`
@@ -378,29 +391,32 @@ grep -r "OLD_PREFIX" --include="*.ts" --include="*.tsx" --include="*.json" .
 - `AGENT_GUIDE.md`
 
 **Configuration** (3 files):
+
 - `.env.example`
 - `.env.local`
 - `.github/workflows/ci.yml`
 
 ### Deprecated Variables (Completely Removed)
 
-| Old Variable | New Variable | Status |
-|--------------|--------------|--------|
-| `POSTFORME_API_KEY` | `POST_FOR_ME_API_KEY` | ✅ Removed |
-| `POSTFORME_API_URL` | `POST_FOR_ME_BASE_URL` | ✅ Removed |
+| Old Variable               | New Variable                 | Status     |
+| -------------------------- | ---------------------------- | ---------- |
+| `POSTFORME_API_KEY`        | `POST_FOR_ME_API_KEY`        | ✅ Removed |
+| `POSTFORME_API_URL`        | `POST_FOR_ME_BASE_URL`       | ✅ Removed |
 | `POSTFORME_WEBHOOK_SECRET` | `POST_FOR_ME_WEBHOOK_SECRET` | ✅ Removed |
-| `POSTFORME_BASE_URL` | `POST_FOR_ME_BASE_URL` | ✅ Removed |
+| `POSTFORME_BASE_URL`       | `POST_FOR_ME_BASE_URL`       | ✅ Removed |
 
 ---
 
 ## Appendix B: API Key Format Reference
 
 **Post For Me API Key Format**:
+
 - Prefix: `pfm_live_` (production) or `pfm_test_` (test)
 - Length: 24 characters after prefix
 - Example: `pfm_live_LrowCBrJizdSXsNd7JyjK8`
 
 **Keys Used During Incident**:
+
 - `pfm_live_LrowCBrJizdSXsNd7JyjK8` - Initially suspected as failed (was actually valid)
 - `pfm_live_TBscRzfwwkSbsiPyvdrBKd` - Current production key
 
@@ -413,6 +429,7 @@ grep -r "OLD_PREFIX" --include="*.ts" --include="*.tsx" --include="*.json" .
 **Next Review**: March 1, 2027 (or after any env var changes)
 
 **Related Documents**:
-- `/Users/mdch/PROJECTS/HypePostSocial/ENVIRONMENT_VARIABLES.md` - Current env var documentation
-- `/Users/mdch/PROJECTS/HypePostSocial/CLAUDE.md` - Project guide
-- `/Users/mdch/PROJECTS/HypePostSocial/docs/SINGLE_SOURCE_OF_TRUTH.md` - API specification
+
+- `/Users/mdch/hypelive/products/hype-social/ENVIRONMENT_VARIABLES.md` - Current env var documentation
+- `/Users/mdch/hypelive/products/hype-social/CLAUDE.md` - Project guide
+- `/Users/mdch/hypelive/products/hype-social/docs/SINGLE_SOURCE_OF_TRUTH.md` - API specification

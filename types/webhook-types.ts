@@ -13,7 +13,7 @@ export {
   PostForMeWebhookPayloadSchema,
   WebhookDtoSchema,
   WebhookListResponseSchema,
-} from "@/lib/validations/webhooks";
+} from "@/lib/validations/webhook-schemas";
 
 export type {
   PostForMeEventType,
@@ -26,11 +26,15 @@ export type {
   PostForMeWebhookPayload,
   WebhookDto,
   WebhookListResponse,
-} from "@/lib/validations/webhooks";
+} from "@/lib/validations/webhook-schemas";
 
 // Legacy aliases
-export type PostForMeWebhook = import("@/lib/validations/webhooks").WebhookDto;
+export type PostForMeWebhook =
+  import("@/lib/validations/webhook-schemas").WebhookDto;
 export type PostForMeWebhookListResponse =
-  import("@/lib/validations/webhooks").WebhookListResponse;
+  import("@/lib/validations/webhook-schemas").WebhookListResponse;
 
-export type { CreateWebhookDto, UpdateWebhookDto } from "@/lib/validations/webhooks";
+export type {
+  CreateWebhookDto,
+  UpdateWebhookDto,
+} from "@/lib/validations/webhook-schemas";

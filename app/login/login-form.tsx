@@ -11,7 +11,10 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const rawCallback = searchParams.get("callbackUrl") || "/";
   // Prevent open redirect — only allow same-origin relative paths
-  const callbackUrl = rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/";
+  const callbackUrl =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +35,13 @@ export default function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("Invalid email or password");
+      if (result.status === 429) {
+        setError(
+          "Too many login attempts. Please wait a moment and try again.",
+        );
+      } else {
+        setError("Invalid email or password");
+      }
       return;
     }
 

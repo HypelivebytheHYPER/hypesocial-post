@@ -60,9 +60,7 @@ export const SortableMoodboardCard = memo(function SortableMoodboardCard({
     zIndex: isDragging ? 50 : 1,
   };
 
-  const imageUrl = item.media_url
-    ? proxyMediaUrl(item.media_url)
-    : undefined;
+  const imageUrl = item.media_url ? proxyMediaUrl(item.media_url) : undefined;
 
   return (
     <div ref={setNodeRef} style={style} className="group relative">
@@ -94,7 +92,8 @@ export const SortableMoodboardCard = memo(function SortableMoodboardCard({
         {item.platform && (
           <div className="absolute top-2 left-2 z-10">
             {(() => {
-              const Icon = platformIcons[item.platform as keyof typeof platformIcons];
+              const Icon =
+                platformIcons[item.platform as keyof typeof platformIcons];
               return Icon ? (
                 <Icon className="w-4 h-4 text-white drop-shadow-md" />
               ) : null;
@@ -106,12 +105,15 @@ export const SortableMoodboardCard = memo(function SortableMoodboardCard({
         {item.type === "image" && (
           <div className="aspect-[4/5] relative">
             {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={item.content}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt={item.content}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </>
             ) : (
               <div className="w-full h-full bg-slate-100 flex items-center justify-center">
                 <ImageIcon className="w-8 h-8 text-slate-300" />
@@ -136,12 +138,15 @@ export const SortableMoodboardCard = memo(function SortableMoodboardCard({
             }`}
           >
             {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt="Video thumbnail"
-                className="w-full h-full object-cover opacity-60"
-                loading="lazy"
-              />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt="Video thumbnail"
+                  className="w-full h-full object-cover opacity-60"
+                  loading="lazy"
+                />
+              </>
             ) : (
               <div className="w-full h-full bg-slate-800" />
             )}

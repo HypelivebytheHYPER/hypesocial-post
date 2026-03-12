@@ -35,7 +35,11 @@ export async function POST(request: NextRequest) {
 
     const { filename, content_type, size, project_id } = parsed.data;
 
-    if (!ALLOWED_CONTENT_TYPES.includes(content_type.toLowerCase() as typeof ALLOWED_CONTENT_TYPES[number])) {
+    if (
+      !ALLOWED_CONTENT_TYPES.includes(
+        content_type.toLowerCase() as (typeof ALLOWED_CONTENT_TYPES)[number],
+      )
+    ) {
       return NextResponse.json(
         {
           error: "Validation Error",
@@ -47,13 +51,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (size !== undefined) {
-      const maxSize = getMaxFileSize(content_type as typeof ALLOWED_CONTENT_TYPES[number]);
+      const maxSize = getMaxFileSize(
+        content_type as (typeof ALLOWED_CONTENT_TYPES)[number],
+      );
       if (size > maxSize) {
         return NextResponse.json(
           {
             error: "Validation Error",
-          message: `File too large. Max ${maxSize / (1024 * 1024)}MB for ${content_type.startsWith("video/") ? "videos" : "images"}`,
-          statusCode: 400,
+            message: `File too large. Max ${maxSize / (1024 * 1024)}MB for ${content_type.startsWith("video/") ? "videos" : "images"}`,
+            statusCode: 400,
           },
           { status: 400 },
         );
@@ -64,7 +70,11 @@ export async function POST(request: NextRequest) {
     const publicUrl = process.env.R2_PUBLIC_URL;
     if (!bucketName || !publicUrl) {
       return NextResponse.json(
-        { error: "Internal Server Error", message: "R2 bucket not configured", statusCode: 500 },
+        {
+          error: "Internal Server Error",
+          message: "R2 bucket not configured",
+          statusCode: 500,
+        },
         { status: 500 },
       );
     }
@@ -85,7 +95,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[API] Moodboard upload error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: "Failed to generate upload URL", statusCode: 500 },
+      {
+        error: "Internal Server Error",
+        message: "Failed to generate upload URL",
+        statusCode: 500,
+      },
       { status: 500 },
     );
   }
