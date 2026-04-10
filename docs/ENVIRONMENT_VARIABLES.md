@@ -102,9 +102,8 @@ sensitive Lark table IDs to the browser:
 - ❌ `NEXT_PUBLIC_LARK_*_TABLE_ID`
 - ❌ `NEXT_PUBLIC_LARK_HTTP_WORKER_URL`
 
-The moodboard feature (and its `LARK_MOODBOARD_*` env vars + `/api/moodboard/config`
-endpoint) was removed entirely on 2026-04-10. If you reintroduce a Lark-backed
-feature, route table-id reads through the server, never via `NEXT_PUBLIC_`.
+If you reintroduce a Lark-backed feature in the future, route table-id reads
+through the server, never via `NEXT_PUBLIC_`.
 
 ---
 
@@ -426,7 +425,8 @@ Required secrets in GitHub repository:
 
 ## Last Updated
 
-2026-03-13 - Added Moodboard & Lark Integration section (security-first design, removed NEXT_PUBLIC_ vars)
+2026-04-10 - Added EVENTS table + Lark webhook event sourcing pipeline.
+2026-03-13 - Added Lark Integration section (security-first design, removed NEXT_PUBLIC_ vars).
 2025-03-01 - Migration from `POSTFORME_*` to `POST_FOR_ME_*` completed.
 
 See also: [docs/ENV_VAR_MIGRATION_GUIDE.md](./docs/ENV_VAR_MIGRATION_GUIDE.md) for quick reference card.

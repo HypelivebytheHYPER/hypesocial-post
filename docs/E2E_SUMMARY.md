@@ -104,20 +104,18 @@ E2E_TEST_PASSWORD=your-test-password
 1. ✅ GET /api/posts without auth returns 401
 2. ✅ GET /api/accounts without auth returns 401
 3. ✅ GET /api/webhooks without auth returns 401
-4. ✅ GET /api/moodboard/config returns secure data
-5. ✅ Rate limiting headers present
-6. ✅ Security headers present
-7. ✅ Error responses have consistent JSON structure
-8. ✅ Authenticated APIs return 200 with valid data
+4. ✅ Rate limiting headers present
+5. ✅ Security headers present
+6. ✅ Error responses have consistent JSON structure
+7. ✅ Authenticated APIs return 200 with valid data
 
 ### Full Journey Tests (With Auth)
 1. **Dashboard → Posts** - Navigate and verify page loads
 2. **Create New Post** - Fill caption, verify form
 3. **Connected Accounts** - View accounts page
 4. **Feed** - Access social feed
-5. **Moodboard** - Project navigation
-6. **Webhooks** - Management page access
-7. **Settings** - Settings page access
+5. **Webhooks** - Management page access
+6. **Settings** - Settings page access
 
 ## Authentication Security
 
@@ -170,9 +168,9 @@ curl -s https://hypesocial-post.vercel.app/login | head -1
 curl -s https://hypesocial-post.vercel.app/api/posts
 # → {"error":"Unauthorized","message":"Authentication required","statusCode":401}
 
-# Test moodboard config
-curl -s https://hypesocial-post.vercel.app/api/moodboard/config
-# → {"lark_http_worker_url":"...","projects_table_id":"...","items_table_id":"..."}
+# Test webhook health
+curl -s https://hypesocial-post.vercel.app/api/webhooks/lark-base
+# → {"status":"ok","endpoint":"/api/webhooks/lark-base","persisted_to":"lark-events-table",...}
 ```
 
 ## API Test Commands
