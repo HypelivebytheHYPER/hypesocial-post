@@ -85,7 +85,7 @@ export $(cat .env.local | grep -E "^E2E_" | xargs) && \
 Add to `.env.local`:
 
 ```bash
-# E2E Testing
+# E2E Testing — set REAL values only in .env.local (gitignored), never here
 E2E_BASE_URL=https://hypesocial-post.vercel.app
 E2E_TEST_EMAIL=test@example.com
 E2E_TEST_PASSWORD=your-test-password
