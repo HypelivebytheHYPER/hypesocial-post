@@ -39,64 +39,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const tableId = process.env.LARK_USERS_TABLE_ID;
+        const tableId = process.env.LARK_USERS_TABLE_ID?.trim();
         if (!tableId) {
-          console.warn(
-            "[Auth] LARK_USERS_TABLE_ID not configured — auth disabled",
-          );
+          console.warn("[Auth] LARK_USERS_TABLE_ID not configured");
           return null;
         }
 
         const inputEmail = (credentials?.email as string)?.trim().toLowerCase();
         const inputPassword = credentials?.password as string;
+
         if (!inputEmail || !inputPassword) {
-          console.log("[Auth] Login attempt with missing credentials");
           return null;
         }
 
-        // Query Lark for user by email
-        const result = await larkSearchRecords(
-          tableId,
-          filterAnd(eq("Email", inputEmail)),
-          1,
-        );
-        const record = result.items?.[0];
-        if (!record) {
-          console.log("[Auth] Login failed — user not found", {
-            email: inputEmail,
-          });
+        try {
+          const result = await larkSearchRecords(
+            tableId,
+            filterAnd(eq("Email", inputEmail)),
+            1,
+          );
+
+          const record = result.items?.[0];
+          if (!record) {
+            return null;
+          }
+
+          const fields = record.fields;
+
+          if (!larkBool(fields["Is Active"])) {
+            return null;
+          }
+
+          const storedHash = larkText(fields["Password Hash"]);
+
+          if (!verifyPassword(inputPassword, storedHash)) {
+            return null;
+          }
+
+          return {
+            id: record.record_id,
+            email: larkText(fields["Email"]),
+            name: larkText(fields["Name"]),
+            role: larkText(fields["Role"]),
+          };
+        } catch (err) {
+          console.error("[Auth] Error:", err);
           return null;
         }
-
-        const fields = record.fields;
-
-        // Check active status
-        if (!larkBool(fields["Is Active"])) {
-          console.log("[Auth] Login failed — account inactive", {
-            email: inputEmail,
-          });
-          return null;
-        }
-
-        // Verify password
-        const storedHash = larkText(fields["Password Hash"]);
-        if (!verifyPassword(inputPassword, storedHash)) {
-          console.log("[Auth] Login failed — invalid password", {
-            email: inputEmail,
-          });
-          return null;
-        }
-
-        console.log("[Auth] Login success", {
-          email: inputEmail,
-          role: larkText(fields["Role"]),
-        });
-        return {
-          id: record.record_id,
-          email: larkText(fields["Email"]),
-          name: larkText(fields["Name"]),
-          role: larkText(fields["Role"]),
-        };
       },
     }),
   ],

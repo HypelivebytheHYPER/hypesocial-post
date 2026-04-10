@@ -1,6 +1,6 @@
 /**
  * Shared media upload constants
- * Used by /api/media (Post For Me uploads) and /api/moodboard/upload (R2 uploads)
+ * Used by /api/media (Post For Me uploads).
  */
 
 export const ALLOWED_CONTENT_TYPES = [

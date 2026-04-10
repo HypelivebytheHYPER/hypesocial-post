@@ -46,6 +46,68 @@ All media uploads and storage are managed by Post For Me's API.
 
 ---
 
+## Lark Base Integration
+
+### Security-First Design
+
+**CRITICAL**: Lark table IDs are **never exposed** to the browser via `NEXT_PUBLIC_` prefixes.
+They are server-side only, read directly inside route handlers.
+
+### Server-Side Only Variables
+
+| Variable | Purpose | Used in |
+|----------|---------|----------|
+| `LARK_APP_TOKEN` | Lark Base workspace app token | `lib/lark.ts` |
+| `LARK_HTTP_WORKER_URL` | Cloudflare Worker URL for Lark HTTP API | `lib/lark.ts` |
+| `LARK_API_KEY` | Optional bearer for the worker (if `API_KEY` secret enabled) | `lib/lark.ts` |
+| `LARK_EVENTS_TABLE_ID` | **EVENTS table — unified webhook event bus (REQUIRED for SSE realtime).** See "Lark EVENTS table" below for schema. | `lib/lark-events.ts`, `/api/events/stream`, both webhook receivers |
+| `LARK_USERS_TABLE_ID` | NextAuth credentials provider lookup | `lib/auth.ts` |
+
+### Lark EVENTS table
+
+You must create this table in your Lark Base workspace **before** the
+realtime architecture can persist webhook events. Set `LARK_EVENTS_TABLE_ID`
+to the table id (`tblXXXXXXXXXXXXXX`) once created.
+
+**Schema** — match field names exactly (the code looks them up by name):
+
+| Field name | Lark type | Notes |
+|---|---|---|
+| `event_id` | Text | Primary key for idempotent dedupe. SHA-256 hash from upstream provider event id, or synthetic if not provided. |
+| `source` | Text (or Single Select) | One of `post-for-me`, `lark-base`, `callback`. |
+| `event_type` | Text | Provider event type, e.g. `social.post.result.created`, `lark.record.created`. |
+| `resource_id` | Text | Affected resource id (post_id, account_id, record_id). May be empty. |
+| `post_id` | Text | Related post id, if known. Lets clients filter by post efficiently. |
+| `social_account_id` | Text | Related social account id, if known. |
+| `user_id` | Text | Owning user (NextAuth/Lark USERS table record id). Empty until multi-tenant filtering lands. |
+| `payload_json` | Text (multi-line) | JSON-encoded original payload. Truncated to 8 KiB. |
+| `received_at` | DateTime | Server-assigned receipt time (ms epoch). |
+| `seq` | **Auto-Number** | **Critical.** Monotonic per-row sequence used as the SSE Last-Event-ID for catch-up. Configure as auto-number with no formatting. |
+
+**Recommended views**:
+- `recent` — sorted by `seq` desc, last 200 rows. For diagnostics.
+- `by_post` — grouped by `post_id`, useful when debugging a single post's lifecycle.
+- `errors` — filter where `event_type` contains `failed` or `error`.
+
+**Retention**: keep all rows. The table is the audit log. Lark Pro tier
+caps at 20,000 rows per table — at typical SaaS volumes that's 6-12 months.
+Archive older rows to a `EVENTS_archive` table when approaching the cap
+(or use Lark's automation to do it weekly).
+
+### Removed Variables
+
+These `NEXT_PUBLIC_` variants must NEVER be reintroduced — they would leak
+sensitive Lark table IDs to the browser:
+
+- ❌ `NEXT_PUBLIC_LARK_*_TABLE_ID`
+- ❌ `NEXT_PUBLIC_LARK_HTTP_WORKER_URL`
+
+The moodboard feature (and its `LARK_MOODBOARD_*` env vars + `/api/moodboard/config`
+endpoint) was removed entirely on 2026-04-10. If you reintroduce a Lark-backed
+feature, route table-id reads through the server, never via `NEXT_PUBLIC_`.
+
+---
+
 ## Migration Summary: POSTFORME*\* to POST_FOR_ME*\*
 
 ### Why This Change Was Needed
@@ -364,6 +426,7 @@ Required secrets in GitHub repository:
 
 ## Last Updated
 
+2026-03-13 - Added Moodboard & Lark Integration section (security-first design, removed NEXT_PUBLIC_ vars)
 2025-03-01 - Migration from `POSTFORME_*` to `POST_FOR_ME_*` completed.
 
 See also: [docs/ENV_VAR_MIGRATION_GUIDE.md](./docs/ENV_VAR_MIGRATION_GUIDE.md) for quick reference card.

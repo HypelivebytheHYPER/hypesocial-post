@@ -185,7 +185,7 @@ function PostCard({
             })}
             {(post.social_accounts || []).length > 4 && (
               <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-2 ring-white dark:ring-slate-900 text-[9px] font-medium text-slate-500">
-                +{post.social_accounts!.length - 4}
+                +{(post.social_accounts || []).length - 4}
               </div>
             )}
           </div>
@@ -216,7 +216,7 @@ function PostCard({
         <div className="relative rounded-xl overflow-hidden mb-3 bg-slate-100">
           {post.media[0]?.url?.match(/\.(mp4|mov|avi|webm)/i) ? (
             <LazyVideo
-              src={post.media[0]!.url}
+              src={post.media[0]?.url ?? ""}
               className="w-full h-32"
               controls
               preload="metadata"
@@ -225,7 +225,7 @@ function PostCard({
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={proxyMediaUrl(post.media[0]!.url)}
+                src={proxyMediaUrl(post.media[0]?.url ?? "")}
                 alt="Post media"
                 className="w-full h-32 object-cover"
                 onError={(e) => {
@@ -538,7 +538,9 @@ export default function PostsPage() {
     });
     // Sort each group by date
     Object.keys(grouped).forEach((key) => {
-      grouped[key]!.sort((a, b) => {
+      const arr = grouped[key];
+      if (!arr) return;
+      arr.sort((a, b) => {
         const dateA = new Date(a.scheduled_at || a.created_at || 0);
         const dateB = new Date(b.scheduled_at || b.created_at || 0);
         return dateB.getTime() - dateA.getTime();

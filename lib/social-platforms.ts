@@ -40,7 +40,7 @@ export interface SocialPlatform {
 
 /**
  * Centralized social platform definitions with official SVG icons
- * Used across the dashboard, accounts, posts, and moodboard pages
+ * Used across the dashboard, accounts, and posts pages
  */
 export const socialPlatforms: SocialPlatform[] = [
   {

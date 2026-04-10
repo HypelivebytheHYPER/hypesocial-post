@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setLastEvent } from "@/lib/webhook-event-store";
+import { appendEvent, syntheticEventId } from "@/lib/lark-events";
 
 /**
  * GET /api/accounts/callback/[platform]
@@ -42,18 +42,28 @@ export async function GET(
         ? `[REDACTED ${value.length}chars]`
         : value;
     });
-    console.log("[Callback] OAuth redirect intercepted", {
-      platform,
-      params: redactedParams,
-      hasError,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Store event for WebhookStatusMonitor to pick up
-    setLastEvent({
-      event_type: "social.account.callback_intercepted",
-      resource_id: searchParams.get("state") || "unknown",
-    });
+    // Persist callback interception to the EVENTS table so it shows up in
+    // SSE replay alongside webhook-driven events. Best-effort — failure here
+    // must NOT block the OAuth redirect.
+    const state = searchParams.get("state") || "unknown";
+    try {
+      await appendEvent({
+        event_id: syntheticEventId([
+          "social.account.callback_intercepted",
+          platform,
+          state,
+        ]),
+        source: "callback",
+        event_type: "social.account.callback_intercepted",
+        resource_id: state,
+        post_id: null,
+        social_account_id: null,
+        user_id: null,
+        payload: { platform, params: redactedParams, hasError },
+      });
+    } catch (err) {
+      console.error("[Callback] EVENTS persist failed (non-fatal):", err);
+    }
 
     // Forward ALL query params to PFM's platform-specific callback
     const forwardUrl = new URL(`${pfmCallbackBase}/${platform}/account`);

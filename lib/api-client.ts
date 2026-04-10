@@ -2,7 +2,7 @@
  * Shared fetch wrapper for internal Next.js API routes.
  *
  * Single source of truth — used by all client-side hooks
- * (usePostForMe, useMoodboard, etc.).
+ * (usePostForMe, etc.).
  *
  * HTTP standards:
  * - Content-Type: application/json only when a body is present

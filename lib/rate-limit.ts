@@ -50,7 +50,7 @@ function ensureCleanup() {
 export function getTier(pathname: string): Tier {
   if (pathname.startsWith("/api/auth") || pathname === "/login") return "auth";
   if (pathname.startsWith("/api/webhooks/post-for-me")) return "webhook";
-  if (pathname.startsWith("/api/media") || pathname === "/api/moodboard/upload")
+  if (pathname.startsWith("/api/media"))
     return "media";
   return "api";
 }

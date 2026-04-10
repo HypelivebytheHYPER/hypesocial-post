@@ -89,9 +89,17 @@ export async function PUT(
       }
     }
 
-    // SDK requires caption+social_accounts but update allows partial — cast needed
-    const data = await pfm.socialPosts.update(id, body as any);
-    console.log("[API] PUT /posts", { id });
+    // The Post For Me SDK's update() signature inherits the create-DTO shape
+    // (caption + social_accounts required), but the underlying
+    // PUT /v1/social-posts/{id} endpoint accepts a partial body — Zod has
+    // already validated the partial shape via UpdatePostSchema. Cast through
+    // `unknown` to the SDK's actual parameter type so the assertion is at
+    // least type-checked at the call site instead of `any`-erased.
+    type UpdateInput = Parameters<typeof pfm.socialPosts.update>[1];
+    const data = await pfm.socialPosts.update(
+      id,
+      body as unknown as UpdateInput,
+    );
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {
@@ -130,7 +138,6 @@ export async function DELETE(
     const idError = validateId(id, "post");
     if (idError) return idError;
     await pfm.socialPosts.delete(id);
-    console.log("[API] DELETE /posts", { id });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof APIError) {

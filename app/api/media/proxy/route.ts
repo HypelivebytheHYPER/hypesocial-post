@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const R2_DOMAINS = [
   "pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev", // static assets (logo etc.)
-  "pub-483f816788534334817c49941fb59b23.r2.dev", // moodboard media uploads
+  "pub-483f816788534334817c49941fb59b23.r2.dev", // legacy media R2 bucket
 ];
 
 const ALLOWED_DOMAINS = [

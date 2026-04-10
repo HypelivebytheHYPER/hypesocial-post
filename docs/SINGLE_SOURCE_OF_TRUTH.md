@@ -1,6 +1,6 @@
 # Single Source of Truth Guide
 
-> **Auto-generated:** 2026-03-12
+> **Auto-generated:** 2026-04-10
 > **Regenerate:** `node scripts/update-ssot.js` or `pnpm build`
 
 This document defines the canonical sources for types, configurations, and utilities in this project to avoid confusion and inconsistencies.
@@ -243,7 +243,6 @@ All TanStack Query hooks for Post For Me API.
 | `useAllAccountFeeds()` | Hook |
 | `usePostPreview()` | Hook |
 | `useRegisterAppWebhook()` | Hook |
-| `useWebhookStatus()` | Hook |
 | `useTiktokTrendingMusic()` | Hook |
 
 ### Query Keys

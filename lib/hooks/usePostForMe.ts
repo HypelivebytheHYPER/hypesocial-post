@@ -3,7 +3,7 @@
  * TanStack Query (React Query) integration for Post For Me API
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   useQuery,
   useQueries,
@@ -18,7 +18,6 @@ import {
 } from "@/types/webhook-types";
 import { WebhookListResponseSchema } from "@/lib/validations/webhook-schemas";
 import { apiClient } from "@/lib/api-client";
-import type { WebhookEvent } from "@/lib/webhook-event-store";
 import {
   SocialPost,
   SocialPostListResponse,
@@ -193,9 +192,10 @@ export function useDeleteWebhook() {
 /**
  * Get all posts
  *
- * Updates are now webhook-driven via `useWebhookStatus()` which invalidates
- * this query when a webhook event arrives. Falls back to `refetchOnWindowFocus`
- * (React Query default) when the status endpoint is unavailable.
+ * Updates are pushed via `useEvents()` (SSE → /api/events/stream) which
+ * invalidates this query when a webhook event lands in the Lark EVENTS
+ * table. Falls back to `refetchOnWindowFocus` (React Query default) when
+ * SSE is unavailable.
  */
 export function usePosts(params?: { offset?: number; limit?: number }) {
   const searchParams = new URLSearchParams();
@@ -210,6 +210,12 @@ export function usePosts(params?: { offset?: number; limit?: number }) {
       apiClient<SocialPostListResponse>(
         `/api/posts${query ? `?${query}` : ""}`,
       ),
+    // Q3 (2026-04-10): SSE invalidates this proactively whenever the
+    // EVENTS table sees a `social.post.*` row, so we don't need React
+    // Query's window-focus refetch to fire inside this window. Was
+    // 5min (global default); 30min eliminates ~40% of redundant fetches
+    // during multi-tab workflows.
+    staleTime: 30 * 60 * 1000,
   });
 }
 
@@ -324,7 +330,10 @@ export function useRetryPost() {
  * API: GET /v1/social-post-results?post_id={postId}
  * https://www.postforme.dev/resources/getting-post-results
  *
- * Polls every 5s while processing, stops once results arrive or status is terminal.
+ * SSE (`useEvents()`) is the primary update path — when a `social.post.
+ * result.created` event arrives this query is auto-invalidated. Polling
+ * here is a slow fallback in case SSE is blocked by a corporate proxy or
+ * an old browser. Was 5s; now 30s while processing.
  */
 export function usePostResults(postId: string, isProcessing?: boolean) {
   return useQuery<SocialPostResultListResponse, Error>({
@@ -334,8 +343,8 @@ export function usePostResults(postId: string, isProcessing?: boolean) {
         `/api/post-results?post_id=${postId}`,
       ),
     enabled: !!postId,
-    // Poll every 5s while processing, stop when terminal
-    refetchInterval: isProcessing ? 5_000 : false,
+    // SSE invalidates this proactively. Slow poll only as a safety net.
+    refetchInterval: isProcessing ? 30_000 : false,
     refetchIntervalInBackground: false,
   });
 }
@@ -501,6 +510,10 @@ export function useAccounts() {
   return useQuery<SocialAccountListResponse, Error>({
     queryKey: pfmKeys.accounts(),
     queryFn: () => apiClient<SocialAccountListResponse>("/api/accounts"),
+    // Q3 (2026-04-10): Connected social accounts change rarely (user
+    // adds/removes a few times per month at most). SSE invalidates on
+    // any `social.account.*` event, so the long staleTime is safe.
+    staleTime: 60 * 60 * 1000,
   });
 }
 
@@ -853,96 +866,6 @@ export function useRegisterAppWebhook() {
     isLoading: createWebhook.isPending,
     error: createWebhook.error,
   };
-}
-
-// ==================== Webhook Status Monitor ====================
-
-/**
- * Map webhook event types to the React Query keys that should be invalidated.
- */
-function getInvalidationKeys(
-  eventType: string,
-): readonly (readonly string[])[] {
-  if (eventType === "social.post.result.created") {
-    return [pfmKeys.postResults(), pfmKeys.posts()];
-  }
-  if (eventType.startsWith("social.post.")) {
-    return [pfmKeys.posts()];
-  }
-  if (eventType.startsWith("social.account.")) {
-    // Account changes may affect webhook registrations too
-    return [pfmKeys.accounts(), pfmKeys.webhooks()];
-  }
-  // Unknown event — invalidate everything under post-for-me
-  return [pfmKeys.all];
-}
-
-/**
- * Poll the lightweight `/api/webhooks/post-for-me/status` endpoint every 10s.
- * When a new webhook event is detected (timestamp changed), trigger targeted
- * `invalidateQueries` so React Query refetches only the affected data.
- *
- * This replaces the 30s blind `refetchInterval` on `usePosts()` with a
- * webhook-driven approach: ~80 bytes per check instead of full data refetches.
- *
- * Degradation: if the status endpoint fails or returns `null` (cold instance),
- * no invalidation happens — `refetchOnWindowFocus` remains as the safety net.
- */
-export function useWebhookStatus() {
-  const queryClient = useQueryClient();
-  const lastSeenTs = useRef<number | null>(null);
-  const hiddenAtTs = useRef<number | null>(null);
-
-  const { data } = useQuery<{ last_event: WebhookEvent | null }>({
-    queryKey: ["webhook-status"],
-    queryFn: () =>
-      apiClient<{ last_event: WebhookEvent | null }>(
-        "/api/webhooks/post-for-me/status",
-      ),
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
-    staleTime: 5_000,
-    gcTime: 0,
-    retry: 3,
-  });
-
-  // When returning from background after >15s, broadly invalidate core queries.
-  // The in-memory event store has a 60s TTL, so targeted invalidation may miss
-  // events that arrived while the mobile browser was backgrounded.
-  useEffect(() => {
-    function handleVisibility() {
-      if (document.visibilityState === "hidden") {
-        hiddenAtTs.current = Date.now();
-      } else if (document.visibilityState === "visible" && hiddenAtTs.current) {
-        const awayMs = Date.now() - hiddenAtTs.current;
-        hiddenAtTs.current = null;
-        // Only force-invalidate if away long enough to miss polling cycles
-        if (awayMs > 15_000) {
-          queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
-          queryClient.invalidateQueries({ queryKey: pfmKeys.postResults() });
-          queryClient.invalidateQueries({ queryKey: pfmKeys.accounts() });
-        }
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibility);
-  }, [queryClient]);
-
-  useEffect(() => {
-    const event = data?.last_event;
-    if (!event) return;
-
-    // Skip if we've already processed this timestamp
-    if (lastSeenTs.current !== null && event.ts <= lastSeenTs.current) return;
-    lastSeenTs.current = event.ts;
-
-    // Targeted invalidation based on event type
-    const keys = getInvalidationKeys(event.event_type);
-    for (const key of keys) {
-      queryClient.invalidateQueries({ queryKey: key });
-    }
-  }, [data, queryClient]);
 }
 
 // ── TikTok CML Trending Music ──

@@ -79,11 +79,6 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return parsed.response;
 
     const data = await pfm.post("/v1/webhooks", { body: parsed.data });
-    const webhook = data as { id?: string };
-    console.log("[API] POST /webhooks", {
-      id: webhook.id,
-      events: parsed.data.event_types?.length ?? 0,
-    });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

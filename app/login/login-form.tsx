@@ -57,10 +57,10 @@ export default function LoginForm() {
           <Image
             src="https://pub-9ab23e78dd0d43e496a590537ce7e4f1.r2.dev/HypeSocial.png"
             alt="HypePostSocial"
-            width={80}
+            width={120}
             height={80}
             priority
-            className="w-[80px] h-[80px] rounded-2xl shadow-sm mb-4"
+            className="w-[120px] h-auto rounded-2xl shadow-sm mb-4"
           />
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">
             HypePostSocial

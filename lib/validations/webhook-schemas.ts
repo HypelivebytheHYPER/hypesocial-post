@@ -127,6 +127,101 @@ export type AccountCreatedData = z.infer<typeof AccountCreatedDataSchema>;
 export type AccountUpdatedData = z.infer<typeof AccountUpdatedDataSchema>;
 export type PostForMeEventType = z.infer<typeof PostForMeEventTypeSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Lark Open Platform — Bitable record change event (drive.file.bitable_record_changed_v1)
+//
+// This is the SINGLE Lark event type hype-social actually subscribes to (per
+// the cleanup audit). It fires whenever any record in any table of the Lark
+// Base changes — created, edited, or deleted. The event payload includes a
+// list of actions because Lark batches multiple changes from the same operator
+// in a short window into one delivery.
+//
+// Reference: https://open.larksuite.com/document/server-docs/docs/bitable-v1/event/notification
+//
+// Wire shape:
+//   {
+//     schema: "2.0",
+//     header: { event_id, event_type: "drive.file.bitable_record_changed_v1", ... },
+//     event: {
+//       file_token: "<base_app_token>",
+//       table_id: "tbl...",
+//       revision: 123,
+//       action_list: [
+//         { action: "record_added", record_id: "rec...", after_value?: [...] },
+//         { action: "record_edited", record_id: "rec...", before_value?: [...], after_value?: [...] },
+//         { action: "record_deleted", record_id: "rec...", before_value?: [...] },
+//       ],
+//       subscriber_id_list?: [...]
+//     }
+//   }
+//
+// We tolerate field-name drift via .passthrough() because Lark occasionally
+// renames fields between API versions. The receiver only needs the four core
+// fields below — anything else gets preserved in payload_json.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const LarkBitableActionSchema = z
+  .object({
+    /** Lark wire-format action: record_added / record_edited / record_deleted. */
+    action: z.string(),
+    /** Affected record id. */
+    record_id: z.string(),
+  })
+  .passthrough();
+
+export const LarkBitableRecordChangedEventSchema = z
+  .object({
+    file_token: z.string().optional(),
+    table_id: z.string().optional(),
+    revision: z.number().optional(),
+    action_list: z.array(LarkBitableActionSchema).optional(),
+    subscriber_id_list: z.array(z.unknown()).optional(),
+  })
+  .passthrough();
+
+export const LarkV2HeaderSchema = z
+  .object({
+    event_id: z.string(),
+    event_type: z.string(),
+    create_time: z.string().optional(),
+    token: z.string().optional(),
+    tenant_key: z.string().optional(),
+    app_id: z.string().optional(),
+  })
+  .passthrough();
+
+export const LarkBitableRecordChangedPayloadSchema = z
+  .object({
+    schema: z.literal("2.0"),
+    header: LarkV2HeaderSchema,
+    event: LarkBitableRecordChangedEventSchema,
+  })
+  .passthrough();
+
+export type LarkBitableAction = z.infer<typeof LarkBitableActionSchema>;
+export type LarkBitableRecordChangedPayload = z.infer<
+  typeof LarkBitableRecordChangedPayloadSchema
+>;
+
+/**
+ * Map Lark's wire-format action names to the normalized event_type stored in
+ * the EVENTS table. Unknown actions fall through to `lark.record.changed`.
+ */
+export function normalizeLarkRecordAction(
+  action: string,
+): { event_type: string; action_type: string } {
+  switch (action) {
+    case "record_added":
+      return { event_type: "lark.record.created", action_type: "created" };
+    case "record_edited":
+      return { event_type: "lark.record.updated", action_type: "updated" };
+    case "record_deleted":
+      return { event_type: "lark.record.deleted", action_type: "deleted" };
+    default:
+      return { event_type: "lark.record.changed", action_type: action };
+  }
+}
+
 // --- Webhook registration DTOs ---
 
 export const WebhookDtoSchema = z.object({

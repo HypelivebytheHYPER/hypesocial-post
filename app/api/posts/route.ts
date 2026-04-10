@@ -264,29 +264,6 @@ export async function POST(request: NextRequest) {
       social_accounts: body.social_accounts || [],
     });
 
-    console.log("[API] POST /posts", {
-      id: data.id,
-      status: data.status,
-      accounts: body.social_accounts?.length ?? 0,
-      ...(pc?.tiktok && {
-        tiktok: {
-          privacy: pc.tiktok.privacy_status,
-          comment: pc.tiktok.allow_comment,
-          duet: pc.tiktok.allow_duet,
-          stitch: pc.tiktok.allow_stitch,
-          auto_music: pc.tiktok.auto_add_music,
-        },
-      }),
-      ...(pc?.tiktok_business && {
-        tiktok_biz: {
-          privacy: pc.tiktok_business.privacy_status,
-          comment: pc.tiktok_business.allow_comment,
-          duet: pc.tiktok_business.allow_duet,
-          stitch: pc.tiktok_business.allow_stitch,
-          auto_music: pc.tiktok_business.auto_add_music,
-        },
-      }),
-    });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

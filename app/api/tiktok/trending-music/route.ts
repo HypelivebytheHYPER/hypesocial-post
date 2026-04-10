@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
 import type { PostForMeError } from "@/types/post-for-me-types";
 
@@ -6,7 +7,67 @@ import type { PostForMeError } from "@/types/post-for-me-types";
  * GET /api/tiktok/trending-music?accountId=xxx
  * Proxy for TikTok Business CML (Commercial Music Library) trending list.
  * Uses the account's managed access_token from Post For Me — never exposed to client.
+ *
+ * Response shape is validated by Zod (TikTokCmlResponseSchema). Field names
+ * differ slightly between TikTok API versions, so most fields are optional
+ * with `.passthrough()` to keep parsing tolerant of upstream additions.
  */
+
+// ── TikTok CML response Zod schema ──
+// Field names mirror TikTok Business API v1.3 docs. Optional + passthrough
+// because the API occasionally renames fields between versions.
+
+const NumericSchema = z.union([z.string(), z.number()]);
+
+const TrendingHistoryEntrySchema = z
+  .object({
+    rank_position_daily: NumericSchema.optional(),
+  })
+  .passthrough();
+
+const TikTokTrackSchema = z
+  .object({
+    commercial_music_id: z.string(),
+    artist: z.string().optional(),
+    commercial_music_name: z.string().optional(),
+    name: z.string().optional(),
+    genres: z.array(z.string()).optional(),
+    duration: z.number().optional(),
+    preview_url: z.string().optional(),
+    full_duration_song_clip: z
+      .object({ preview_url: z.string().optional() })
+      .passthrough()
+      .optional(),
+    thumbnail_url: z.string().optional(),
+    rank_position: NumericSchema.optional(),
+    trending_history: z.array(TrendingHistoryEntrySchema).optional(),
+  })
+  .passthrough();
+
+const TikTokCmlResponseSchema = z
+  .object({
+    code: z.number(),
+    message: z.string().optional(),
+    data: z
+      .object({
+        list: z.array(TikTokTrackSchema).optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+// PFM social account shape we depend on for TikTok Business calls
+const PfmTikTokAccountSchema = z
+  .object({
+    id: z.string(),
+    platform: z.string(),
+    access_token: z.string().optional(),
+    user_id: z.string().optional(),
+  })
+  .passthrough();
+type PfmTikTokAccount = z.infer<typeof PfmTikTokAccountSchema>;
+
 export async function GET(request: NextRequest) {
   const accountId = request.nextUrl.searchParams.get("accountId");
   if (!accountId) {
@@ -21,13 +82,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get account details including access_token and user_id (open_id)
+    // Get account details including access_token and user_id (open_id).
+    // Cast through the Zod schema instead of `as any` so the fields we
+    // depend on are at least runtime-validated.
     const accounts = await pfm.socialAccounts.list();
-    const account = accounts.data?.find(
-      (a: any) => a.id === accountId && a.platform === "tiktok_business",
-    );
+    const candidate = (accounts.data ?? []).find((a) => {
+      const parsed = PfmTikTokAccountSchema.safeParse(a);
+      if (!parsed.success) return false;
+      return (
+        parsed.data.id === accountId &&
+        parsed.data.platform === "tiktok_business"
+      );
+    });
 
-    if (!account) {
+    if (!candidate) {
       return NextResponse.json<PostForMeError>(
         {
           error: "Not Found",
@@ -38,6 +106,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const account: PfmTikTokAccount = PfmTikTokAccountSchema.parse(candidate);
     const accessToken = account.access_token;
     const businessId = account.user_id; // open_id format
 
@@ -80,7 +149,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
+    const rawJson: unknown = await response.json();
+    const parsed = TikTokCmlResponseSchema.safeParse(rawJson);
+    if (!parsed.success) {
+      console.error("[API] TikTok CML schema mismatch:", parsed.error.format());
+      return NextResponse.json<PostForMeError>(
+        {
+          error: "Bad Gateway",
+          message: "TikTok API returned an unexpected shape",
+          statusCode: 502,
+        },
+        { status: 502 },
+      );
+    }
+    const data = parsed.data;
 
     if (data.code !== 0) {
       console.error("[API] TikTok CML API error:", data);
@@ -94,9 +176,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Normalize TikTok CML response — API returns `list` with `commercial_music_name`, `rank_position` as string
-    const rawList: any[] = data.data?.list ?? [];
-    const musicList = rawList.map((t: any) => ({
+    // Normalize TikTok CML response — fields are now strongly typed via Zod
+    const rawList = data.data?.list ?? [];
+    const musicList = rawList.map((t) => ({
       commercial_music_id: t.commercial_music_id,
       artist: t.artist ?? "",
       name: t.commercial_music_name ?? t.name ?? "",
@@ -107,7 +189,7 @@ export async function GET(request: NextRequest) {
       thumbnail_url: t.thumbnail_url ?? "",
       rank_position: Number(t.rank_position) || 0,
       trending_history: (t.trending_history ?? []).map(
-        (h: any) => Number(h.rank_position_daily) || 0,
+        (h) => Number(h.rank_position_daily) || 0,
       ),
     }));
 

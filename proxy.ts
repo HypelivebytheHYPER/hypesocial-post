@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/api/auth",
   "/api/health",
   "/api/webhooks/post-for-me",
+  "/api/webhooks/lark-base",
   "/api/accounts/callback",
 ];
 

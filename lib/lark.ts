@@ -27,11 +27,10 @@ interface LarkSearchResponse {
 }
 
 interface LarkBatchResponse {
-  code: number;
-  msg: string;
-  data: {
-    records: LarkRecord[];
-  };
+  code?: number;
+  msg?: string;
+  data: LarkRecord[];
+  total: number;
 }
 
 export interface LarkFilterCondition {
@@ -107,19 +106,38 @@ async function callLarkEndpoint(
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
-  const res = await fetch(`${workerUrl}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  const url = `${workerUrl}${path}`;
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Lark API error (${res.status}): ${text}`);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (fetchErr) {
+    throw new Error(`Lark fetch error to ${url}: ${fetchErr}`);
   }
 
-  const json = await res.json();
-  if (json.code !== 0) {
+  if (!res.ok) {
+    let text;
+    try {
+      text = await res.text();
+    } catch {
+      text = "(could not read response body)";
+    }
+    throw new Error(`Lark API error (${res.status} ${res.statusText}): ${text?.substring(0, 200)}`);
+  }
+
+  let json;
+  try {
+    json = await res.json();
+  } catch (parseErr) {
+    const raw = await res.text().catch(() => "(unreadable)");
+    throw new Error(`Lark JSON parse error: ${parseErr}, raw: ${raw.substring(0, 200)}`);
+  }
+  // Handle both worker format (no code/msg) and standard Lark format (with code/msg)
+  if (json.code !== undefined && json.code !== 0) {
     throw new Error(`Lark API error (${json.code}): ${json.msg}`);
   }
 
@@ -137,7 +155,7 @@ export async function larkSearchRecords(
   filter?: LarkFilter,
   pageSize = 500,
   pageToken?: string,
-): Promise<LarkSearchResponse["data"]> {
+): Promise<{ items: LarkRecord[]; total: number; has_more: boolean; page_token?: string }> {
   const { appToken } = getConfig();
 
   const body: Record<string, unknown> = {
@@ -148,11 +166,17 @@ export async function larkSearchRecords(
   if (filter) body.filter = filter;
   if (pageToken) body.page_token = pageToken;
 
-  const res = (await callLarkEndpoint(
+  const raw = (await callLarkEndpoint(
     "/records/search",
     body,
-  )) as LarkSearchResponse;
-  return res.data;
+  )) as { code: number; msg: string; data: LarkRecord[]; total: number; has_more: boolean; page_token?: string };
+  // Transform worker response (data is array) to expected format (data.items is array)
+  return {
+    items: raw.data,
+    total: raw.total,
+    has_more: raw.has_more,
+    page_token: raw.page_token,
+  };
 }
 
 /**
@@ -166,9 +190,9 @@ export async function larkSearchAllRecords(
   let pageToken: string | undefined;
 
   do {
-    const data = await larkSearchRecords(tableId, filter, 500, pageToken);
-    if (data.items) all.push(...data.items);
-    pageToken = data.page_token;
+    const result = await larkSearchRecords(tableId, filter, 500, pageToken);
+    if (result.items) all.push(...result.items);
+    pageToken = result.page_token;
   } while (pageToken);
 
   return all;
@@ -190,7 +214,7 @@ export async function larkCreateRecords(
     records: records.map((fields) => ({ fields })),
   })) as LarkBatchResponse;
 
-  return res.data.records;
+  return res.data;
 }
 
 /**
@@ -209,7 +233,7 @@ export async function larkUpdateRecords(
     records,
   })) as LarkBatchResponse;
 
-  return res.data.records;
+  return res.data;
 }
 
 /**

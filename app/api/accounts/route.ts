@@ -98,10 +98,6 @@ export async function POST(request: NextRequest) {
         refresh_token_expires_at: String(refresh_token_expires_at),
       }),
     });
-    console.log("[API] POST /accounts", {
-      id: data.id,
-      platform: parsed.data.platform,
-    });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     if (error instanceof APIError) {

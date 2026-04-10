@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "/Users/mdch/.claude/chrome-devtools-wrapper.sh",
+      "args": []
+    },
     "post_for_me_api": {
       "command": "npx",
       "args": ["-y", "post-for-me-mcp"],

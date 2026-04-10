@@ -190,31 +190,103 @@ DATABASE_URL=...
 
 ---
 
-## Webhook & Real-Time Architecture
+## Webhook & Real-Time Architecture (rewritten 2026-04-10)
 
-Webhook events flow: **Post For Me API → Cloudflare Worker → Vercel → React Query Polling**
+The system uses an **event-bus architecture**: every webhook delivery is
+persisted as a row in the Lark Base **EVENTS** table, then streamed to
+authenticated browsers via **Server-Sent Events**. The EVENTS table is the
+single source of truth for "what has happened" — UIs are derived state.
 
 ```
-Post For Me API          Cloudflare Worker           Vercel
-─────────────      webhook     ─────────────      forward     ──────────────────
- social.post.  ──────────────> api.hypelive.app  ──────────> /api/webhooks/
- updated       (webhook_url)   /webhooks/         (NEXTJS_    post-for-me
-                               post-for-me         WEBHOOK_       │
-                               ✓ Verify secret     SECRET)        ▼
-                                                            Log event type
-                                                            Return 200
-
-Browser (React Query polling)
-─────────────────────────────
- usePosts()         → refetchInterval: 30s
- usePostResults()   → refetchInterval: 5s (while processing)
- refetchOnWindowFocus: true (default)
+┌──────────────────┐                ┌──────────────────┐
+│ Post For Me API  │                │ Lark Open Platform│
+└────────┬─────────┘                └─────────┬────────┘
+         │ webhook                            │ webhook
+         ▼                                    ▼
+┌──────────────────┐                ┌──────────────────┐
+│ CF Worker        │                │ /api/webhooks/   │
+│ (api.hypelive)   │                │ lark-base        │
+│ verify secret    │                └─────────┬────────┘
+└────────┬─────────┘                          │
+         │ forward                            │
+         ▼                                    │
+┌──────────────────┐                          │
+│ /api/webhooks/   │                          │
+│ post-for-me      │                          │
+└────────┬─────────┘                          │
+         │                                    │
+         │ both call appendEvent()            │
+         ▼                                    ▼
+       ┌──────────────────────────────────────────┐
+       │         Lark Base EVENTS table           │
+       │  event_id (PK) | source | event_type |   │
+       │  resource_id | post_id | payload_json |  │
+       │  user_id | received_at | seq (auto)      │
+       └──────────────┬───────────────────────────┘
+                      │
+                      │ getEventsSince(lastSeq)
+                      ▼
+           ┌──────────────────────────┐
+           │ /api/events/stream (SSE) │
+           │ - replay since Last-Event-ID
+           │ - tail every 3s          │
+           │ - heartbeat every 25s    │
+           │ - X-Accel-Buffering: no  │
+           └────────────┬─────────────┘
+                        │ EventSource
+                        ▼
+              ┌──────────────────┐
+              │ useEvents() hook │
+              │ → setQueryData() │
+              │ → invalidate()   │
+              └──────────────────┘
 ```
 
-- **Two-hop webhook relay**: Post For Me → CF Worker (verifies `POST_FOR_ME_WEBHOOK_SECRET`) → Vercel (verifies `NEXTJS_WEBHOOK_SECRET`)
-- **Smart polling** at 30s (posts) / 5s (processing results) — primary update mechanism
-- **Auto-registration**: `WebhookRegistration` component registers webhook URL on startup via `NEXT_PUBLIC_WEBHOOK_URL`
-- **Future upgrade**: Add Upstash Redis pub/sub for instant SSE push notifications
+### Key properties
+
+- **Idempotent persistence**: every event has a stable `event_id` (synthetic
+  hash if upstream doesn't provide one). Duplicate webhook deliveries
+  collapse to one row in EVENTS via `appendEvent()` lookup-then-insert.
+- **Last-Event-ID catch-up**: SSE streams the Lark auto-number `seq` as the
+  message id. Browser EventSource sends it back on reconnect, server
+  replays everything since. No events lost across disconnects.
+- **Three-second budget**: webhook receivers persist synchronously and
+  return 200 within Lark's 3s response window.
+- **Polling fallback**: `usePostResults()` polls every 30s while processing
+  as a safety net if SSE is blocked. `usePosts()` relies on
+  `staleTime: 5min` + `refetchOnWindowFocus` + SSE invalidation.
+- **Auth**: SSE channel requires NextAuth session. Per-user filtering is
+  not yet enforced — see `lib/lark-events.ts` header for the multi-tenant
+  filtering plan.
+- **Diagnostics**: `/api/webhooks/lark-base` GET returns endpoint status.
+  Query the EVENTS table directly via `lark-http-hype` for full audit log.
+
+### Required env
+
+| Var | Purpose |
+|---|---|
+| `LARK_HTTP_WORKER_URL` | `https://lark-http-hype.hypelive.workers.dev` |
+| `LARK_APP_TOKEN` | Lark Base app token for the workspace |
+| `LARK_EVENTS_TABLE_ID` | The EVENTS table id (see ENVIRONMENT_VARIABLES.md for schema) |
+| `POST_FOR_ME_WEBHOOK_SECRET` | Shared secret with the CF Worker relay |
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `lib/lark-events.ts` | `appendEvent()`, `getEventsSince()`, `getEventById()` |
+| `lib/validations/events.ts` | Zod `EventSchema` + `EVENT_FIELD` constants |
+| `app/api/webhooks/post-for-me/route.ts` | PFM webhook → EVENTS |
+| `app/api/webhooks/lark-base/route.ts` | Lark Open Platform webhook → EVENTS |
+| `app/api/events/stream/route.ts` | SSE catch-up + tail endpoint |
+| `lib/hooks/useEvents.ts` | Client EventSource → React Query invalidation |
+
+### Future scaling path
+
+Current SSE tail loop polls Lark every 3s per connection. For >50 concurrent
+users, swap the polling tail for a Cloudflare Durable Object pub/sub bridge
+in `lark-http-hype`. The SSE wire format and `useEvents()` client stay
+identical — only the server tail loop changes.
 
 ---
 
@@ -337,6 +409,68 @@ rm -rf .next && pnpm build
 - API errors return `{ error: string, message: string, statusCode: number }`
 - Use `toast` from sonner for user-facing errors
 - Log errors to console in development
+
+---
+
+## Performance & Optimization
+
+### Bundle Analysis
+
+```bash
+# Analyze bundle size
+pnpm analyze
+
+# Check chunk sizes
+ls -la .next/static/chunks/
+du -sh .next/static/chunks/*.js | sort -rh | head -10
+```
+
+### Current Optimizations (2026-03-13)
+
+| Package | Status | Reason |
+|---------|--------|--------|
+| `@aws-sdk/client-s3` | **Removed** | Unused after R2 → Lark Drive migration |
+| `@aws-sdk/s3-request-presigner` | **Removed** | Unused after R2 → Lark Drive migration |
+| `@opennextjs/cloudflare` | **Removed** | Was causing build failures |
+| `recharts` | **Lazy loaded** | Only loaded on analytics page via `next/dynamic` |
+
+### Lazy Loading Pattern
+
+```typescript
+// app/(dashboard)/analytics/page.tsx
+import dynamic from "next/dynamic";
+
+const TikTokInsightsCharts = dynamic(() => import("./analytics-charts"), {
+  ssr: false,
+  loading: () => <SkeletonLoader />,
+});
+```
+
+### Image Optimization
+
+Images served from:
+- `data.postforme.dev` (Post For Me CDN)
+- `cjsgitiiwhrsfolwmtby.supabase.co` (Supabase Storage)
+- `*.larksuite.com` / `*.feishu.cn` (Lark Drive)
+
+Configured in `next.config.ts` under `images.remotePatterns`.
+
+### Tree Shaking
+
+The following packages are configured for `optimizePackageImports`:
+- `lucide-react`
+- `date-fns`
+- `framer-motion`
+- `recharts`
+- `@radix-ui/react-icons`
+
+### Performance Checklist
+
+- [ ] Run `pnpm analyze` to check bundle sizes
+- [ ] Use `next/dynamic` for heavy components (charts, editors)
+- [ ] Check Vercel Analytics for Core Web Vitals
+- [ ] Run Lighthouse audit in production
+- [ ] Verify CSP headers don't block resources
 
 ---
 

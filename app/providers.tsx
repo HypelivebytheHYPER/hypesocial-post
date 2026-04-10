@@ -7,7 +7,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import { WebhookRegistration } from "@/components/webhook-registration";
-import { useWebhookStatus } from "@/lib/hooks/usePostForMe";
+import { useEvents } from "@/lib/hooks/useEvents";
 
 /** Wraps Toaster so it respects next-themes. */
 function ThemedToaster() {
@@ -15,9 +15,12 @@ function ThemedToaster() {
   return <Toaster theme={resolvedTheme === "dark" ? "dark" : "light"} />;
 }
 
-/** Polls webhook status endpoint and invalidates queries on new events. Renders nothing. */
-function WebhookStatusMonitor() {
-  useWebhookStatus();
+/**
+ * Subscribes to /api/events/stream (SSE). On each event, invalidates the
+ * affected React Query keys. Renders nothing. See lib/hooks/useEvents.ts.
+ */
+function EventsMonitor() {
+  useEvents();
   return null;
 }
 
@@ -41,7 +44,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <WebhookRegistration />
-          <WebhookStatusMonitor />
+          <EventsMonitor />
           {children}
           <ThemedToaster />
         </ThemeProvider>

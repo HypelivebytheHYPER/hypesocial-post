@@ -11,7 +11,6 @@ import {
   Settings,
   FileText,
   Plus,
-  LayoutGrid,
   Sun,
   Moon,
   LogOut,
@@ -21,15 +20,13 @@ import { signOut } from "next-auth/react";
 const desktopNavItems = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Posts", href: "/posts", icon: FileText },
-  { name: "Moodboard", href: "/moodboard", icon: LayoutGrid },
 ];
 
-// Mobile: Home | [New FAB] | Posts | Moodboard
+// Mobile: Home | [New FAB] | Posts
 const mobileNavItems = [
   { name: "Home", href: "/", icon: Home },
   // "New" button goes in center
   { name: "Posts", href: "/posts", icon: FileText },
-  { name: "Moodboard", href: "/moodboard", icon: LayoutGrid },
 ];
 
 export function Navigation() {

@@ -248,7 +248,7 @@ If stuck or confused:
 | MCP Server    | Purpose                    | Configuration                   |
 | ------------- | -------------------------- | ------------------------------- |
 | `post-for-me` | Post For Me API operations | `POST_FOR_ME_API_KEY` required  |
-| `supabase`    | Database operations        | HTTP endpoint with bearer token |
+| `lark`        | Lark Base CRUD via worker  | HTTP endpoint, no auth header   |
 | `perplexity`  | Web search & research      | `PERPLEXITY_API_KEY` required   |
 | `vercel`      | Deployment management      | `VERCEL_TOKEN` required         |
 | `shadcn_ui`   | Component generation       | No auth required                |
@@ -266,12 +266,9 @@ If stuck or confused:
         "POST_FOR_ME_API_KEY": "your_api_key"
       }
     },
-    "supabase": {
+    "lark": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=your_project",
-      "headers": {
-        "Authorization": "Bearer your_token"
-      }
+      "url": "https://lark-mcp.hypelive.app/mcp"
     }
   }
 }

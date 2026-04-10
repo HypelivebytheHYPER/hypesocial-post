@@ -17,7 +17,6 @@ export async function POST(
     const idError = validateId(id, "account");
     if (idError) return idError;
     const data = await pfm.socialAccounts.disconnect(id);
-    console.log("[API] POST /accounts/disconnect", { id });
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof APIError) {

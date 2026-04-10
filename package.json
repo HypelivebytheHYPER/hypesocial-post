@@ -6,18 +6,18 @@
     "node": ">=18.17"
   },
   "scripts": {
+    "build": "next build",
     "dev": "next dev --turbo",
     "dev:debug": "next dev --turbo --debug",
     "update:ssot": "node scripts/update-ssot.js",
     "prebuild": "node scripts/update-ssot.js",
-    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
-    "deploy": "vercel --prod",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "vercel:env": "vercel env",
     "prepare": "husky",
     "analyze": "ANALYZE=true next build",
@@ -26,12 +26,13 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
-    "@aws-sdk/client-s3": "^3.1007.0",
-    "@aws-sdk/s3-request-presigner": "^3.1007.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -59,6 +60,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-dropzone": "^14.4.1",
+    "react-swipeable": "^7.0.2",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.1",
@@ -120,6 +122,7 @@
     "tailwindcss": "^3.4.19",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.72.0"
   }
 }
