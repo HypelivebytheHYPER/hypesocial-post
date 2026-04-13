@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
 import { ImageIcon, X, Upload, Search, Wand2, Loader2, Expand, Paintbrush } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -526,11 +526,11 @@ export function ImagePicker({ value, onChange }: ImagePickerProps) {
         {/* Upload Tab */}
         <TabsContent value="upload" className="space-y-2">
           <div
-            onClick={() => inputRef.current?.click()}
+            onClick={() => !isUploading && inputRef.current?.click()}
             className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground hover:bg-muted/60"
           >
-            <ImageIcon className="h-6 w-6" />
-            <span className="text-xs">Click to upload image</span>
+            {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
+            <span className="text-xs">{isUploading ? "Uploading..." : "Click to upload image"}</span>
           </div>
           <input
             ref={inputRef}
@@ -538,6 +538,7 @@ export function ImagePicker({ value, onChange }: ImagePickerProps) {
             accept="image/*"
             className="hidden"
             onChange={handleFileChange}
+            disabled={isUploading}
           />
         </TabsContent>
 

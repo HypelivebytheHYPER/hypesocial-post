@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Layers, Palette, Type, ExternalLink, Zap, Grid3X3, LayoutTemplate, Code2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useBuilderStore } from "./store";
 
 interface PenpotPage {

@@ -18,7 +18,6 @@ export interface AiDesignBlockProps {
 
 export function AiDesignBlock({ props }: { props: AiDesignBlockProps }) {
   const {
-    prompt = "",
     src = "",
     headline = "Your Design Here",
     subheadline = "AI-generated backgrounds for stunning visuals.",
