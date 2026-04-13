@@ -123,10 +123,10 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Section 1: Header */}
+      {/* Section 1: Header - Minimal */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="greeting-title">Engagement Analytics</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Engagement Analytics</h1>
           <p className="text-slate-500 text-sm mt-1">
             {connectedAccounts.length} connected account
             {connectedAccounts.length !== 1 ? "s" : ""}

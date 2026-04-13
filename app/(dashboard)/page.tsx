@@ -473,9 +473,9 @@ export default function HomePage() {
   const scheduledPosts = allPosts.filter((p) => p.scheduled_at && p.status === "scheduled");
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col -m-4 md:-m-8">
-      {/* Builder Header */}
-      <header className="h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-4 shrink-0">
+    <div className="h-[calc(100vh-4rem)] flex flex-col bg-[#fafafa] dark:bg-[#0a0a0a]">
+      {/* Builder Header - Minimal */}
+      <header className="h-14 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
@@ -544,7 +544,7 @@ export default function HomePage() {
       {/* Builder Workspace */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Toolbar */}
-        <div className="w-14 border-r border-border bg-muted/30 flex flex-col items-center py-3 gap-1 shrink-0">
+        <div className="w-14 border-r border-slate-200/60 dark:border-slate-800/60 flex flex-col items-center py-3 gap-1 shrink-0">
           <button
             onClick={() => setActiveTab("compose")}
             className={cn(
@@ -821,9 +821,9 @@ export default function HomePage() {
                 animate={{ width: 320, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="border-l border-border bg-muted/20 overflow-hidden flex flex-col shrink-0"
+                className="border-l border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50 overflow-hidden flex flex-col shrink-0"
               >
-                <div className="h-10 border-b border-border flex items-center justify-between px-3 shrink-0">
+                <div className="h-10 border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between px-3 shrink-0">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview</span>
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowRightPanel(false)}>
                     <X className="w-3.5 h-3.5" />
@@ -832,7 +832,7 @@ export default function HomePage() {
                 <div className="flex-1 overflow-auto p-3">
                   <div className="space-y-3 pb-6">
                     {selectedPlatforms.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
+                      <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                         <Globe className="w-10 h-10 mx-auto mb-3 opacity-30" />
                         <p className="text-sm">Select accounts to preview</p>
                       </div>

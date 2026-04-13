@@ -146,25 +146,23 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Header - Minimal */}
       <div>
-        <h1 className="greeting-title">Settings</h1>
-        <p className="text-slate-400 text-sm mt-1">Manage your preferences</p>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Settings</h1>
+        <p className="text-slate-500 text-sm mt-1">Manage your preferences</p>
       </div>
 
-      <div className="divider-soft" />
-
       {/* Profile Card */}
-      <section className="card-premium p-6">
+      <section className="p-6 rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-[#111111]">
         <div className="flex items-center gap-4">
-          <Avatar className="w-16 h-16 border-2 border-white shadow-sm">
-            <AvatarFallback className="bg-slate-800 text-white text-lg font-semibold">
+          <Avatar className="w-14 h-14">
+            <AvatarFallback className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-base font-medium">
               {userInitials}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <h2 className="text-slate-800 font-semibold text-lg">{userName}</h2>
+            <h2 className="text-slate-900 dark:text-white font-medium">{userName}</h2>
             <p className="text-slate-400 text-sm">{userEmail}</p>
           </div>
           <Badge className="badge-soft success">Admin</Badge>

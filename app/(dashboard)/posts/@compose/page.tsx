@@ -519,9 +519,9 @@ export default function ComposePanel() {
   const scheduledPosts = allPosts.filter((p) => p.scheduled_at && p.status === "scheduled");
 
   return (
-    <div className="h-full flex flex-col bg-slate-50/80">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/60 bg-white/80 backdrop-blur-sm">
+    <div className="h-full flex flex-col bg-[#fafafa] dark:bg-[#0a0a0a]">
+      {/* Header - Minimal */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="lg:hidden rounded-xl" onClick={closeCompose} aria-label="Go back">
             <ArrowLeft className="w-5 h-5" />
@@ -572,28 +572,28 @@ export default function ComposePanel() {
         <div className={cn("flex-1 flex flex-col min-w-0 transition-all", showPreview && "lg:w-1/2")}>
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <TabsList className="mx-4 mt-2 grid grid-cols-4 bg-slate-100/80 p-1 rounded-2xl">
-              <TabsTrigger value="compose" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Sparkles className="w-4 h-4 text-blue-500" />
-                <span className="hidden sm:inline">Compose</span>
+            <TabsList className="mx-4 mt-3 grid grid-cols-4 bg-slate-100/80 dark:bg-slate-800/50 p-1 rounded-lg">
+              <TabsTrigger value="compose" className="gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm text-slate-600 dark:text-slate-400 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white">
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Compose</span>
               </TabsTrigger>
-              <TabsTrigger value="accounts" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Users className="w-4 h-4 text-purple-500" />
-                <span className="hidden sm:inline">Accounts</span>
+              <TabsTrigger value="accounts" className="gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm text-slate-600 dark:text-slate-400 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white">
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Accounts</span>
                 {selectedAccountIds.length > 0 && (
-                  <Badge className="text-[10px] h-4 px-1.5 bg-blue-100 text-blue-600 border-0">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded-full text-slate-700 dark:text-slate-300">
                     {selectedAccountIds.length}
-                  </Badge>
+                  </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="schedule" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <CalendarDays className="w-4 h-4 text-emerald-500" />
-                <span className="hidden sm:inline">Schedule</span>
-                {scheduledDate && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+              <TabsTrigger value="schedule" className="gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm text-slate-600 dark:text-slate-400 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white">
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Schedule</span>
+                {scheduledDate && <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
               </TabsTrigger>
-              <TabsTrigger value="templates" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                <Zap className="w-4 h-4 text-amber-500" />
-                <span className="hidden sm:inline">Templates</span>
+              <TabsTrigger value="templates" className="gap-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm text-slate-600 dark:text-slate-400 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white">
+                <Zap className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Templates</span>
               </TabsTrigger>
             </TabsList>
 
@@ -766,45 +766,45 @@ export default function ComposePanel() {
             </ScrollArea>
           </Tabs>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-slate-200 space-y-3 bg-white/50">
-            <div className="flex items-center gap-2">
-              {selectedPlatforms.slice(0, 4).map((platform) => {
-                const Icon = getPlatformIcon(platform);
-                if (!Icon) return null;
-                return (
-                  <div key={platform} className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center">
-                    <Icon className="w-3.5 h-3.5 text-blue-500" />
-                  </div>
-                );
-              })}
-              {selectedPlatforms.length > 4 && (
-                <Badge className="text-[10px] bg-slate-100 text-slate-600 border-0">
-                  +{selectedPlatforms.length - 4}
-                </Badge>
-              )}
-              <span className="text-xs text-slate-400 ml-auto">{content.length} characters</span>
+          {/* Footer - Minimal */}
+          <div className="p-4 border-t border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                {selectedPlatforms.slice(0, 3).map((platform) => {
+                  const Icon = getPlatformIcon(platform);
+                  if (!Icon) return null;
+                  return (
+                    <div key={platform} className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      <Icon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                    </div>
+                  );
+                })}
+                {selectedPlatforms.length > 3 && (
+                  <span className="text-xs text-slate-500">
+                    +{selectedPlatforms.length - 3}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-slate-500">{content.length} chars</span>
             </div>
             <div className="flex gap-2">
               {isEditMode && (
                 <Button
                   variant="outline"
-                  className="text-rose-500 border-rose-200 hover:bg-rose-50 rounded-xl"
+                  size="sm"
+                  className="text-red-600 border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                   onClick={handleDelete}
                   disabled={deletePost.isPending}
                 >
-                  {deletePost.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
+                  {deletePost.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 </Button>
               )}
-              <Button variant="outline" className="flex-1 rounded-xl border-slate-200" onClick={closeCompose}>
+              <Button variant="outline" size="sm" className="flex-1 rounded-lg border-slate-200 dark:border-slate-700" onClick={closeCompose}>
                 Cancel
               </Button>
               <Button
-                className="flex-1 rounded-xl bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/25"
+                size="sm"
+                className="flex-1 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900"
                 disabled={
                   isSubmitting ||
                   (!content.trim() && files.length === 0) ||
@@ -814,16 +814,11 @@ export default function ComposePanel() {
                 onClick={handleSubmit}
               >
                 {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isEditMode ? "Updating..." : "Posting..."}
-                  </>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-2" />
-                    {isEditMode ? "Update" : scheduledDate ? "Schedule" : "Post Now"}
-                  </>
+                  <Send className="w-4 h-4 mr-1.5" />
                 )}
+                {isEditMode ? "Update" : scheduledDate ? "Schedule" : "Post"}
               </Button>
             </div>
           </div>
@@ -836,14 +831,13 @@ export default function ComposePanel() {
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 380, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="hidden lg:block border-l border-slate-200 bg-slate-50/80 overflow-hidden"
+              className="hidden lg:block border-l border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50 overflow-hidden"
             >
               <div className="h-full flex flex-col">
-                <div className="p-4 border-b border-slate-200 bg-white/50">
-                  <h3 className="font-semibold flex items-center gap-2 text-slate-800">
-                    <Eye className="w-4 h-4 text-blue-500" /> Preview
+                <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
+                  <h3 className="font-medium flex items-center gap-2 text-slate-800 dark:text-slate-200 text-sm">
+                    <Eye className="w-4 h-4 text-slate-500" /> Preview
                   </h3>
-                  <p className="text-xs text-slate-500">See how your post will look</p>
                 </div>
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4">

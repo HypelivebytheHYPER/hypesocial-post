@@ -180,13 +180,13 @@ export function WebhooksClient({ webhookEndpoint }: WebhooksClientProps) {
   );
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      {/* Header */}
+    <div className="mx-auto max-w-3xl space-y-6">
+      {/* Header - Minimal */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          className="text-slate-400 hover:text-slate-600"
+          className="text-slate-400 hover:text-slate-600 h-8 w-8"
           asChild
         >
           <Link href="/settings" aria-label="Back to settings">
@@ -194,30 +194,29 @@ export function WebhooksClient({ webhookEndpoint }: WebhooksClientProps) {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="greeting-title">Webhooks</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Webhooks</h1>
+          <p className="text-slate-500 text-sm mt-0.5">
             Real-time event streaming from Post For Me
           </p>
         </div>
         <Button
-          variant="soft"
+          variant="ghost"
           size="sm"
+          className="h-8 text-slate-500"
           onClick={() =>
             queryClient.invalidateQueries({ queryKey: pfmKeys.webhooks() })
           }
           disabled={isLoading}
         >
           <RefreshCw
-            className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+            className={`mr-1.5 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
           />
           Refresh
         </Button>
       </div>
 
-      <div className="divider-soft" />
-
       {/* Architecture Flow */}
-      <section className="card-premium p-6 overflow-hidden relative">
+      <section className="p-6 rounded-xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-[#111111] overflow-hidden relative">
         {/* Subtle grid background */}
         <div
           className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -230,14 +229,14 @@ export function WebhooksClient({ webhookEndpoint }: WebhooksClientProps) {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-              <Server className="h-5 w-5 text-slate-600" />
+            <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <Server className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </div>
             <div>
-              <h2 className="text-slate-800 font-semibold">
+              <h2 className="text-slate-900 dark:text-white font-medium text-sm">
                 Webhook Architecture
               </h2>
-              <p className="text-slate-400 text-xs">
+              <p className="text-slate-500 text-xs">
                 Server-side infrastructure — no configuration needed
               </p>
             </div>

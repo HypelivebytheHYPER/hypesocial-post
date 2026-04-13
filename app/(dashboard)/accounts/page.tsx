@@ -29,9 +29,9 @@ export default function AccountsPage() {
   const accounts = accountsData?.data ?? [];
 
   return (
-    <div className="min-h-screen bg-background p-6 lg:p-8">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-[#0a0a0a] p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-8">
-        {/* Header */}
+        {/* Header - Minimal */}
         <motion.div
           initial="hidden"
           animate="visible"
@@ -39,14 +39,14 @@ export default function AccountsPage() {
           className="flex items-center justify-between"
         >
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Social Accounts</h1>
-            <p className="mt-2 text-muted-foreground">
+            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Social Accounts</h1>
+            <p className="mt-1 text-sm text-slate-500">
               Manage your connected social media accounts
             </p>
           </div>
-          <Button asChild size="lg">
+          <Button asChild size="sm" className="h-8 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 rounded-lg">
             <Link href="/accounts/connect">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Connect Account
             </Link>
           </Button>
