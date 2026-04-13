@@ -1,5 +1,6 @@
 /**
- * HypeSocial Design System - Premium Blue Pastel
+ * Arco Design System Theme
+ * ByteDance's design language - clean, modern, professional
  */
 
 @tailwind base;
@@ -8,110 +9,253 @@
 
 @layer base {
   :root {
-    /* Primary Blues */
-    --color-blue-50: #f0f7ff;
-    --color-blue-100: #e0f0fe;
-    --color-blue-500: #0c9cf0;
-    --color-blue-600: #0284c7;
-    --color-blue-700: #0369a1;
-    
-    /* Premium Gradients */
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-sky: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #7dd3fc 100%);
-    --gradient-ocean: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-    --gradient-card: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-    
-    /* Neutrals */
-    --color-neutral-0: #ffffff;
-    --color-neutral-50: #f8fafc;
-    --color-neutral-100: #f1f5f9;
-    --color-neutral-200: #e2e8f0;
-    --color-neutral-400: #94a3b8;
-    --color-neutral-600: #475569;
-    --color-neutral-900: #0f172a;
-    
-    /* Semantic */
-    --bg-base: var(--color-neutral-50);
-    --bg-elevated: var(--color-neutral-0);
-    --bg-primary: var(--color-blue-500);
-    --bg-primary-subtle: var(--color-blue-50);
-    
-    --text-primary: var(--color-neutral-900);
-    --text-secondary: var(--color-neutral-600);
-    --text-tertiary: var(--color-neutral-400);
-    --text-brand: var(--color-blue-600);
-    
-    --border-subtle: var(--color-neutral-200);
-    --border-default: #cbd5e1;
-    --border-focus: var(--color-blue-500);
-    
-    /* Spacing */
-    --space-4: 1rem;
-    --space-6: 1.5rem;
-    
-    /* Shadows */
-    --shadow-2: 0 1px 3px 0 rgb(148 163 184 / 0.1);
-    --shadow-3: 0 4px 6px -1px rgb(148 163 184 / 0.1);
-    --shadow-blue-sm: 0 2px 8px rgb(14 165 233 / 0.12);
-    --shadow-blue-md: 0 4px 16px rgb(14 165 233 / 0.15);
-    
+    /* Arco Primary Colors */
+    --arco-blue-1: #e8f3ff;
+    --arco-blue-2: #bedaff;
+    --arco-blue-3: #94bfff;
+    --arco-blue-4: #6aa1ff;
+    --arco-blue-5: #4080ff;
+    --arco-blue-6: #165dff;
+    --arco-blue-7: #0e42ed;
+    --arco-blue-8: #072eca;
+    --arco-blue-9: #031f99;
+    --arco-blue-10: #001566;
+
+    /* Arco Neutral Colors */
+    --arco-gray-1: #f7f8fa;
+    --arco-gray-2: #f2f3f5;
+    --arco-gray-3: #e5e6eb;
+    --arco-gray-4: #c9cdd4;
+    --arco-gray-5: #a9aeb8;
+    --arco-gray-6: #86909c;
+    --arco-gray-7: #6b7785;
+    --arco-gray-8: #4e5969;
+    --arco-gray-9: #272e3b;
+    --arco-gray-10: #1d2129;
+
+    /* Arco Semantic Colors */
+    --arco-green-6: #00b42a;
+    --arco-orange-6: #ff7d00;
+    --arco-red-6: #f53f3f;
+
+    /* Shadcn/UI Theme Mapping */
+    --background: 0 0% 100%;
+    --foreground: 220 15% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 12%;
+    --primary: 220 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 15% 12%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 15% 12%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 100% 55%;
+    --radius: 0.5rem;
+
+    /* Semantic Tokens */
+    --color-primary: #165dff;
+    --color-primary-hover: #0e42ed;
+    --color-primary-light: #e8f3ff;
+
+    --color-success: #00b42a;
+    --color-warning: #ff7d00;
+    --color-error: #f53f3f;
+
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f7f8fa;
+    --color-bg-tertiary: #f2f3f5;
+
+    --color-text: #1d2129;
+    --color-text-secondary: #4e5969;
+    --color-text-tertiary: #86909c;
+
+    --color-border: #e5e6eb;
+    --color-border-light: #f2f3f5;
+    --color-border-dark: #c9cdd4;
+
+    /* Shadows - Arco Elevation */
+    --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.05);
+    --shadow-2: 0 4px 10px rgba(0, 0, 0, 0.08);
+    --shadow-3: 0 8px 20px rgba(0, 0, 0, 0.1);
+    --shadow-4: 0 12px 30px rgba(0, 0, 0, 0.12);
+
     /* Radius */
-    --radius-lg: 0.75rem;
-    --radius-xl: 1rem;
-    --radius-2xl: 1.25rem;
-    
-    /* Motion */
-    --duration-normal: 250ms;
-    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+  }
+
+  .dark {
+    --background: 220 15% 10%;
+    --foreground: 0 0% 95%;
+    --card: 220 15% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 15% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 220 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 220 15% 15%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 220 100% 55%;
+
+    --color-bg: #1d2129;
+    --color-bg-secondary: #272e3b;
+    --color-bg-tertiary: #4e5969;
+
+    --color-text: #f7f8fa;
+    --color-text-secondary: #c9cdd4;
+    --color-text-tertiary: #86909c;
+
+    --color-border: #4e5969;
+    --color-border-light: #272e3b;
+    --color-border-dark: #6b7785;
+
+    --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.2);
+    --shadow-2: 0 4px 10px rgba(0, 0, 0, 0.25);
+    --shadow-3: 0 8px 20px rgba(0, 0, 0, 0.3);
+    --shadow-4: 0 12px 30px rgba(0, 0, 0, 0.35);
   }
 }
 
 @layer base {
-  * { border-color: var(--border-default); }
-  html { -webkit-font-smoothing: antialiased; }
-  body { 
-    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
-    background-attachment: fixed;
-    color: var(--text-primary);
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
 @layer components {
-  .dashboard-card {
-    background: var(--gradient-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-2xl);
-    padding: var(--space-6);
+  /* Arco Card */
+  .arco-card {
+    @apply bg-card border rounded-lg;
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-1);
+    transition: all 0.2s ease;
+  }
+
+  .arco-card:hover {
     box-shadow: var(--shadow-2);
-    transition: all var(--duration-normal) var(--ease-out);
-    position: relative;
   }
-  
-  .dashboard-card:hover {
-    box-shadow: var(--shadow-3), var(--shadow-blue-sm);
-    transform: translateY(-2px);
+
+  /* Arco Button */
+  .arco-btn-primary {
+    @apply text-white font-medium rounded;
+    background: var(--color-primary);
+    transition: all 0.2s ease;
   }
-  
-  .dashboard-card-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
+
+  .arco-btn-primary:hover {
+    background: var(--color-primary-hover);
   }
-  
-  .dashboard-card-description {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-top: 0.25rem;
+
+  /* Arco Input */
+  .arco-input {
+    @apply bg-background border rounded transition-all duration-200;
+    border-color: var(--color-border);
   }
-  
-  .dashboard-card-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-xl);
-    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow-blue-sm);
+
+  .arco-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+
+  /* Arco Tag */
+  .arco-tag {
+    @apply inline-flex items-center text-xs font-medium rounded;
+    padding: 2px 8px;
+  }
+
+  .arco-tag-blue {
+    background: var(--arco-blue-1);
+    color: var(--arco-blue-6);
+  }
+
+  .arco-tag-green {
+    background: #e8ffea;
+    color: #00b42a;
+  }
+
+  .arco-tag-orange {
+    background: #fff7e8;
+    color: #ff7d00;
+  }
+
+  .arco-tag-red {
+    background: #fff0ed;
+    color: #f53f3f;
+  }
+
+  /* Arco Stat */
+  .arco-stat {
+    @apply bg-card border rounded-xl p-5;
+    border-color: var(--color-border);
+  }
+
+  .arco-stat-value {
+    @apply text-2xl font-semibold;
+    color: var(--color-text);
+    line-height: 1.2;
+  }
+
+  .arco-stat-label {
+    @apply text-sm mt-1;
+    color: var(--color-text-secondary);
+  }
+
+  /* Arco Nav */
+  .arco-nav-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded transition-all duration-200;
+    color: var(--color-text-secondary);
+  }
+
+  .arco-nav-item:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+  }
+
+  .arco-nav-item.active {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    @apply font-medium;
+  }
+
+  /* Arco Header */
+  .arco-header {
+    @apply bg-card border-b;
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-1);
+  }
+
+  /* Arco Table */
+  .arco-table-row {
+    @apply border-b transition-colors duration-200;
+    border-color: var(--color-border-light);
+  }
+
+  .arco-table-row:hover {
+    background: var(--color-bg-secondary);
   }
 }

@@ -59,32 +59,36 @@ function getFirstMedia(media: SocialAccountFeedItem["media"]) {
   return { url, type: isVideo ? ("video" as const) : ("image" as const) };
 }
 
-// Stats Card Component
+// Stats Card Component - Arco Style
 function StatCard({ 
   label, 
   value, 
   icon: Icon, 
-  color 
+  color,
+  bgColor 
 }: { 
   label: string; 
   value: string | number; 
   icon: React.ElementType; 
   color: string;
+  bgColor: string;
 }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-[#111111] border border-slate-200/60 dark:border-slate-800/60">
-      <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", color)}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div>
-        <p className="text-xl font-semibold text-slate-900 dark:text-white">{value}</p>
-        <p className="text-xs text-slate-500">{label}</p>
+    <div className="arco-stat">
+      <div className="flex items-center gap-3">
+        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", bgColor)}>
+          <Icon className={cn("w-5 h-5", color)} />
+        </div>
+        <div>
+          <p className="arco-stat-value">{value}</p>
+          <p className="arco-stat-label">{label}</p>
+        </div>
       </div>
     </div>
   );
 }
 
-// Feed Item Component - Tsuika Style
+// Feed Item Component - Arco Style
 function FeedItem({ 
   item, 
   accountPlatform, 
@@ -107,25 +111,25 @@ function FeedItem({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="group rounded-2xl bg-white dark:bg-[#111111] border border-slate-200/60 dark:border-slate-800/60 overflow-hidden hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-black/50 transition-all duration-300"
+      className="arco-card overflow-hidden hover:shadow-md transition-shadow"
     >
       {/* Post Header */}
-      <div className="p-4 flex items-center justify-between">
+      <div className="p-4 flex items-center justify-between border-b border-[var(--color-border-light)]">
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10 ring-2 ring-slate-100 dark:ring-slate-800">
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-sm font-medium">
+          <Avatar className="w-10 h-10 border-2 border-[var(--color-bg-secondary)]">
+            <AvatarFallback className="bg-gradient-to-br from-[var(--arco-blue-6)] to-[var(--arco-blue-4)] text-white text-sm font-medium">
               {(accountUsername || accountPlatform)[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="text-slate-900 dark:text-white font-semibold text-sm">
+            <h3 className="text-[var(--color-text)] font-semibold text-sm">
               {accountUsername || accountPlatform}
             </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">{formatTime(item.posted_at)}</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(item.posted_at)}</span>
               {PlatformIcon && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                  <PlatformIcon className="w-3 h-3" />
+                <span className="arco-tag arco-tag-blue">
+                  <PlatformIcon className="w-3 h-3 mr-1" />
                   {accountPlatform}
                 </span>
               )}
@@ -138,7 +142,7 @@ function FeedItem({
             href={item.platform_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
           >
             <Send className="w-4 h-4" />
           </a>
@@ -146,8 +150,8 @@ function FeedItem({
       </div>
 
       {/* Post Content */}
-      <div className="px-4 pb-4">
-        <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+      <div className="p-4">
+        <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed whitespace-pre-wrap">
           {item.caption}
         </p>
       </div>
@@ -155,18 +159,18 @@ function FeedItem({
       {/* Post Media */}
       {media && (
         <div className="px-4 pb-4">
-          <div className="rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800">
+          <div className="rounded-lg overflow-hidden bg-[var(--color-bg-secondary)]">
             {media.type === "video" ? (
               <video
                 src={proxyMediaUrl(media.url)}
                 controls
-                className="w-full h-auto max-h-[500px] object-cover"
+                className="w-full h-auto max-h-[400px] object-cover"
               />
             ) : (
               <img
                 src={proxyMediaUrl(media.url)}
                 alt=""
-                className="w-full h-auto object-cover max-h-[500px]"
+                className="w-full h-auto object-cover max-h-[400px]"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
@@ -177,20 +181,20 @@ function FeedItem({
       )}
 
       {/* Post Stats */}
-      <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-t border-[var(--color-border-light)] flex items-center justify-between">
         <div className="flex items-center gap-6">
           <span className={cn(
             "flex items-center gap-2",
-            available.likes ? "text-slate-600 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+            available.likes ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
           )}>
-            <Heart className={cn("w-4 h-4", available.likes && "fill-rose-500 text-rose-500")} />
+            <Heart className={cn("w-4 h-4", available.likes && "fill-[var(--arco-red-6)] text-[var(--arco-red-6)]")} />
             <span className="text-sm font-medium">
               {available.likes ? formatNumber(metrics.likes) : "—"}
             </span>
           </span>
           <span className={cn(
             "flex items-center gap-2",
-            available.comments ? "text-slate-600 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+            available.comments ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
           )}>
             <MessageCircle className="w-4 h-4" />
             <span className="text-sm font-medium">
@@ -199,7 +203,7 @@ function FeedItem({
           </span>
           <span className={cn(
             "flex items-center gap-2",
-            available.shares ? "text-slate-600 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+            available.shares ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
           )}>
             <Share2 className="w-4 h-4" />
             <span className="text-sm font-medium">
@@ -208,7 +212,7 @@ function FeedItem({
           </span>
           <span className={cn(
             "flex items-center gap-2",
-            available.views ? "text-slate-600 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+            available.views ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
           )}>
             <Eye className="w-4 h-4" />
             <span className="text-sm font-medium">
@@ -221,7 +225,7 @@ function FeedItem({
       {/* LinkedIn Personal Profile Note */}
       {isLinkedInPersonal && (
         <div className="px-4 pb-4">
-          <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-100 dark:border-amber-500/20">
+          <p className="text-xs text-[var(--arco-orange-6)] bg-[#fff7e8] px-3 py-2 rounded border border-[#ffe4ba]">
             ℹ️ LinkedIn metrics only available for Company Pages. Personal profiles do not have analytics access.
           </p>
         </div>
@@ -260,16 +264,14 @@ function PlatformWarning({ platform }: { platform: string }) {
   if (!warning) return null;
 
   return (
-    <div className="rounded-xl bg-amber-50/50 dark:bg-amber-500/5 border border-amber-100 dark:border-amber-500/20 p-4">
+    <div className="arco-card border-l-4 border-l-[var(--arco-orange-6)] p-4">
       <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-        </div>
+        <AlertTriangle className="w-5 h-5 text-[var(--arco-orange-6)] flex-shrink-0 mt-0.5" />
         <div>
-          <h3 className="text-slate-800 dark:text-slate-200 font-medium text-sm mb-1">
+          <h3 className="text-[var(--color-text)] font-medium text-sm mb-1">
             {warning.title}
           </h3>
-          <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+          <ul className="text-xs text-[var(--color-text-secondary)] space-y-0.5">
             {warning.items.map((item, i) => (
               <li key={i}>• {item}</li>
             ))}
@@ -343,41 +345,42 @@ export default function FeedPage() {
   const totalViews = allFeedItems.reduce((sum, item) => sum + extractMetrics(item.metrics).views, 0);
 
   return (
-    <div className="min-h-screen bg-[#fafafa] dark:bg-[#0a0a0a]">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10" />
-        <div className="relative max-w-3xl mx-auto px-4 py-12 md:py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">
-              Your <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">Social Feed</span>
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
-              Track engagement and monitor your content performance across all connected platforms
-            </p>
-          </motion.div>
+    <div className="min-h-screen bg-[var(--color-bg)]">
+      {/* Header Section */}
+      <div className="arco-header">
+        <div className="max-w-3xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-[var(--color-text)]">Social Feed</h1>
+              <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
+                Monitor your content performance across platforms
+              </p>
+            </div>
+            <Link href="/analytics">
+              <Button variant="outline" size="sm" className="gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 pb-12 space-y-6 -mt-4">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Account Selector Pills */}
         {accountsLoading ? (
           <div className="flex items-center justify-center py-4">
-            <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-text-tertiary)]" />
           </div>
         ) : connectedAccounts.length === 0 ? (
-          <div className="rounded-2xl bg-white dark:bg-[#111111] border border-slate-200/60 dark:border-slate-800/60 p-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4">
-              <TrendingUp className="w-8 h-8 text-slate-400" />
+          <div className="arco-card p-8 text-center">
+            <div className="w-16 h-16 rounded-xl bg-[var(--color-bg-secondary)] flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="w-8 h-8 text-[var(--color-text-tertiary)]" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No connected accounts</h3>
-            <p className="text-sm text-slate-500 mb-4">Connect your social accounts to view your feed</p>
+            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-2">No connected accounts</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-4">Connect your social accounts to view your feed</p>
             <Link href="/accounts/connect">
-              <Button className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 rounded-lg">
+              <Button className="arco-btn-primary">
                 Connect Account
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -397,10 +400,10 @@ export default function FeedPage() {
                     setAccumulatedItems([]);
                   }}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-full text-sm whitespace-nowrap transition-all flex-shrink-0 border",
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all flex-shrink-0 border",
                     isSelected
-                      ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white shadow-lg shadow-slate-900/20"
-                      : "bg-white dark:bg-[#111111] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
+                      : "bg-[var(--color-bg)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
                   )}
                 >
                   {PlatformIcon && <PlatformIcon className="w-4 h-4" />}
@@ -416,25 +419,28 @@ export default function FeedPage() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-3 gap-3"
+            className="grid grid-cols-3 gap-4"
           >
             <StatCard 
               label="Total Likes" 
               value={formatNumber(totalLikes)} 
               icon={Heart} 
-              color="bg-rose-500" 
+              color="text-[var(--arco-red-6)]"
+              bgColor="bg-[#fff0ed]"
             />
             <StatCard 
               label="Comments" 
               value={formatNumber(totalComments)} 
               icon={MessageCircle} 
-              color="bg-blue-500" 
+              color="text-[var(--arco-blue-6)]"
+              bgColor="bg-[var(--arco-blue-1)]"
             />
             <StatCard 
               label="Total Views" 
               value={formatNumber(totalViews)} 
               icon={Eye} 
-              color="bg-violet-500" 
+              color="text-[var(--arco-green-6)]"
+              bgColor="bg-[#e8ffea]"
             />
           </motion.div>
         )}
@@ -443,8 +449,8 @@ export default function FeedPage() {
         {allFeedItems.length > 0 && (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span className="text-sm text-slate-500">
+              <Calendar className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+              <span className="text-sm text-[var(--color-text-secondary)]">
                 {allFeedItems.length} posts
               </span>
             </div>
@@ -453,7 +459,7 @@ export default function FeedPage() {
               size="sm"
               onClick={handleRefresh}
               disabled={feedLoading}
-              className="text-slate-500 hover:text-slate-700"
+              className="text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
             >
               <RefreshCw className={cn("w-4 h-4 mr-1.5", feedLoading && "animate-spin")} />
               Refresh
@@ -474,18 +480,18 @@ export default function FeedPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="rounded-2xl bg-white dark:bg-[#111111] border border-slate-200/60 dark:border-slate-800/60 p-12 text-center"
+                className="arco-card p-12 text-center"
               >
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400 mx-auto mb-4" />
-                <p className="text-slate-500">Loading your feed...</p>
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--color-text-tertiary)] mx-auto mb-4" />
+                <p className="text-[var(--color-text-secondary)]">Loading your feed...</p>
               </motion.div>
             ) : feedError ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="rounded-2xl bg-white dark:bg-[#111111] border border-red-200 dark:border-red-500/20 p-8 text-center"
+                className="arco-card border-l-4 border-l-[var(--arco-red-6)] p-8 text-center"
               >
-                <p className="text-red-500 mb-3">{feedError?.message || "Failed to load feed"}</p>
+                <p className="text-[var(--arco-red-6)] mb-3">{feedError?.message || "Failed to load feed"}</p>
                 <Button variant="outline" size="sm" onClick={handleRefresh}>
                   Try Again
                 </Button>
@@ -494,18 +500,18 @@ export default function FeedPage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="rounded-2xl bg-white dark:bg-[#111111] border border-slate-200/60 dark:border-slate-800/60 p-12 text-center"
+                className="arco-card p-12 text-center"
               >
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                  <BarChart3 className="w-8 h-8 text-slate-400" />
+                <div className="w-16 h-16 rounded-xl bg-[var(--color-bg-secondary)] flex items-center justify-center mx-auto mb-4">
+                  <BarChart3 className="w-8 h-8 text-[var(--color-text-tertiary)]" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No posts found</h3>
-                <p className="text-sm text-slate-500 mb-4">Select an account to view their feed</p>
+                <h3 className="text-lg font-semibold text-[var(--color-text)] mb-2">No posts found</h3>
+                <p className="text-sm text-[var(--color-text-secondary)] mb-4">Select an account to view their feed</p>
                 {connectedAccounts.length > 0 && (
-                  <div className="rounded-xl bg-amber-50/50 dark:bg-amber-500/5 border border-amber-100 dark:border-amber-500/20 p-4 max-w-sm mx-auto">
-                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <div className="arco-card border-l-4 border-l-[var(--arco-orange-6)] p-4 max-w-sm mx-auto">
+                    <p className="text-xs text-[var(--color-text-secondary)]">
                       <strong>Don&apos;t see your posts?</strong> Try{" "}
-                      <Link href="/accounts/connect" className="underline hover:text-amber-900 dark:hover:text-amber-300">
+                      <Link href="/accounts/connect" className="text-[var(--color-primary)] hover:underline">
                         reconnecting your account
                       </Link>{" "}
                       to enable feed access.
@@ -557,19 +563,6 @@ export default function FeedPage() {
             )}
           </AnimatePresence>
         </div>
-
-        {/* Analytics Link */}
-        {allFeedItems.length > 0 && (
-          <div className="text-center pt-4">
-            <Link
-              href="/analytics"
-              className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-            >
-              View detailed analytics
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );

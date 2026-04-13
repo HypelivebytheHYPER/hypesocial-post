@@ -1,0 +1,287 @@
+/**
+ * Arco Design System Theme
+ * ByteDance's design language - clean, modern, professional
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Arco Primary Colors */
+    --arco-blue-1: #e8f3ff;
+    --arco-blue-2: #bedaff;
+    --arco-blue-3: #94bfff;
+    --arco-blue-4: #6aa1ff;
+    --arco-blue-5: #4080ff;
+    --arco-blue-6: #165dff;
+    --arco-blue-7: #0e42ed;
+    --arco-blue-8: #072eca;
+    --arco-blue-9: #031f99;
+    --arco-blue-10: #001566;
+
+    /* Arco Neutral Colors */
+    --arco-gray-1: #f7f8fa;
+    --arco-gray-2: #f2f3f5;
+    --arco-gray-3: #e5e6eb;
+    --arco-gray-4: #c9cdd4;
+    --arco-gray-5: #a9aeb8;
+    --arco-gray-6: #86909c;
+    --arco-gray-7: #6b7785;
+    --arco-gray-8: #4e5969;
+    --arco-gray-9: #272e3b;
+    --arco-gray-10: #1d2129;
+
+    /* Arco Success */
+    --arco-green-1: #e8ffea;
+    --arco-green-2: #aff0b5;
+    --arco-green-3: #7be188;
+    --arco-green-4: #4cd263;
+    --arco-green-5: #23c343;
+    --arco-green-6: #00b42a;
+    --arco-green-7: #009a29;
+    --arco-green-8: #008026;
+    --arco-green-9: #006622;
+    --arco-green-10: #004d1c;
+
+    /* Arco Warning */
+    --arco-orange-1: #fff7e8;
+    --arco-orange-2: #ffe4ba;
+    --arco-orange-3: #ffcf8b;
+    --arco-orange-4: #ffb65d;
+    --arco-orange-5: #ff9a2e;
+    --arco-orange-6: #ff7d00;
+    --arco-orange-7: #d25f00;
+    --arco-orange-8: #a64500;
+    --arco-orange-9: #792e00;
+    --arco-orange-10: #4d1b00;
+
+    /* Arco Error */
+    --arco-red-1: #fff0ed;
+    --arco-red-2: #fdcdc5;
+    --arco-red-3: #fbaca3;
+    --arco-red-4: #f98981;
+    --arco-red-5: #f76560;
+    --arco-red-6: #f53f3f;
+    --arco-red-7: #cb272d;
+    --arco-red-8: #a1151e;
+    --arco-red-9: #770813;
+    --arco-red-10: #4d000a;
+
+    /* Semantic Tokens */
+    --color-primary: var(--arco-blue-6);
+    --color-primary-hover: var(--arco-blue-7);
+    --color-primary-light: var(--arco-blue-1);
+
+    --color-success: var(--arco-green-6);
+    --color-warning: var(--arco-orange-6);
+    --color-error: var(--arco-red-6);
+
+    --color-bg: #ffffff;
+    --color-bg-secondary: var(--arco-gray-1);
+    --color-bg-tertiary: var(--arco-gray-2);
+
+    --color-text: var(--arco-gray-10);
+    --color-text-secondary: var(--arco-gray-8);
+    --color-text-tertiary: var(--arco-gray-6);
+    --color-text-disabled: var(--arco-gray-5);
+
+    --color-border: var(--arco-gray-3);
+    --color-border-light: var(--arco-gray-2);
+    --color-border-dark: var(--arco-gray-4);
+
+    /* Shadows - Arco Elevation */
+    --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.05);
+    --shadow-2: 0 4px 10px rgba(0, 0, 0, 0.08);
+    --shadow-3: 0 8px 20px rgba(0, 0, 0, 0.1);
+    --shadow-4: 0 12px 30px rgba(0, 0, 0, 0.12);
+
+    /* Border Radius */
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 9999px;
+
+    /* Spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+  }
+
+  .dark {
+    --color-bg: var(--arco-gray-10);
+    --color-bg-secondary: var(--arco-gray-9);
+    --color-bg-tertiary: var(--arco-gray-8);
+
+    --color-text: var(--arco-gray-1);
+    --color-text-secondary: var(--arco-gray-3);
+    --color-text-tertiary: var(--arco-gray-5);
+    --color-text-disabled: var(--arco-gray-6);
+
+    --color-border: var(--arco-gray-8);
+    --color-border-light: var(--arco-gray-9);
+    --color-border-dark: var(--arco-gray-7);
+
+    --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.2);
+    --shadow-2: 0 4px 10px rgba(0, 0, 0, 0.25);
+    --shadow-3: 0 8px 20px rgba(0, 0, 0, 0.3);
+    --shadow-4: 0 12px 30px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  /* Arco Card */
+  .arco-card {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+    transition: all 0.2s ease;
+  }
+
+  .arco-card:hover {
+    box-shadow: var(--shadow-2);
+  }
+
+  /* Arco Button Primary */
+  .arco-btn-primary {
+    background: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .arco-btn-primary:hover {
+    background: var(--color-primary-hover);
+  }
+
+  /* Arco Input */
+  .arco-input {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+  }
+
+  .arco-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+  }
+
+  /* Arco Tag */
+  .arco-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .arco-tag-blue {
+    background: var(--arco-blue-1);
+    color: var(--arco-blue-6);
+  }
+
+  .arco-tag-green {
+    background: var(--arco-green-1);
+    color: var(--arco-green-6);
+  }
+
+  .arco-tag-orange {
+    background: var(--arco-orange-1);
+    color: var(--arco-orange-6);
+  }
+
+  .arco-tag-red {
+    background: var(--arco-red-1);
+    color: var(--arco-red-6);
+  }
+
+  /* Arco Table Row */
+  .arco-table-row {
+    border-bottom: 1px solid var(--color-border-light);
+    transition: background 0.2s ease;
+  }
+
+  .arco-table-row:hover {
+    background: var(--color-bg-secondary);
+  }
+
+  /* Arco Stat Card */
+  .arco-stat {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+  }
+
+  .arco-stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.2;
+  }
+
+  .arco-stat-label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+  }
+
+  /* Arco Navigation */
+  .arco-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .arco-nav-item:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+  }
+
+  .arco-nav-item.active {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    font-weight: 500;
+  }
+
+  /* Arco Divider */
+  .arco-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 16px 0;
+  }
+
+  /* Arco Header */
+  .arco-header {
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow-1);
+  }
+}
