@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
-import type { SocialAccounts } from "post-for-me/resources/social-accounts";
+import { PAGINATION } from "@/lib/constants";
+import {
+  handleApiError,
+  buildValidationError,
+  sendErrorResponse,
+} from "@/lib/api-errors";
 import type { PostForMeError } from "@/types/post-for-me-types";
 
-type SocialAccountCreateParams = SocialAccounts.SocialAccountCreateParams;
-import { parseBody, parseQuery } from "@/lib/validations";
-import {
-  ListAccountsQuerySchema,
-  CreateAccountSchema,
-} from "@/lib/validations/accounts";
+const ListAccountsQuerySchema = z.object({
+  platform: z.array(z.string()).optional(),
+  status: z.array(z.enum(["connected", "disconnected"])).optional(),
+  username: z.array(z.string()).optional(),
+  external_id: z.array(z.string()).optional(),
+  id: z.array(z.string()).optional(),
+  limit: z.coerce.number().int().min(1).max(PAGINATION.MAX_PAGE_SIZE).default(PAGINATION.DEFAULT_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const CreateAccountSchema = z.object({
+  platform: z.string(),
+  code: z.string(),
+  redirect_uri: z.string().url().optional(),
+});
 
 /**
  * GET /api/accounts
@@ -19,105 +34,65 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const q = parseQuery(ListAccountsQuerySchema, {
-      offset: searchParams.get("offset") ?? undefined,
-      limit: searchParams.get("limit") ?? undefined,
+    const queryResult = ListAccountsQuerySchema.safeParse({
       platform: searchParams.getAll("platform"),
       status: searchParams.getAll("status"),
       username: searchParams.getAll("username"),
       external_id: searchParams.getAll("external_id"),
       id: searchParams.getAll("id"),
+      limit: searchParams.get("limit") ?? undefined,
+      offset: searchParams.get("offset") ?? undefined,
     });
-    if (!q.success) return q.response;
 
-    const data = await pfm.socialAccounts.list(q.data);
-
-    return NextResponse.json(data);
-  } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
+    if (!queryResult.success) {
+      const issues = queryResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
+      return sendErrorResponse(
+        buildValidationError(`Invalid query parameters: ${issues.join(", ")}`, issues),
+        400,
       );
     }
-    console.error("[API] Error fetching accounts:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+
+    const data = await pfm.socialAccounts.list(queryResult.data);
+    return NextResponse.json(data);
+  } catch (error) {
+    return handleApiError(error, { context: "fetching accounts" });
   }
 }
 
 /**
  * POST /api/accounts
- * Create or update a social account directly
- * Official API: POST /v1/social-accounts
+ * Official API: POST /v1/social-accounts (OAuth callback completion)
  */
 export async function POST(request: NextRequest) {
   try {
     let jsonBody: unknown;
-
     try {
       jsonBody = await request.json();
     } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError("Invalid JSON in request body", ["Invalid JSON"]),
+        400,
       );
     }
 
-    const parsed = parseBody(CreateAccountSchema, jsonBody);
-    if (!parsed.success) return parsed.response;
+    const parseResult = CreateAccountSchema.safeParse(jsonBody);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
+      return sendErrorResponse(
+        buildValidationError(issues.join("; "), issues),
+        400,
+      );
+    }
 
-    // Zod allows "twitter" alias + transforms expires_at — SDK types are narrower
-    const {
-      platform,
-      access_token_expires_at,
-      refresh_token_expires_at,
-      ...rest
-    } = parsed.data;
-    const data = await pfm.socialAccounts.create({
-      ...rest,
-      platform: (platform === "twitter"
-        ? "x"
-        : platform) as SocialAccountCreateParams["platform"],
-      access_token_expires_at: String(access_token_expires_at),
-      ...(refresh_token_expires_at != null && {
-        refresh_token_expires_at: String(refresh_token_expires_at),
-      }),
-    });
+    const body = parseResult.data;
+    // Use raw HTTP since SDK create() expects tokens, not OAuth code
+    const data = await pfm.post("/v1/social-accounts", { body });
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error creating account:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "creating account" });
   }
 }

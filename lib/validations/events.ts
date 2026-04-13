@@ -4,7 +4,7 @@ import { z } from "zod";
  * Canonical event envelope persisted to the Lark Base EVENTS table.
  *
  * One row per webhook delivery (deduplicated by event_id). The same shape
- * is replayed to clients via the SSE catch-up endpoint, so this is the
+ * is replayed to clients via the streaming catch-up endpoint, so this is the
  * single source of truth for "what happened in the system".
  *
  * Sources:
@@ -39,7 +39,7 @@ export const EventSchema = z.object({
   /**
    * Owning user id from NextAuth/Lark USERS table. May be null when the
    * provider doesn't tell us which user owns the resource — in that case
-   * SSE broadcasts the event to all connected sessions.
+   * Streaming broadcasts the event to all connected sessions.
    */
   user_id: z.string().nullable(),
   /**
@@ -58,6 +58,10 @@ export const EventSchema = z.object({
   payload_json: z.string(),
   /** Server-assigned receipt time (ISO). */
   received_at: z.string(),
+  /** Trace ID for distributed tracing (propagated from incoming request). */
+  trace_id: z.string().nullable().optional(),
+  /** Request ID for request correlation (propagated from incoming request). */
+  request_id: z.string().nullable().optional(),
 });
 
 export type Event = z.infer<typeof EventSchema>;
@@ -81,8 +85,12 @@ export const EVENT_FIELD = {
   ACTION_TYPE: "action_type",
   PAYLOAD_JSON: "payload_json",
   RECEIVED_AT: "received_at",
-  /** Lark auto-number field — provides monotonic seq for SSE Last-Event-ID. */
+  /** Lark auto-number field — provides monotonic seq for streaming Last-Event-ID. */
   SEQ: "seq",
+  /** Trace ID for distributed tracing. */
+  TRACE_ID: "x-trace-id",
+  /** Request ID for request correlation. */
+  REQUEST_ID: "x-request-id",
 } as const;
 
 /** Maximum size of payload_json before truncation. Lark text fields cap around 100KB; leave headroom. */

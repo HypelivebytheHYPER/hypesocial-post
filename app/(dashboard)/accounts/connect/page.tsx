@@ -18,12 +18,12 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { socialPlatforms } from "@/lib/social-platforms";
 import {
-  useAccounts,
-  useConnectAccount,
-  useDisconnectAccount,
-  usePausedAccounts,
+  useSocialAccounts,
+  useConnectSocialAccount,
+  useDisconnectSocialAccount,
+  usePausedSocialAccounts,
   pfmKeys,
-} from "@/lib/hooks/usePostForMe";
+} from "@/lib/hooks";
 import type { SocialAccount } from "@/types/post-for-me-types";
 import { proxyMediaUrl } from "@/lib/utils";
 
@@ -143,10 +143,10 @@ function ConnectAccountsContent() {
     data: accountsData,
     isLoading: accountsLoading,
     error: accountsError,
-  } = useAccounts();
-  const connectAccount = useConnectAccount();
-  const disconnectAccount = useDisconnectAccount();
-  const { isReady, toggleAccount, isPaused } = usePausedAccounts();
+  } = useSocialAccounts();
+  const connectAccount = useConnectSocialAccount();
+  const disconnectAccount = useDisconnectSocialAccount();
+  const { toggleAccount, isPaused } = usePausedSocialAccounts();
 
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(
     null,
@@ -161,8 +161,11 @@ function ConnectAccountsContent() {
 
   const handleConnect = (platformId: string) => {
     setConnectingPlatform(platformId);
+    // Quickstart Projects: don't send redirect_uri (set in Post For Me dashboard)
+    // Custom projects: set NEXT_PUBLIC_POST_FOR_ME_REDIRECT_URI env var
+    const redirectUri = process.env.NEXT_PUBLIC_POST_FOR_ME_REDIRECT_URI;
     connectAccount.mutate(
-      { platform: platformId },
+      { platform: platformId, redirect_uri: redirectUri || "" },
       {
         onError: (error) => {
           setConnectingPlatform(null);
@@ -233,6 +236,25 @@ function ConnectAccountsContent() {
               </h3>
               <p className="text-red-600 text-sm mt-1">
                 {accountsError.message || "Please try again later"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feed Access Notice */}
+      {!accountsLoading && connectedAccounts.length > 0 && (
+        <div className="card-premium p-4 bg-amber-50/50 border-amber-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-amber-800">
+                Feed Access Update
+              </h3>
+              <p className="text-xs text-amber-600 mt-1">
+                We&apos;ve updated our permissions to support feed analytics. 
+                If your feeds aren&apos;t loading, please{" "}
+                <strong>disconnect and reconnect</strong> your accounts to enable feed access.
               </p>
             </div>
           </div>
@@ -413,7 +435,7 @@ function ConnectAccountsContent() {
                             )}
 
                             {/* Pause/Resume toggle */}
-                            {isConnected && isReady && (
+                            {isConnected && (
                               <Switch
                                 checked={!accountPaused}
                                 onCheckedChange={() =>
@@ -602,6 +624,20 @@ function ConnectAccountsContent() {
                   Webhooks are auto-registered for real-time post status updates
                   including publish success, failures, and errors.
                 </p>
+              </div>
+
+              <div className="divider-soft" />
+              
+              <div className="flex items-start gap-3">
+                <div className="text-slate-500 w-full">
+                  <p className="font-medium text-slate-600 mb-1">Admin Tools</p>
+                  <Link 
+                    href="/accounts/manual" 
+                    className="text-xs text-blue-500 hover:text-blue-600 underline"
+                  >
+                    Manual account setup with token
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

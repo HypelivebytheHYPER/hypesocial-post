@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me-types";
 import { parseBody, validateId } from "@/lib/validations";
 import { UpdateAccountSchema } from "@/lib/validations/accounts";
+import { handleApiError } from "@/lib/api-errors";
+import type { PostForMeError } from "@/types/post-for-me-types";
 
 /**
  * GET /api/accounts/[id]
@@ -20,31 +21,16 @@ export async function GET(
     const data = await pfm.socialAccounts.retrieve(id);
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error fetching account:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "fetching account" });
   }
 }
 
 /**
  * PATCH /api/accounts/[id]
  * Official API: PATCH /v1/social-accounts/{id}
+ *
+ * Update account properties like username or external_id.
+ * Note: Cannot update tokens or platform - use connect/disconnect for that.
  */
 export async function PATCH(
   request: NextRequest,
@@ -75,24 +61,6 @@ export async function PATCH(
     const data = await pfm.socialAccounts.update(id, parsed.data);
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error updating account:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "updating account" });
   }
 }

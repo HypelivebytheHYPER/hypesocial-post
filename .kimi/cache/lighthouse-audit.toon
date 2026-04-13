@@ -1,0 +1,27 @@
+# Lighthouse Audit Report
+# URL: https://hypesocial-post.vercel.app
+# Generated: 2026-04-12T19:49:13.093Z
+
+[4,]{category,score,status}:
+Performance,69,needs_improvement
+Accessibility,82,good
+Best Practices,96,excellent
+SEO,90,excellent
+
+[5,]{metric,value,target,status}:
+First Contentful Paint,1489.9390000000003,1800,good
+Largest Contentful Paint,14592.214000000004,2500,poor
+Total Blocking Time,56,200,good
+Cumulative Layout Shift,0,0.1,excellent
+Speed Index,6184.711246050884,3400,needs_improvement
+
+[3,]{issue,severity,savings}:
+Reduce unused JavaScript,high,127 KiB
+Reduce unused CSS,medium,13 KiB
+Minimize main-thread work,medium,2.0s
+
+[3,]{a11y_issue,count,element}:
+Buttons without accessible name,1,button
+Insufficient color contrast,1,text
+Viewport maximum-scale restriction,1,meta viewport
+

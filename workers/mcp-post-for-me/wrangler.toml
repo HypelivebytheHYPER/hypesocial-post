@@ -1,0 +1,16 @@
+name = "mcp-post-for-me"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+POST_FOR_ME_BASE_URL = "https://api.postforme.dev"
+
+# Custom domain
+routes = [
+  { pattern = "postforme-mcp.hypelive.workers.dev", custom_domain = true }
+]
+
+# Secrets (set via wrangler secret put):
+# POST_FOR_ME_API_KEY
+# POST_FOR_ME_WEBHOOK_SECRET

@@ -1,0 +1,37 @@
+# Naming Conventions Audit & Fixes
+# Generated: 2026-04-12
+
+[6,]{category,pattern,example,status}:
+Constants,SCREAMING_SNAKE_CASE,SPRING_TRANSITION,FIXED
+Variables,camelCase,filteredPosts,OK
+Functions,camelCase,handleDelete,OK
+Components,PascalCase,PostCard,OK
+Interfaces,PascalCase,PostCardProps,OK
+Types,PascalCase,ViewMode,OK
+
+[5,]{file,issue_before,fix_after,status}:
+components/BoardColumn.tsx,springTransition,SPRING_TRANSITION,FIXED
+components/PostsList.tsx,springTransition,SPRING_TRANSITION,FIXED
+components/BoardColumn.tsx,springTransition usage,SPRING_TRANSITION usage,FIXED
+components/PostsList.tsx,springTransition usage,SPRING_TRANSITION usage,FIXED
+
+[8,]{constant_name,file,line,purpose}:
+SPRING_TRANSITION,page.tsx,69,Animation config
+SPRING_TRANSITION,[id]/edit/page.tsx,41,Animation config
+SPRING_TRANSITION,@compose/page.tsx,43,Animation config
+SPRING_TRANSITION,components/BoardColumn.tsx,28,Animation config
+SPRING_TRANSITION,components/PostsList.tsx,26,Animation config
+WEEK_DAYS,@compose/page.tsx,44,Calendar headers
+WEEK_DAYS,[id]/edit/page.tsx,42,Calendar headers
+WEEK_DAYS,_components/CalendarView.tsx,47,Calendar headers
+
+[4,]{check_item,result,notes}:
+Constants naming,PASS,All use SCREAMING_SNAKE_CASE
+Variables naming,PASS,All use camelCase
+Functions naming,PASS,All use camelCase
+Components naming,PASS,All use PascalCase
+
+[3,]{file_pattern,location,example}:
+PascalCase,components/,PostCard.tsx
+camelCase,hooks/,usePostFilters.ts
+kebab-case,new/components/,account-content-customization.tsx

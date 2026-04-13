@@ -1,29 +1,29 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+
 import { getEventsSince, type WireEvent } from "@/lib/lark-events";
 
 /**
  * GET /api/events/stream
  *
- * Server-Sent Events endpoint that pushes EVENTS rows to authenticated
- * browsers in near-real-time. The client opens an EventSource and stays
- * connected; the server replays missed events on (re)connect using
+ * HTTP server-push streaming endpoint that delivers EVENTS rows to authenticated
+ * browsers in near-real-time. The client opens an EventSource connection and 
+ * stays connected; the server replays missed events on (re)connect using
  * Last-Event-ID, then tails the EVENTS table for new rows.
  *
- * ## Why SSE not WebSockets
+ * ## Why HTTP streaming instead of WebSockets
  *
- * Per Vercel + Mar 2026 SSE production guide:
+ * Per Vercel + Mar 2026 HTTP streaming production guide:
  * - One-way server→client matches our pattern (we never push from browser)
  * - Standard HTTP — works through CDNs, proxies, corporate firewalls
  * - Native EventSource API in browsers, ~zero client code
- * - Auto-reconnect with Last-Event-ID built into the spec
+ * - Auto-reconnect with Last-Event-ID built into the EventSource spec
  * - Lower per-connection memory than WebSockets
  *
  * ## Required headers (Vercel-specific)
  *
  * - `X-Accel-Buffering: no` — without this Vercel may buffer the response
  *   and clients see chunks delayed by minutes. **Do not remove.**
- * - `Content-Type: text/event-stream` — defines the SSE wire format
+ * - `Content-Type: text/event-stream` — defines the streaming wire format
  * - `Cache-Control: no-cache, no-transform` — prevents intermediate caching
  * - `Connection: keep-alive` — explicit, even though HTTP/2 ignores it
  *
@@ -32,7 +32,7 @@ import { getEventsSince, type WireEvent } from "@/lib/lark-events";
  * 1. Browser opens `/api/events/stream`. EventSource sends `Last-Event-ID`
  *    header automatically if it has one from a previous connection.
  * 2. Server reads `Last-Event-ID`, queries Lark EVENTS table for all rows
- *    with `seq > Last-Event-ID`, replays them in order. Each SSE message
+ *    with `seq > Last-Event-ID`, replays them in order. Each streaming message
  *    has its own `id:` field set to the event seq, so the EventSource
  *    automatically tracks the new high-water mark.
  * 3. After replay, the server polls EVENTS every 3s for new rows and
@@ -49,8 +49,8 @@ import { getEventsSince, type WireEvent } from "@/lib/lark-events";
  * Last-Event-ID — so no events are lost. We declare maxDuration = 300 to
  * use the full Pro budget (override to 60 if you're on Hobby).
  *
- * @see lib/hooks/useEvents.ts for the matching client hook
- * @see lib/lark-events.ts for the persistence layer
+ * @see lib/hooks/useEvents.ts for the matching client subscription hook
+ * @see lib/lark-events.ts for the event persistence layer
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,7 +61,7 @@ const POLL_INTERVAL_MS = 3_000;
 const REPLAY_BATCH_SIZE = 100;
 
 function sseMessage(event: WireEvent): string {
-  // SSE wire format: id, event, data, blank line
+  // HTTP streaming wire format (Server-Sent Events spec): id, event, data, blank line
   // The `id:` line lets EventSource auto-track Last-Event-ID for reconnects.
   return (
     `id: ${event.seq}\n` +
@@ -71,20 +71,12 @@ function sseMessage(event: WireEvent): string {
 }
 
 function heartbeat(seq: number): string {
-  // SSE comment line — ignored by EventSource but keeps the TCP connection
+  // Comment line — ignored by EventSource but keeps the TCP connection
   // alive against intermediate idle-timeouts.
   return `: heartbeat ${Date.now()} seq=${seq}\n\n`;
 }
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", statusCode: 401 }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
   // EventSource sets Last-Event-ID automatically on reconnect. Allow URL
   // override for first-connect cases where the client wants to start at a
   // specific seq (used by the diagnostics page).
@@ -94,7 +86,7 @@ export async function GET(request: NextRequest) {
 
   // NOTE: We deliberately do NOT filter by user yet — see lib/lark-events.ts
   // header re multi-tenant filtering. The filtering happens at write time
-  // once POSTS table tracks owner. Until then, SSE broadcasts all events
+  // once POSTS table tracks owner. Until then, streaming broadcasts all events
   // to all authenticated sessions. Authentication still gates access to
   // the channel; only logged-in users can subscribe.
 
@@ -187,7 +179,7 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       // CRITICAL: Vercel-specific. Without this, responses are buffered and
-      // SSE silently appears broken. Required per Mar 2026 SSE guide.
+      // Streaming silently appears broken. Required per Mar 2026 streaming guide.
       "X-Accel-Buffering": "no",
     },
   });

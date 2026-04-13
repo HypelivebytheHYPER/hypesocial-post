@@ -60,14 +60,17 @@ export type SocialPostDto = SocialPost;
 
 /** SocialPostMediaDto - Official Post For Me API type
  * https://api.postforme.dev/docs#model/socialpostmediadto
+ * 
+ * Note: thumbnail_url and thumbnail_timestamp_ms types corrected based on actual API behavior.
+ * The OpenAPI spec lists them as 'object' but they are actually string and number respectively.
  */
 export interface MediaItem {
   /** Public URL of the media (required) */
   url: string;
-  /** Public URL of the thumbnail for the media */
-  thumbnail_url?: object | null;
+  /** Public URL of the thumbnail for the media (video thumbnails) */
+  thumbnail_url?: string | null;
   /** Timestamp in milliseconds of frame to use as thumbnail */
-  thumbnail_timestamp_ms?: object | null;
+  thumbnail_timestamp_ms?: number | null;
   /** List of tags to attach to the media (user/product tags for Facebook/Instagram) */
   tags?: MediaTag[] | null;
   /** If true, media will not be processed. Increases failure risk if media doesn't meet platform requirements. */
@@ -108,58 +111,11 @@ export interface TwitterPollDto {
   reply_settings?: "following" | "mentionedUsers" | "subscribers" | "verified";
 }
 
-export interface PlatformConfig {
-  // Common - caption/media override
-  caption?: string; // Override the caption from the post for this platform
-  media?: MediaItem[]; // Override the media from the post for this platform
-
-  // Instagram
-  placement?: "reels" | "stories" | "timeline"; // Instagram post placement (NOT "feed")
-  share_to_feed?: boolean; // If false, video posts will only be shown in the Reels tab
-  collaborators?: string[]; // Instagram usernames to tag as collaborators
-  location?: string; // Page id with location to tag the image/video with
-  trial_reel_type?: "manual" | "performance"; // Instagram trial reel type
-
-  // Facebook
-  // (shares placement, location, collaborators with Instagram)
-  // placement uses "timeline" NOT "feed"
-
-  // YouTube
-  title?: string; // Override the title from the post (for YouTube/TikTok)
-  /** YouTube privacy: "public" | "private" | "unlisted". TikTok privacy: "public" | "private" ONLY (no "unlisted") */
-  privacy_status?: "public" | "private" | "unlisted";
-  made_for_kids?: boolean; // Notify YouTube the video is intended for kids - default: false
-
-  // TikTok / TikTok Business
-  allow_comment?: boolean; // default: true
-  allow_duet?: boolean; // default: true
-  allow_stitch?: boolean; // default: true
-  auto_add_music?: boolean; // Automatically add music to photo posts (converts images to video) - default: true
-  is_draft?: boolean; // Create as draft - user must complete posting in TikTok app - default: false
-  disclose_your_brand?: boolean; // Disclose your brand on TikTok - default: false
-  disclose_branded_content?: boolean; // Disclose branded content on TikTok - default: false
-  is_ai_generated?: boolean; // Flag content as AI generated on TikTok - default: false
-
-  // X (Twitter)
-  poll?: TwitterPollDto;
-  community_id?: string; // Id of the community to post to
-  quote_tweet_id?: string; // Id of the tweet to quote
-  reply_settings?: "following" | "mentionedUsers" | "subscribers" | "verified"; // Who can reply
-
-  // Pinterest
-  board_ids?: string[]; // Pinterest board IDs
-  link?: string; // Pinterest post link
-
-  // Threads
-  // placement: "reels" | "timeline" (Note: no "stories" for Threads)
-}
-
-// ==================== PLATFORM CONFIGURATION DTOs (from OpenAPI spec) ====================
 
 // https://api.postforme.dev/docs#model/pinterestconfigurationdto
 export interface PinterestConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Pinterest board IDs */
@@ -171,7 +127,7 @@ export interface PinterestConfigurationDto {
 // https://api.postforme.dev/docs#model/instagramconfigurationdto
 export interface InstagramConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Instagram post placement */
@@ -189,7 +145,7 @@ export interface InstagramConfigurationDto {
 // https://api.postforme.dev/docs#model/tiktokconfigurationdto
 export interface TiktokConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Overrides the title from the post */
@@ -217,7 +173,7 @@ export interface TiktokConfigurationDto {
 // https://api.postforme.dev/docs#model/twitterconfigurationdto
 export interface TwitterConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Poll options for the tweet */
@@ -238,7 +194,7 @@ export interface TwitterConfigurationDto {
 // https://api.postforme.dev/docs#model/youtubeconfigurationdto
 export interface YoutubeConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Overrides the title from the post */
@@ -252,7 +208,7 @@ export interface YoutubeConfigurationDto {
 // https://api.postforme.dev/docs#model/facebookconfigurationdto
 export interface FacebookConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Facebook post placement */
@@ -261,12 +217,14 @@ export interface FacebookConfigurationDto {
   location?: string | null;
   /** List of page ids to invite as collaborators for a Video Reel */
   collaborators?: string[][] | null;
+  /** If true, allows setting a unique caption for each image in a multi-image post */
+  set_caption_for_each_image?: boolean | null;
 }
 
 // https://api.postforme.dev/docs#model/linkedinconfigurationdto
 export interface LinkedinConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
 }
@@ -274,7 +232,7 @@ export interface LinkedinConfigurationDto {
 // https://api.postforme.dev/docs#model/blueskyconfigurationdto
 export interface BlueskyConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
 }
@@ -282,7 +240,7 @@ export interface BlueskyConfigurationDto {
 // https://api.postforme.dev/docs#model/threadsconfigurationdto
 export interface ThreadsConfigurationDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Threads post placement */
@@ -313,52 +271,27 @@ export interface PlatformConfigurationsDto {
   tiktok_business?: TiktokConfigurationDto | null;
 }
 
-// Legacy AccountConfig - kept for backward compatibility
-// Use AccountConfigurationDto for new code
-export interface AccountConfig {
-  social_account_id: string;
-  configuration: {
-    caption?: object | null;
-    media?: MediaItem[] | null;
-    poll?: TwitterPollDto;
-    // Pinterest
-    board_ids?: string[];
-    link?: string;
-    // Instagram/Facebook/TikTok/YouTube/Threads
-    placement?: "reels" | "stories" | "timeline";
-    // YouTube/TikTok
-    title?: string;
-    privacy_status?: "public" | "private" | "unlisted";
-    made_for_kids?: boolean;
-    // TikTok
-    allow_comment?: boolean;
-    allow_duet?: boolean;
-    allow_stitch?: boolean;
-    disclose_your_brand?: boolean;
-    disclose_branded_content?: boolean;
-    is_draft?: boolean;
-    is_ai_generated?: boolean;
-    auto_add_music?: boolean;
-    // X (Twitter)
-    community_id?: string;
-    quote_tweet_id?: string;
-    reply_settings?:
-      | "following"
-      | "mentionedUsers"
-      | "subscribers"
-      | "verified";
-    // Instagram/Facebook
-    location?: string;
-    collaborators?: string[][] | null;
-    share_to_feed?: boolean;
-    trial_reel_type?: "manual" | "performance";
-  };
+/**
+ * Helper type for building platform configurations programmatically.
+ * Use this when constructing platform_configs before sending to API.
+ */
+export type PlatformConfigBuilder = {
+  pinterest?: PinterestConfigurationDto;
+  instagram?: InstagramConfigurationDto;
+  tiktok?: TiktokConfigurationDto;
+  x?: TwitterConfigurationDto;
+  youtube?: YoutubeConfigurationDto;
+  facebook?: FacebookConfigurationDto;
+  linkedin?: LinkedinConfigurationDto;
+  bluesky?: BlueskyConfigurationDto;
+  threads?: ThreadsConfigurationDto;
+  tiktok_business?: TiktokConfigurationDto;
 }
 
 // https://api.postforme.dev/docs#model/accountconfigurationdetailsdto
 export interface AccountConfigurationDetailsDto {
   /** Overrides the caption from the post */
-  caption?: object | null;
+  caption?: string | null;
   /** Overrides the media from the post */
   media?: MediaItem[] | null;
   /** Pinterest board IDs */
@@ -387,6 +320,8 @@ export interface AccountConfigurationDetailsDto {
   is_draft?: boolean | null;
   /** Flag content as AI generated on TikTok */
   is_ai_generated?: boolean | null;
+  /** Facebook: If true, allows setting a unique caption for each image */
+  set_caption_for_each_image?: boolean | null;
   /** Will automatically add music to photo posts on TikTok */
   auto_add_music?: boolean | null;
   /** Poll options for the twitter */
@@ -477,8 +412,8 @@ export interface SocialAccount {
   refresh_token_expires_at: string | null;
   status: "connected" | "disconnected";
   external_id: string | null;
-  /** The metadata of the social account */
-  metadata: SocialAccountMetadata | null;
+  /** The metadata of the social account - always present, may be empty object */
+  metadata: SocialAccountMetadata;
 }
 
 // https://api.postforme.dev/docs#model/socialaccountdto
@@ -1605,9 +1540,9 @@ export interface SocialPostPreviewMedia {
   /** Public URL of the media */
   url: string;
   /** Public URL of the thumbnail for the media */
-  thumbnail_url?: object | null;
+  thumbnail_url?: string | null;
   /** Timestamp in milliseconds of frame to use as thumbnail */
-  thumbnail_timestamp_ms?: object | null;
+  thumbnail_timestamp_ms?: number | null;
   /** List of tags to attach to the media (user/product tags for Facebook/Instagram) */
   tags?: MediaTag[] | null;
   /** If true the media will not be processed at all and instead be posted as is */

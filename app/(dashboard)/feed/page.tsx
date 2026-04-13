@@ -16,11 +16,13 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useAccounts, useAccountFeed, pfmKeys } from "@/lib/hooks/usePostForMe";
+import { useSocialAccounts, useAccountFeed, pfmKeys } from "@/lib/hooks";
 import {
   extractMetrics,
   formatNumber,
   getMetricAvailability,
+  getMetricAvailabilityForAccount,
+  isLinkedInPersonalProfile,
 } from "@/lib/metrics";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
@@ -63,8 +65,9 @@ interface FeedItemProps {
 function FeedItem({ item, accountPlatform, accountUsername }: FeedItemProps) {
   const PlatformIcon = platformIconsMap[accountPlatform.toLowerCase()];
   const metrics = extractMetrics(item.metrics);
-  const available = getMetricAvailability(accountPlatform);
+  const available = getMetricAvailabilityForAccount(accountPlatform, item.metrics);
   const media = getFirstMedia(item.media);
+  const isLinkedInPersonal = isLinkedInPersonalProfile(accountPlatform, item.metrics);
 
   return (
     <article className="card-premium overflow-hidden">
@@ -172,6 +175,15 @@ function FeedItem({ item, accountPlatform, accountUsername }: FeedItemProps) {
           </a>
         )}
       </div>
+
+      {/* LinkedIn Personal Profile Note */}
+      {isLinkedInPersonal && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded">
+            ℹ️ LinkedIn metrics only available for Company Pages. Personal profiles do not have analytics access.
+          </p>
+        </div>
+      )}
     </article>
   );
 }
@@ -185,7 +197,7 @@ export default function FeedPage() {
   >([]);
 
   // Get accounts
-  const { data: accountsData, isLoading: accountsLoading } = useAccounts();
+  const { data: accountsData, isLoading: accountsLoading } = useSocialAccounts();
   const accounts = accountsData?.data || [];
   const connectedAccounts = accounts.filter((a) => a.status === "connected");
 
@@ -203,7 +215,7 @@ export default function FeedPage() {
   } = useAccountFeed(effectiveAccountId, {
     limit: 20,
     cursor: currentCursor,
-    expand: "metrics",
+    expand: ["metrics"],
   });
 
   // Accumulate items across pages
@@ -227,8 +239,9 @@ export default function FeedPage() {
 
   // Handle load more
   const handleLoadMore = useCallback(() => {
-    if (feedData?.meta?.cursor) {
-      setCursors((prev) => [...prev, feedData.meta.cursor]);
+    const cursor = feedData?.meta?.cursor;
+    if (cursor) {
+      setCursors((prev) => [...prev, cursor]);
     }
   }, [feedData?.meta?.cursor]);
 
@@ -410,9 +423,21 @@ export default function FeedPage() {
         ) : allFeedItems.length === 0 ? (
           <div className="card-premium p-12 text-center">
             <p className="text-slate-400 mb-2">No posts found</p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 mb-4">
               Select an account to view their feed
             </p>
+            {connectedAccounts.length > 0 && (
+              <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <p className="text-xs text-amber-700">
+                  <strong>Don&apos;t see your posts?</strong> We recently updated feed permissions. 
+                  Try{" "}
+                  <Link href="/accounts/connect" className="underline hover:text-amber-900">
+                    disconnecting and reconnecting
+                  </Link>{" "}
+                  your account to enable feed access.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <>

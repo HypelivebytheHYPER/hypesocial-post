@@ -1,125 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me-types";
-import { ALLOWED_CONTENT_TYPES, getMaxFileSize } from "@/lib/media-constants";
+import { UPLOAD } from "@/lib/constants";
+import {
+  handleApiError,
+  buildValidationError,
+  sendErrorResponse,
+} from "@/lib/api-errors";
 
-// Create a typed array from allowed content types for Zod enum
-const ALLOWED_CONTENT_TYPES_ARRAY = [...ALLOWED_CONTENT_TYPES] as [
-  string,
-  ...string[],
-];
-
-// Zod schema for media upload request
-const MediaUploadSchema = z.object({
-  filename: z
-    .string()
-    .regex(/\.[^.]+$/, "filename must include a file extension"),
-  content_type: z
-    .enum(ALLOWED_CONTENT_TYPES_ARRAY)
-    .transform((val) => val.toLowerCase() as typeof val),
-  size: z.number().int().positive().optional(),
+const CreateUploadUrlSchema = z.object({
+  filename: z.string().min(1),
+  content_type: z.string().min(1),
+  size: z.number().int().positive().max(UPLOAD.MAX_FILE_SIZE),
 });
 
 /**
  * POST /api/media
- * Get presigned URL for media upload
  * Official API: POST /v1/media/create-upload-url
+ *
+ * Get a signed upload URL for media.
  */
 export async function POST(request: NextRequest) {
   try {
     let jsonBody: unknown;
-
     try {
       jsonBody = await request.json();
     } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError("Invalid JSON in request body", ["Invalid JSON"]),
+        400,
       );
     }
 
-    // Validate with Zod
-    const parseResult = MediaUploadSchema.safeParse(jsonBody);
+    const parseResult = CreateUploadUrlSchema.safeParse(jsonBody);
     if (!parseResult.success) {
       const issues = parseResult.error.issues.map(
         (i) => `${i.path.join(".")}: ${i.message}`,
       );
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: issues.join("; "),
-          statusCode: 400,
-          details: { fields: issues },
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError(issues.join("; "), issues),
+        400,
       );
     }
 
-    const body = parseResult.data;
-    const contentType = body.content_type.toLowerCase();
+    const { filename, content_type, size } = parseResult.data;
 
-    // Validate file size if provided
-    if (body.size !== undefined) {
-      const maxSize = getMaxFileSize(contentType);
+    // Validate file type
+    const isImage = UPLOAD.ALLOWED_IMAGE_TYPES.includes(content_type as typeof UPLOAD.ALLOWED_IMAGE_TYPES[number]);
+    const isVideo = UPLOAD.ALLOWED_VIDEO_TYPES.includes(content_type as typeof UPLOAD.ALLOWED_VIDEO_TYPES[number]);
 
-      if (body.size > maxSize) {
-        const maxSizeMB = maxSize / (1024 * 1024);
-        const actualSizeMB = (body.size / (1024 * 1024)).toFixed(2);
-        return NextResponse.json<PostForMeError>(
-          {
-            error: "Validation Error",
-            message: `File size ${actualSizeMB}MB exceeds maximum allowed ${maxSizeMB}MB for ${contentType.startsWith("video/") ? "videos" : "images"}`,
-            statusCode: 400,
-            details: {
-              max_size_bytes: maxSize,
-              max_size_mb: maxSizeMB,
-              provided_size_bytes: body.size,
-            },
-          },
-          { status: 400 },
-        );
-      }
+    if (!isImage && !isVideo) {
+      return sendErrorResponse(
+        buildValidationError(
+          `Unsupported file type: ${content_type}. Allowed types: images (${UPLOAD.ALLOWED_IMAGE_TYPES.join(", ")}), videos (${UPLOAD.ALLOWED_VIDEO_TYPES.join(", ")})`,
+          [`content_type: Unsupported file type ${content_type}`],
+        ),
+        400,
+      );
+    }
+
+    // Validate file size
+    const maxSize = isVideo ? UPLOAD.MAX_VIDEO_SIZE : UPLOAD.MAX_IMAGE_SIZE;
+    if (size > maxSize) {
+      const maxSizeMB = maxSize / (1024 * 1024);
+      const actualSizeMB = (size / (1024 * 1024)).toFixed(2);
+      return sendErrorResponse(
+        buildValidationError(
+          `File too large: ${actualSizeMB}MB. Maximum allowed: ${maxSizeMB}MB for ${isVideo ? "videos" : "images"}`,
+          [`size: File exceeds maximum size of ${maxSizeMB}MB`],
+        ),
+        400,
+      );
     }
 
     const data = await pfm.media.createUploadURL();
-
-    return NextResponse.json(
-      {
-        ...data,
-        _meta: {
-          upload_instructions:
-            "Upload the file using PUT request to the upload_url. Do not include the Authorization header when uploading to the signed URL.",
-          expires_in:
-            "The upload_url expires after a short time (typically 15 minutes)",
-        },
-      },
-      { status: 201 },
-    );
+    return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error getting upload URL:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "creating upload URL" });
   }
 }

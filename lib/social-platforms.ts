@@ -205,3 +205,27 @@ export function getPlatformsWithStatus(
  * Default connected platforms for initial state
  */
 export const defaultConnectedPlatforms = ["x", "facebook", "linkedin"];
+
+/**
+ * Platform color classes for UI badges and backgrounds
+ */
+export const PLATFORM_COLORS: Record<string, string> = {
+  x: "bg-slate-800",
+  twitter: "bg-slate-800",
+  facebook: "bg-blue-600",
+  instagram: "bg-gradient-to-br from-purple-500 to-pink-500",
+  linkedin: "bg-blue-700",
+  tiktok: "bg-slate-900",
+  tiktok_business: "bg-gradient-to-r from-cyan-500 to-pink-500",
+  youtube: "bg-red-600",
+  pinterest: "bg-red-700",
+  bluesky: "bg-blue-500",
+  threads: "bg-slate-900",
+};
+
+/**
+ * Get platform color class by platform ID
+ */
+export function getPlatformColor(platform: string): string {
+  return PLATFORM_COLORS[platform.toLowerCase()] || "bg-slate-400";
+}

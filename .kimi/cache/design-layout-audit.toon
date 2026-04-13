@@ -1,0 +1,34 @@
+# Design & Layout Audit - Posts Page
+# Generated: 2026-04-12
+# Guidelines: Vercel Web Interface Guidelines
+
+[8,]{category,issue,location,recommendation,priority}:
+Layout,Sidebar width inconsistency,posts/page.tsx:109,Consider using consistent w-72 with main nav sidebar,LOW
+Colors,Hardcoded dark theme colors,posts/page.tsx:109,Use CSS variables for theme compatibility,MEDIUM
+Typography,Very small text (10px),posts/page.tsx:122,Use text-xs (12px) minimum for readability,MEDIUM
+Animation,No reduced motion support,posts/page.tsx,Add prefers-reduced-motion support,MEDIUM
+Images,Missing alt text for post media,PostCard,Add descriptive alt or empty alt for decorative,LOW
+Focus,Button focus states unclear,Sidebar buttons,Add focus-visible:ring-2 focus-visible:ring-blue-500,MEDIUM
+Loading,Skeleton without aria-label,page.tsx,Add aria-label="Loading posts" for screen readers,MEDIUM
+Empty State,No empty state for filters,filteredPosts.length === 0,Improve empty state messaging,HIGH
+
+[5,]{strength,description}:
+Responsive,Mobile-first with conditional layouts for lg/mobile
+Accessibility,Buttons have aria-labels for actions
+Virtualization,TanStack Virtual for performance with large lists
+Contrast,Good contrast ratios for dark theme
+Navigation,URL-based state for filters (refresh-safe)
+
+[6,]{file,line,issue,fix}:
+posts/page.tsx,109,Hardcoded bg-slate-950,Use theme-aware bg-background
+posts/page.tsx,122,text-[10px] too small,Use text-xs (12px minimum)
+posts/page.tsx,126,Button missing focus ring,Add focus-visible:ring-2
+posts/page.tsx,240,Image alt empty string,Consider adding alt for accessibility
+posts/layout.tsx,73,Fixed positioning z-index,z-30 may conflict - document stacking
+posts/layout.tsx,100,Floating button overlaps,Add safe area padding for mobile
+
+[4,]{component,pattern,status}:
+Sidebar,Sticky left with scrollable content,GOOD
+Virtualized Grid,Dynamic row heights with overscan,GOOD
+Compose Panel,Slide-out on desktop / full-screen mobile,GOOD
+Status Dots,Color-only indicators - add aria-labels,NEEDS_FIX

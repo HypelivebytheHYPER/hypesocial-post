@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me-types";
 import { parseBody, validateId } from "@/lib/validations";
 import { UpdatePostSchema } from "@/lib/validations/posts";
+import { handleApiError, sendErrorResponse, buildValidationError } from "@/lib/api-errors";
+import type { PostForMeError } from "@/types/post-for-me-types";
 
 /**
  * GET /api/posts/[id]
@@ -20,25 +20,7 @@ export async function GET(
     const data = await pfm.socialPosts.retrieve(id);
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error fetching post:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "fetching post" });
   }
 }
 
@@ -59,13 +41,9 @@ export async function PUT(
     try {
       jsonBody = await request.json();
     } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError("Invalid JSON in request body", ["Invalid JSON"]),
+        400,
       );
     }
 
@@ -78,23 +56,15 @@ export async function PUT(
     if (body.scheduled_at && !body.isDraft) {
       const scheduledDate = new Date(body.scheduled_at);
       if (scheduledDate < new Date()) {
-        return NextResponse.json<PostForMeError>(
-          {
-            error: "Validation Error",
-            message: "scheduled_at must be in the future",
-            statusCode: 400,
-          },
-          { status: 400 },
+        return sendErrorResponse(
+          buildValidationError("scheduled_at must be in the future", [
+            "scheduled_at must be in the future",
+          ]),
+          400,
         );
       }
     }
 
-    // The Post For Me SDK's update() signature inherits the create-DTO shape
-    // (caption + social_accounts required), but the underlying
-    // PUT /v1/social-posts/{id} endpoint accepts a partial body — Zod has
-    // already validated the partial shape via UpdatePostSchema. Cast through
-    // `unknown` to the SDK's actual parameter type so the assertion is at
-    // least type-checked at the call site instead of `any`-erased.
     type UpdateInput = Parameters<typeof pfm.socialPosts.update>[1];
     const data = await pfm.socialPosts.update(
       id,
@@ -102,25 +72,7 @@ export async function PUT(
     );
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error updating post:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "updating post" });
   }
 }
 
@@ -140,24 +92,6 @@ export async function DELETE(
     await pfm.socialPosts.delete(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error deleting post:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "deleting post" });
   }
 }

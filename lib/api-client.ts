@@ -1,3 +1,6 @@
+import { NextResponse } from "next/server";
+import { APIError } from "post-for-me";
+
 /**
  * Shared fetch wrapper for internal Next.js API routes.
  *
@@ -52,4 +55,44 @@ export async function apiClient<T>(
   }
 
   return response.json();
+}
+
+/**
+ * Handle API errors consistently across all API routes.
+ * Eliminates duplicate error handling code.
+ * 
+ * @param error - The error thrown
+ * @param context - Description of what operation failed (e.g., "fetching post", "creating webhook")
+ * @returns NextResponse with appropriate error JSON
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   const data = await pfm.socialPosts.create(body);
+ *   return NextResponse.json(data);
+ * } catch (error) {
+ *   return handleApiError(error, "creating post");
+ * }
+ * ```
+ */
+export function handleApiError(error: unknown, context: string): NextResponse {
+  if (error instanceof APIError) {
+    return NextResponse.json(
+      {
+        error: "API Error",
+        message: error.message,
+        statusCode: error.status,
+      },
+      { status: error.status || 500 },
+    );
+  }
+  console.error(`[API] Error ${context}:`, error);
+  return NextResponse.json(
+    {
+      error: "Internal Server Error",
+      message: "Unknown error occurred",
+      statusCode: 500,
+    },
+    { status: 500 },
+  );
 }

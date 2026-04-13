@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me-client";
 import { APIError } from "post-for-me";
 import { validateId } from "@/lib/validations";
+import { handleApiError } from "@/lib/api-errors";
 
 /**
  * POST /api/accounts/[id]/disconnect
- * Disconnect a social account
  * Official API: POST /v1/social-accounts/{id}/disconnect
  */
 export async function POST(
@@ -16,27 +16,9 @@ export async function POST(
     const { id } = await params;
     const idError = validateId(id, "account");
     if (idError) return idError;
-    const data = await pfm.socialAccounts.disconnect(id);
-    return NextResponse.json(data);
+    await pfm.socialAccounts.disconnect(id);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error disconnecting account:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "disconnecting account" });
   }
 }

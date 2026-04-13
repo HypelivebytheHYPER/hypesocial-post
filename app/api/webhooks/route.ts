@@ -1,104 +1,161 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me-types";
-import { parseBody } from "@/lib/validations";
-import { CreateWebhookDtoSchema } from "@/lib/validations/webhook-schemas";
+import {
+  WebhookListResponseSchema,
+  CreateWebhookRequestSchema,
+} from "@/lib/validations/webhook-api-schemas";
+import {
+  createRequestContext,
+  formatRequestLog,
+  TRACE_HEADERS,
+  runWithContext,
+} from "@/lib/request-context";
+import {
+  extractErrorDetails,
+  isRateLimitError,
+  getRetryAfter,
+} from "@/lib/pfm-errors";
+
+// ============================================
+// WEBHOOK MANAGEMENT API (CRUD for Post For Me)
+// ============================================
 
 /**
  * GET /api/webhooks
- * List all webhooks with optional filtering
- * Official API: GET /v1/webhooks
+ * List all registered webhooks from Post For Me
  */
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const ctx = createRequestContext(request.headers, {
+    operation: "list_webhooks",
+    params: Object.fromEntries(searchParams.entries()),
+  });
 
-    const query: Record<string, any> = {
-      offset: Number(searchParams.get("offset") || 0),
-      limit: Number(searchParams.get("limit") || 20),
-    };
+  return runWithContext(ctx, async () => {
+    try {
+      // Build query string from search params
+      const queryParts: string[] = [];
+      searchParams.forEach((value, key) => {
+        queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+      });
+      const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
 
-    const urls = searchParams.getAll("url");
-    if (urls.length > 0) query.url = urls;
+      const data = await pfm.get(`/v1/webhooks${queryString}`);
+      const validated = WebhookListResponseSchema.parse(data);
 
-    const eventTypes = searchParams.getAll("event_type");
-    if (eventTypes.length > 0) query.event_type = eventTypes;
+      console.log(JSON.stringify(formatRequestLog(ctx, "GET", "/api/webhooks", 200, {
+        total: validated.meta.total,
+      })));
 
-    const ids = searchParams.getAll("id");
-    if (ids.length > 0) query.id = ids;
-
-    const data = await pfm.get("/v1/webhooks", { query });
-    return NextResponse.json(data);
-  } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
+      // Return full response matching Post For Me format
+      return NextResponse.json(validated, {
+        headers: {
+          [TRACE_HEADERS.REQUEST_ID]: ctx.requestId,
+          [TRACE_HEADERS.TRACE_ID]: ctx.traceId,
         },
-        { status: error.status || 500 },
-      );
+      });
+    } catch (error) {
+      const errorDetails = extractErrorDetails(error);
+      const status = errorDetails.isRateLimited ? 429 : errorDetails.status || 500;
+      
+      console.error(JSON.stringify(formatRequestLog(ctx, "GET", "/api/webhooks", status, {
+        error: errorDetails.message,
+        is_rate_limited: errorDetails.isRateLimited,
+      })));
+
+      const responseBody: Record<string, unknown> = { 
+        error: errorDetails.isRateLimited ? "Rate limited" : "Failed to fetch webhooks",
+        request_id: ctx.requestId,
+        trace_id: ctx.traceId,
+      };
+      
+      if (errorDetails.isRateLimited) {
+        responseBody.retry_after = getRetryAfter(error);
+      }
+
+      const headers: Record<string, string> = {
+        [TRACE_HEADERS.REQUEST_ID]: ctx.requestId,
+        [TRACE_HEADERS.TRACE_ID]: ctx.traceId,
+      };
+      
+      if (errorDetails.isRateLimited) {
+        headers["Retry-After"] = String(getRetryAfter(error));
+      }
+
+      return NextResponse.json(responseBody, { status, headers });
     }
-    console.error("[API] Error fetching webhooks:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
-  }
+  });
 }
 
 /**
  * POST /api/webhooks
- * Create a new webhook
- * Official API: POST /v1/webhooks
+ * Create a new webhook in Post For Me
  */
 export async function POST(request: NextRequest) {
-  try {
-    let jsonBody: unknown;
+  const ctx = createRequestContext(request.headers, {
+    operation: "create_webhook",
+  });
 
+  return runWithContext(ctx, async () => {
     try {
-      jsonBody = await request.json();
-    } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
-    }
+      const body = await request.json();
+      
+      // Validate request body with Zod
+      const validated = CreateWebhookRequestSchema.parse(body);
+      
+      // Pass as { body: validated } to match SDK signature
+      const data = await pfm.post("/v1/webhooks", { body: validated });
+      
+      const webhookId = (data as { id?: string }).id;
+      ctx.metadata.created_webhook_id = webhookId;
 
-    const parsed = parseBody(CreateWebhookDtoSchema, jsonBody);
-    if (!parsed.success) return parsed.response;
+      console.log(JSON.stringify(formatRequestLog(ctx, "POST", "/api/webhooks", 201, {
+        webhook_id: webhookId,
+        url: validated.url,
+        event_types: validated.event_types,
+      })));
 
-    const data = await pfm.post("/v1/webhooks", { body: parsed.data });
-    return NextResponse.json(data, { status: 201 });
-  } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
+      return NextResponse.json(data, { 
+        status: 201,
+        headers: {
+          [TRACE_HEADERS.REQUEST_ID]: ctx.requestId,
+          [TRACE_HEADERS.TRACE_ID]: ctx.traceId,
         },
-        { status: error.status || 500 },
-      );
+      });
+    } catch (error) {
+      const errorDetails = extractErrorDetails(error);
+      const status = errorDetails.isValidationError ? 422 : 
+                     errorDetails.isRateLimited ? 429 : 
+                     errorDetails.status || 500;
+
+      console.error(JSON.stringify(formatRequestLog(ctx, "POST", "/api/webhooks", status, {
+        error: errorDetails.message,
+        error_type: errorDetails.isValidationError ? "validation" : 
+                   errorDetails.isRateLimited ? "rate_limit" : "api",
+      })));
+
+      const responseBody: Record<string, unknown> = { 
+        error: errorDetails.isValidationError ? "Validation error" : 
+               errorDetails.isRateLimited ? "Rate limited" : 
+               "Failed to create webhook",
+        request_id: ctx.requestId,
+        trace_id: ctx.traceId,
+      };
+      
+      if (errorDetails.isRateLimited) {
+        responseBody.retry_after = getRetryAfter(error);
+      }
+
+      const headers: Record<string, string> = {
+        [TRACE_HEADERS.REQUEST_ID]: ctx.requestId,
+        [TRACE_HEADERS.TRACE_ID]: ctx.traceId,
+      };
+      
+      if (errorDetails.isRateLimited) {
+        headers["Retry-After"] = String(getRetryAfter(error));
+      }
+
+      return NextResponse.json(responseBody, { status, headers });
     }
-    console.error("[API] Error creating webhook:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
-  }
+  });
 }

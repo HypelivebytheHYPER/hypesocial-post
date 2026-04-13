@@ -1,0 +1,109 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Playwright
+        run: pnpm exec playwright install chromium
+
+      - name: Build application
+        run: pnpm build
+        env:
+          POST_FOR_ME_API_KEY: ${{ secrets.POST_FOR_ME_API_KEY }}
+          POST_FOR_ME_BASE_URL: https://api.postforme.dev
+
+      - name: Run smoke tests
+        run: pnpm exec playwright test smoke.spec.ts --project=authenticated
+        env:
+          E2E_BASE_URL: http://localhost:3000
+
+  full-e2e:
+    name: Full E2E Journey
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Playwright
+        run: pnpm exec playwright install chromium
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || 'https://hypesocial-post.vercel.app' }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  production-smoke:
+    name: Production Smoke Test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install Playwright
+        run: pnpm exec playwright install chromium
+
+      - name: Test production endpoints
+        run: |
+          pnpm exec playwright test smoke.spec.ts --grep "Public Pages"
+        env:
+          E2E_BASE_URL: https://hypesocial-post.vercel.app

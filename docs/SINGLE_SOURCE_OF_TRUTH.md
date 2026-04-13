@@ -1,6 +1,6 @@
 # Single Source of Truth Guide
 
-> **Auto-generated:** 2026-04-10
+> **Auto-generated:** 2026-04-11
 > **Regenerate:** `node scripts/update-ssot.js` or `pnpm build`
 
 This document defines the canonical sources for types, configurations, and utilities in this project to avoid confusion and inconsistencies.
@@ -19,7 +19,6 @@ This document defines the canonical sources for types, configurations, and utili
 | `MediaItem` | Interface | Post For Me API type |
 | `MediaTag` | Interface | Post For Me API type |
 | `TwitterPollDto` | Interface | Post For Me API type |
-| `PlatformConfig` | Interface | Post For Me API type |
 | `PinterestConfigurationDto` | Interface | Post For Me API type |
 | `InstagramConfigurationDto` | Interface | Post For Me API type |
 | `TiktokConfigurationDto` | Interface | Post For Me API type |
@@ -30,7 +29,6 @@ This document defines the canonical sources for types, configurations, and utili
 | `BlueskyConfigurationDto` | Interface | Post For Me API type |
 | `ThreadsConfigurationDto` | Interface | Post For Me API type |
 | `PlatformConfigurationsDto` | Interface | Post For Me API type |
-| `AccountConfig` | Interface | Post For Me API type |
 | `AccountConfigurationDetailsDto` | Interface | Post For Me API type |
 | `AccountConfigurationDto` | Interface | Post For Me API type |
 | `CreateSocialPostDto` | Interface | Post For Me API type |
@@ -133,6 +131,7 @@ This document defines the canonical sources for types, configurations, and utili
 | `SocialPostDto` | Type Alias | Post For Me API type |
 | `SocialPostMediaDto` | Type Alias | Post For Me API type |
 | `UserTagDto` | Type Alias | Post For Me API type |
+| `PlatformConfigBuilder` | Type Alias | Post For Me API type |
 | `SocialAccountMetadata` | Type Alias | Post For Me API type |
 | `SocialAccountDto` | Type Alias | Post For Me API type |
 | `CreateSocialAccountProviderAuthUrlDto` | Type Alias | Post For Me API type |
@@ -178,10 +177,12 @@ All platform-related configuration lives here.
 | `socialPlatforms` | Constant |
 | `platformIconsMap` | Constant |
 | `defaultConnectedPlatforms` | Constant |
+| `PLATFORM_COLORS` | Constant |
 | `getPlatformById()` | Function |
 | `getPlatformByName()` | Function |
 | `getPlatformIcon()` | Function |
 | `getPlatformsWithStatus()` | Function |
+| `getPlatformColor()` | Function |
 
 ### Usage Pattern
 
@@ -218,32 +219,7 @@ All TanStack Query hooks for Post For Me API.
 
 | Hook | Kind |
 |------|------|
-| `useWebhooks()` | Hook |
-| `useWebhook()` | Hook |
-| `useCreateWebhook()` | Hook |
-| `useUpdateWebhook()` | Hook |
-| `useDeleteWebhook()` | Hook |
-| `usePosts()` | Hook |
-| `usePost()` | Hook |
-| `useCreatePost()` | Hook |
-| `useUpdatePost()` | Hook |
-| `useDeletePost()` | Hook |
-| `useRetryPost()` | Hook |
-| `usePostResults()` | Hook |
-| `usePostResult()` | Hook |
-| `usePostResultsList()` | Hook |
-| `useUploadMedia()` | Hook |
-| `useUploadThumbnail()` | Hook |
-| `useAccounts()` | Hook |
-| `usePausedAccounts()` | Hook |
-| `useAccount()` | Hook |
-| `useConnectAccount()` | Hook |
-| `useDisconnectAccount()` | Hook |
-| `useAccountFeed()` | Hook |
-| `useAllAccountFeeds()` | Hook |
-| `usePostPreview()` | Hook |
-| `useRegisterAppWebhook()` | Hook |
-| `useTiktokTrendingMusic()` | Hook |
+
 
 ### Query Keys
 

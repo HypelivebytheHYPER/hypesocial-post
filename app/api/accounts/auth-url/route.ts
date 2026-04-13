@@ -1,109 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import type { SocialAccounts } from "post-for-me/resources/social-accounts";
-import type { PostForMeError } from "@/types/post-for-me-types";
-import { parseBody } from "@/lib/validations";
-import { AuthUrlSchema } from "@/lib/validations/accounts";
+import {
+  handleApiError,
+  buildValidationError,
+  sendErrorResponse,
+} from "@/lib/api-errors";
+
+const AuthUrlSchema = z.object({
+  platform: z.string(),
+  redirect_url: z.string().url().optional(),
+  permissions: z.array(z.enum(["posts", "feeds"])).optional(),
+  platform_data: z.record(z.any()).optional(),
+  // Use webhook callback instead of browser redirect
+  use_webhook_callback: z.boolean().optional().default(false),
+});
+
+// Quickstart Projects: Don't use redirect_url_override
+// Set this to true if using your own OAuth credentials (White Label)
+const IS_WHITELABEL_PROJECT = !!process.env.POST_FOR_ME_REDIRECT_URI;
 
 /**
  * POST /api/accounts/auth-url
- * Generate OAuth URL for connecting a social account
  * Official API: POST /v1/social-accounts/auth-url
+ *
+ * Get OAuth URL for connecting a social account.
+ * Supports both standard and intercepted OAuth flows.
  */
 export async function POST(request: NextRequest) {
   try {
     let jsonBody: unknown;
-
     try {
       jsonBody = await request.json();
     } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError("Invalid JSON in request body", ["Invalid JSON"]),
+        400,
       );
     }
 
-    const parsed = parseBody(AuthUrlSchema, jsonBody);
-    if (!parsed.success) return parsed.response;
-
-    const body = parsed.data;
-
-    // Build auth URL params
-    const platform = body.platform;
-    const params: SocialAccounts.SocialAccountCreateAuthURLParams = {
-      platform,
-      ...(body.external_id && { external_id: body.external_id }),
-      ...(body.permissions && { permissions: body.permissions }),
-      ...(body.platform_data && { platform_data: body.platform_data }),
-    };
-
-    // Auto-inject required platform_data for platforms that need it
-    if (
-      platform === "instagram" &&
-      !params.platform_data?.instagram?.connection_type
-    ) {
-      params.platform_data = {
-        ...params.platform_data,
-        instagram: {
-          connection_type:
-            (body.connection_type as "instagram" | "facebook") || "instagram",
-          ...params.platform_data?.instagram,
-        },
-      };
-    }
-    if (
-      platform === "linkedin" &&
-      !params.platform_data?.linkedin?.connection_type
-    ) {
-      // Per docs: MUST use "organization" for Community Management API (supports both personal + company pages)
-      params.platform_data = {
-        ...params.platform_data,
-        linkedin: {
-          connection_type:
-            (body.connection_type as "personal" | "organization") ||
-            "organization",
-          ...params.platform_data?.linkedin,
-        },
-      };
+    const parseResult = AuthUrlSchema.safeParse(jsonBody);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
+      return sendErrorResponse(
+        buildValidationError(issues.join("; "), issues),
+        400,
+      );
     }
 
-    // Auto-inject redirect_url_override for forwarded account connection
-    const pfmRedirectUri = process.env.POST_FOR_ME_REDIRECT_URI;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (pfmRedirectUri && appUrl && !body.redirect_url_override) {
-      params.redirect_url_override = `${appUrl}/api/accounts/callback/${platform}`;
-    }
+    const { platform, redirect_url, permissions, platform_data, use_webhook_callback } = parseResult.data;
 
-    if (body.redirect_url_override) {
-      params.redirect_url_override = body.redirect_url_override;
+    // Build params - only use redirect_url_override for White Label projects
+    // Quickstart Projects: Let Post For Me handle the redirect
+    const params: { 
+      platform: string; 
+      redirect_url_override?: string;
+      permissions?: ("posts" | "feeds")[];
+      platform_data?: Record<string, unknown>;
+    } = { platform };
+    
+    // Use webhook callback endpoint instead of browser redirect
+    if (use_webhook_callback) {
+      // Get base URL from env var or Vercel deployment URL
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+        "https://hypesocial-post.vercel.app";
+      params.redirect_url_override = `${baseUrl}/api/webhooks/oauth-callback`;
+    } else if (IS_WHITELABEL_PROJECT && redirect_url) {
+      params.redirect_url_override = redirect_url;
+    }
+    
+    if (permissions) {
+      params.permissions = permissions as ("posts" | "feeds")[];
+    }
+    
+    if (platform_data) {
+      params.platform_data = platform_data;
     }
 
     const data = await pfm.socialAccounts.createAuthURL(params);
-    return NextResponse.json(data, { status: 201 });
+
+    return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error creating auth URL:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "creating auth URL" });
   }
 }

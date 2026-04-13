@@ -12,11 +12,18 @@ const PROXY_DOMAINS = [
   "pub-483f816788534334817c49941fb59b23.r2.dev",
 ];
 
-export function proxyMediaUrl(url: string): string {
+export function proxyMediaUrl(url: string, width?: number): string {
   try {
     const parsed = new URL(url);
     if (PROXY_DOMAINS.includes(parsed.hostname)) {
-      return `/api/media/proxy?url=${encodeURIComponent(url)}`;
+      const params = new URLSearchParams({ url });
+      if (width) params.set('w', width.toString());
+      return `/api/media/proxy?${params.toString()}`;
+    }
+    // For external URLs, add width param if provided
+    if (width) {
+      parsed.searchParams.set('w', width.toString());
+      return parsed.toString();
     }
   } catch {
     // Invalid URL — return as-is

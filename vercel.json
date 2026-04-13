@@ -8,10 +8,5 @@
   "env": {
     "POST_FOR_ME_BASE_URL": "https://api.postforme.dev",
     "NEXT_PUBLIC_APP_URL": "https://hypesocial-post.vercel.app"
-  },
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 30
-    }
   }
 }

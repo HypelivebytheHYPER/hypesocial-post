@@ -43,7 +43,7 @@ export async function GET(
         : value;
     });
     // Persist callback interception to the EVENTS table so it shows up in
-    // SSE replay alongside webhook-driven events. Best-effort — failure here
+    // Streaming replay alongside webhook-driven events. Best-effort — failure here
     // must NOT block the OAuth redirect.
     const state = searchParams.get("state") || "unknown";
     try {

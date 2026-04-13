@@ -10,7 +10,7 @@
  * platform_configurations with adapted media arrays.
  */
 
-import type { PlatformConfig, MediaItem } from "@/types/post-for-me-types";
+import type { PlatformConfigBuilder, MediaItem } from "@/types/post-for-me-types";
 
 interface PlatformMediaLimits {
   maxImages: number;
@@ -375,10 +375,10 @@ export function getMediaCompatWarnings(
 export function buildPlatformMediaOverrides(
   mediaFiles: MediaItem[],
   selectedPlatforms: string[],
-  existingConfigs: PlatformConfig = {},
-): PlatformConfig {
+  existingConfigs: PlatformConfigBuilder = {},
+): PlatformConfigBuilder {
   const { images, videos } = classifyMedia(mediaFiles);
-  const configs: PlatformConfig = { ...existingConfigs };
+  const configs: PlatformConfigBuilder = { ...existingConfigs };
 
   for (const platform of selectedPlatforms) {
     const limits = PLATFORM_MEDIA_LIMITS[platform];
@@ -412,7 +412,7 @@ export function buildPlatformMediaOverrides(
       platformMedia.some((f, i) => f.url !== mediaFiles[i]?.url);
 
     if (needsOverride && platformMedia.length > 0) {
-      const key = platform as keyof PlatformConfig;
+      const key = platform as keyof PlatformConfigBuilder;
       const existing = configs[key] as Record<string, unknown> | undefined;
       (configs as Record<string, unknown>)[platform] = {
         ...existing,

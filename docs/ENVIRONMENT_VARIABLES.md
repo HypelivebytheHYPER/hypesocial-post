@@ -401,6 +401,38 @@ Use this checklist after migration:
 
 ---
 
+## LINE Login Integration (Optional)
+
+LINE Login allows users to authenticate using their LINE account.
+
+### Configuration
+
+1. Create a LINE Login channel at https://developers.line.biz/console/
+2. Set the callback URL in LINE console:
+   ```
+   https://hypesocial-post.vercel.app/api/auth/callback/line
+   ```
+3. Add these environment variables:
+
+| Variable | Value | Where to Find |
+|----------|-------|---------------|
+| `LINE_CHANNEL_ID` | Your LINE Channel ID | LINE Console → Basic settings → Channel ID |
+| `LINE_CHANNEL_SECRET` | Your LINE Channel Secret | LINE Console → Basic settings → Channel secret |
+
+### User Registration Flow
+
+LINE Login uses **pre-registration** - users must be added to the Lark Users table first:
+
+1. Admin adds user to Lark with their LINE User ID in the "LINE User ID" field
+2. User clicks "Login with LINE" button
+3. User authenticates with LINE
+4. System matches LINE User ID to user record
+5. User is logged in
+
+**Note:** The hardcoded Channel ID in `app/login/login-form.tsx` is `2009765464` (HypeStaff channel).
+
+---
+
 ## CI/CD Secrets (GitHub)
 
 Required secrets in GitHub repository:
@@ -408,6 +440,7 @@ Required secrets in GitHub repository:
 - `POST_FOR_ME_API_KEY`
 - `POST_FOR_ME_BASE_URL`
 - `NEXTAUTH_SECRET`
+- `LINE_CHANNEL_SECRET` (if using LINE Login)
 
 ---
 

@@ -4,6 +4,9 @@
  * Worker docs: GET https://lark-http-hype.hypelive.workers.dev/
  */
 
+import { TRACE_HEADERS } from "@/lib/request-context";
+import { PAGINATION } from "@/lib/constants";
+
 // ==================== Types ====================
 
 interface LarkField {
@@ -86,24 +89,45 @@ export function lte(field_name: string, value: unknown): LarkFilterCondition {
   return { field_name, operator: "isLessEqual", value: [value] };
 }
 
+/** field_name contains value */
+export function contains(field_name: string, value: string): LarkFilterCondition {
+  return { field_name, operator: "contains", value: [value] };
+}
+
 // ==================== Core API ====================
 
 /**
  * POST to a Lark HTTP Direct Worker REST endpoint.
  * e.g. callLarkEndpoint("/records/search", { app_token, table_id, ... })
+ * 
+ * @param path - API endpoint path
+ * @param body - Request body
+ * @param traceHeaders - Optional trace headers to propagate (x-trace-id, x-request-id)
  */
 async function callLarkEndpoint(
   path: string,
   body: Record<string, unknown>,
+  traceHeaders?: Record<string, string>,
 ): Promise<unknown> {
   const { workerUrl } = getConfig();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  
+  // Add API key if available
   const apiKey = process.env.LARK_API_KEY;
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  
+  // Propagate trace headers for distributed tracing
+  if (traceHeaders) {
+    Object.entries(traceHeaders).forEach(([key, value]) => {
+      if (key.toLowerCase().startsWith("x-")) {
+        headers[key] = value;
+      }
+    });
   }
 
   const url = `${workerUrl}${path}`;
@@ -136,6 +160,7 @@ async function callLarkEndpoint(
     const raw = await res.text().catch(() => "(unreadable)");
     throw new Error(`Lark JSON parse error: ${parseErr}, raw: ${raw.substring(0, 200)}`);
   }
+  
   // Handle both worker format (no code/msg) and standard Lark format (with code/msg)
   if (json.code !== undefined && json.code !== 0) {
     throw new Error(`Lark API error (${json.code}): ${json.msg}`);
@@ -148,163 +173,157 @@ async function callLarkEndpoint(
 
 /**
  * Search records with optional structured filter and pagination.
- * POST /records/search
+ * 
+ * @param tableId - Lark Base table ID
+ * @param filter - Optional filter conditions
+ * @param limit - Maximum records to return
+ * @param traceHeaders - Optional trace headers for propagation
  */
 export async function larkSearchRecords(
   tableId: string,
   filter?: LarkFilter,
-  pageSize = 500,
-  pageToken?: string,
-): Promise<{ items: LarkRecord[]; total: number; has_more: boolean; page_token?: string }> {
+  limit: number = PAGINATION.MAX_LIMIT,
+  traceHeaders?: Record<string, string>,
+): Promise<{ items: Array<{ record_id: string; fields: Record<string, unknown> }> }> {
   const { appToken } = getConfig();
-
+  
   const body: Record<string, unknown> = {
     app_token: appToken,
     table_id: tableId,
-    page_size: pageSize,
+    limit,
   };
-  if (filter) body.filter = filter;
-  if (pageToken) body.page_token = pageToken;
+  
+  if (filter) {
+    body.filter = filter;
+  }
 
-  const raw = (await callLarkEndpoint(
-    "/records/search",
-    body,
-  )) as { code: number; msg: string; data: LarkRecord[]; total: number; has_more: boolean; page_token?: string };
-  // Transform worker response (data is array) to expected format (data.items is array)
-  return {
-    items: raw.data,
-    total: raw.total,
-    has_more: raw.has_more,
-    page_token: raw.page_token,
+  const res = (await callLarkEndpoint("/records/search", body, traceHeaders)) as {
+    items?: Array<{ record_id: string; fields: Record<string, unknown> }>;
+    data?: {
+      items?: Array<{ record_id: string; fields: Record<string, unknown> }>;
+    };
   };
+
+  // Handle both direct array and nested data format
+  const items = res.items ?? res.data?.items ?? [];
+  return { items };
 }
 
 /**
- * Fetch all records matching a filter, handling pagination automatically.
- */
-export async function larkSearchAllRecords(
-  tableId: string,
-  filter?: LarkFilter,
-): Promise<LarkRecord[]> {
-  const all: LarkRecord[] = [];
-  let pageToken: string | undefined;
-
-  do {
-    const result = await larkSearchRecords(tableId, filter, 500, pageToken);
-    if (result.items) all.push(...result.items);
-    pageToken = result.page_token;
-  } while (pageToken);
-
-  return all;
-}
-
-/**
- * Create records in batch (up to 500 at a time).
- * POST /records/batch_create
+ * Create multiple records in a table.
+ * 
+ * @param tableId - Lark Base table ID
+ * @param records - Array of record field objects
+ * @param traceHeaders - Optional trace headers for propagation
  */
 export async function larkCreateRecords(
   tableId: string,
-  records: LarkField[],
-): Promise<LarkRecord[]> {
+  records: Record<string, unknown>[],
+  traceHeaders?: Record<string, string>,
+): Promise<{ record_ids: string[] }> {
   const { appToken } = getConfig();
 
-  const res = (await callLarkEndpoint("/records/batch_create", {
-    app_token: appToken,
-    table_id: tableId,
-    records: records.map((fields) => ({ fields })),
-  })) as LarkBatchResponse;
+  const res = (await callLarkEndpoint(
+    "/records/batch-create",
+    {
+      app_token: appToken,
+      table_id: tableId,
+      records: records.map((fields) => ({ fields })),
+    },
+    traceHeaders,
+  )) as { record_ids: string[]; data?: { record_ids: string[] } };
 
-  return res.data;
+  return { record_ids: res.record_ids ?? res.data?.record_ids ?? [] };
 }
 
 /**
- * Update records in batch (up to 500 at a time).
- * POST /records/batch_update
+ * Update multiple records in a table.
+ * 
+ * @param tableId - Lark Base table ID
+ * @param records - Array of records with record_id and fields
+ * @param traceHeaders - Optional trace headers for propagation
  */
 export async function larkUpdateRecords(
   tableId: string,
-  records: { record_id: string; fields: LarkField }[],
-): Promise<LarkRecord[]> {
+  records: Array<{ record_id: string; fields: Record<string, unknown> }>,
+  traceHeaders?: Record<string, string>,
+): Promise<{ record_ids: string[] }> {
   const { appToken } = getConfig();
 
-  const res = (await callLarkEndpoint("/records/batch_update", {
-    app_token: appToken,
-    table_id: tableId,
-    records,
-  })) as LarkBatchResponse;
+  const res = (await callLarkEndpoint(
+    "/records/batch-update",
+    {
+      app_token: appToken,
+      table_id: tableId,
+      records,
+    },
+    traceHeaders,
+  )) as { record_ids: string[]; data?: { record_ids: string[] } };
 
-  return res.data;
+  return { record_ids: res.record_ids ?? res.data?.record_ids ?? [] };
 }
 
 /**
- * Delete records in batch (up to 500 at a time).
- * POST /records/batch_delete
+ * Delete records from a table.
+ * 
+ * @param tableId - Lark Base table ID
+ * @param recordIds - Array of record IDs to delete
+ * @param traceHeaders - Optional trace headers for propagation
  */
 export async function larkDeleteRecords(
   tableId: string,
   recordIds: string[],
+  traceHeaders?: Record<string, string>,
 ): Promise<void> {
   const { appToken } = getConfig();
 
-  await callLarkEndpoint("/records/batch_delete", {
-    app_token: appToken,
-    table_id: tableId,
-    records: recordIds,
-  });
+  await callLarkEndpoint(
+    "/records/batch-delete",
+    {
+      app_token: appToken,
+      table_id: tableId,
+      record_ids: recordIds,
+    },
+    traceHeaders,
+  );
 }
 
-// ==================== Helpers ====================
+// ==================== Field Value Helpers ====================
 
-/** Convert a Lark DateTime field (ms timestamp) to ISO string. Returns "" if falsy. */
-export function larkDateToISO(val: unknown): string {
-  if (!val) return "";
-  const n = typeof val === "number" ? val : Number(val);
-  return isNaN(n) ? "" : new Date(n).toISOString();
-}
-
-/**
- * Extract plain text from a Lark text field.
- * Lark returns text as [{text: "value", type: "text"}] or plain string.
- */
-export function larkText(val: unknown): string {
-  if (!val) return "";
-  if (typeof val === "string") return val;
-  if (Array.isArray(val)) {
-    return val.map((v: { text?: string }) => v?.text || "").join("");
+/** Extract text value from Lark field */
+export function larkText(field: unknown): string | undefined {
+  if (typeof field === "string") return field;
+  if (field && typeof field === "object" && "text" in field) {
+    return String((field as { text?: unknown }).text ?? "");
   }
-  return String(val);
+  return undefined;
 }
 
-/** Extract number from a Lark field. */
-export function larkNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (!val) return 0;
-  const n = Number(val);
-  return isNaN(n) ? 0 : n;
-}
-
-/** Extract boolean from a Lark checkbox field. */
-export function larkBool(val: unknown): boolean {
-  return val === true;
-}
-
-/** Extract URL string from a Lark URL field ({text, link} object). */
-export function larkUrl(val: unknown): string {
-  if (!val) return "";
-  if (typeof val === "string") return val;
-  if (typeof val === "object" && val !== null) {
-    const obj = val as { link?: string; text?: string };
-    return obj.link || obj.text || "";
+/** Extract number value from Lark field */
+export function larkNumber(field: unknown): number {
+  if (typeof field === "number") return field;
+  if (field && typeof field === "object" && "value" in field) {
+    return Number((field as { value?: unknown }).value ?? 0);
   }
-  return "";
+  return Number(field ?? 0);
 }
 
-/** Convert a plain URL string to Lark URL field format. Returns undefined if empty. */
-export function toLarkUrl(
-  url: string,
-): { text: string; link: string } | undefined {
-  if (!url) return undefined;
-  return { text: url, link: url };
+/** Extract array value from Lark field */
+export function larkArray<T>(field: unknown): T[] {
+  if (Array.isArray(field)) return field as T[];
+  return [];
 }
 
-export type { LarkField, LarkRecord };
+/** Convert Lark date field (ms timestamp) to ISO string */
+export function larkDateToISO(field: unknown): string | undefined {
+  if (typeof field === "number") {
+    return new Date(field).toISOString();
+  }
+  if (field && typeof field === "object" && "value" in field) {
+    const val = (field as { value?: number }).value;
+    if (typeof val === "number") {
+      return new Date(val).toISOString();
+    }
+  }
+  return undefined;
+}

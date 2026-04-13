@@ -1,157 +1,209 @@
-# HypePostSocial
+# HypeSocial
 
-Social Media Management Platform built with Next.js 16, React 19, and Post For Me API.
+Social Media Management Platform with Post For Me integration.
 
 ## Features
 
-- Multi-platform social media posting (X, Facebook, Instagram, LinkedIn, etc.)
-- Content calendar and scheduling
-- Analytics and reporting
-- Media upload and management
-- Team collaboration
+- 🔐 **Authentication** - LINE Login OAuth 2.0
+- 📝 **Post Management** - Create, schedule, and publish posts across platforms
+- 📊 **Analytics** - Track post performance with real-time metrics
+- 🔗 **Multi-Platform** - Facebook, Instagram, TikTok, YouTube, LinkedIn, X, Bluesky, Threads, Pinterest
+- 🔔 **Real-time Updates** - Webhook integration with event streaming
+- 📱 **Responsive Design** - Mobile-first with Tailwind CSS
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.1.6 with App Router
-- **React**: 19.2.4 with Server Components
-- **Styling**: Tailwind CSS + shadcn/ui
-- **State**: TanStack Query (React Query)
-- **Forms**: React Hook Form + Zod
-- **Auth**: NextAuth.js v5
-- **API**: Post For Me MCP SDK
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 + React 19 + TypeScript 5.7 |
+| Styling | Tailwind CSS + shadcn/ui |
+| State | TanStack Query v5 |
+| Auth | NextAuth.js v5 |
+| API | Post For Me SDK |
+| Events | Lark Base (via HTTP Worker) |
 
-## Post For Me MCP Integration
+## Quick Start
 
-This project uses the `post-for-me-mcp` package for social media API operations.
+### Prerequisites
 
-### Setup
+- Node.js 18+
+- npm/pnpm
+- Post For Me API key
 
-1. Install dependencies:
-
-   ```bash
-   pnpm install
-   ```
-
-2. Copy environment variables:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-3. Add your Post For Me API key to `.env.local`:
-   ```
-   POST_FOR_ME_API_KEY=your_api_key
-   ```
-
-### MCP Server Configuration
-
-The MCP servers are configured in `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "post_for_me_api": {
-      "command": "npx",
-      "args": ["-y", "post-for-me-mcp"],
-      "env": {
-        "POST_FOR_ME_API_KEY": "${POST_FOR_ME_API_KEY}"
-      }
-    },
-    "shadcn_ui": {
-      "command": "npx",
-      "args": ["-y", "@magnusrodseth/shadcn-mcp-server"]
-    }
-  }
-}
-```
-
-## shadcn/ui MCP Integration
-
-This project includes `@magnusrodseth/shadcn-mcp-server` for AI-powered component generation.
-
-### Available Tools
-
-- `list_components` - List all available shadcn/ui components
-- `get_component` - Get source code and examples for a specific component
-- `list_blocks` - List available shadcn/ui blocks
-- `get_block` - Get source code for a specific block
-
-### Usage
-
-Ask your AI assistant to fetch component code:
-
-- "Add a button component with loading state"
-- "Create a data table with sorting and pagination"
-- "Build a dialog form with validation"
-
-## Development
+### Installation
 
 ```bash
-# Run dev server with Turbopack
-pnpm dev
+# Clone repository
+git clone <repo-url>
+cd hype-social
 
-# Type checking
-pnpm type-check
+# Install dependencies
+npm install
 
-# Linting
-pnpm lint
+# Setup environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
+
+# Run development server
+npm run dev
+```
+
+Open http://localhost:3000
+
+## Available Scripts
+
+```bash
+# Development
+npm run dev              # Start dev server (turbo)
+npm run type-check       # TypeScript check
+npm run lint            # ESLint check
+npm run format          # Prettier format
 
 # Testing
-pnpm test
+npm run health-check     # Test all API endpoints
+npm run test            # Run unit tests
+npm run test:e2e        # Run E2E tests
+
+# Build
+npm run build           # Production build
+npm run start           # Start production server
 ```
 
 ## Project Structure
 
 ```
-app/              # Next.js App Router
-  (dashboard)/    # Dashboard route group
-  api/            # API routes
-  actions/        # Server Actions
-components/       # React components
-  ui/             # shadcn/ui components
-lib/              # Utility functions
-  api/            # API clients
-  db/             # Database operations
-  hooks/          # Custom React hooks
-public/           # Static assets
-types/            # TypeScript types
+app/                    # Next.js App Router
+├── (dashboard)/        # Protected routes
+│   ├── posts/          # Post management
+│   ├── accounts/       # Social accounts
+│   ├── webhooks/       # Webhook management
+│   ├── feed/          # Social feed
+│   └── analytics/     # Analytics dashboard
+├── api/               # API routes (19 endpoints)
+└── layout.tsx         # Root layout
+
+lib/                   # Application code
+├── hooks/            # TanStack Query hooks
+│   ├── posts/        # New hook architecture
+│   ├── use-*.ts      # Feature hooks
+│   └── index.ts      # Central exports
+├── lark.ts           # Lark Base client
+├── post-for-me-client.ts  # Post For Me SDK
+└── config.ts         # Configuration
+
+types/                 # TypeScript definitions
+├── post-for-me-types.ts   # API types
+├── webhook-types.ts       # Webhook types
+└── index.ts              # Type exports
+
+scripts/               # Utility scripts
+└── api-health-check.ts   # Health check script
 ```
 
-## Debugging
+## API Routes (19 Endpoints)
 
-### VS Code + Chrome DevTools Setup
+### Accounts
+- `GET /api/accounts` - List accounts
+- `POST /api/accounts` - Create account
+- `GET /api/accounts/[id]` - Get account
+- `PATCH /api/accounts/[id]` - Update account
+- `POST /api/accounts/[id]/disconnect` - Disconnect account
+- `POST /api/accounts/auth-url` - Get OAuth URL
+- `GET /api/accounts/callback/[platform]` - OAuth callback
 
-1. **Install Chrome Launcher**:
+### Posts
+- `GET /api/posts` - List posts
+- `POST /api/posts` - Create post
+- `GET /api/posts/[id]` - Get post
+- `PUT /api/posts/[id]` - Update post
+- `DELETE /api/posts/[id]` - Delete post
 
-   ```bash
-   pnpm add -D chrome-launcher
-   ```
+### Post Results
+- `GET /api/post-results` - List results
+- `GET /api/post-results/[id]` - Get result
 
-2. **VS Code Launch Configurations** (`.vscode/launch.json`):
-   - `Next.js: debug` - Start dev server with Chrome debugging
-   - `Next.js: debug full stack` - Debug server-side code
-   - `Next.js: attach to Chrome` - Attach to running Chrome instance
+### Media
+- `POST /api/media` - Create upload URL
+- `GET /api/media/proxy` - Proxy media
 
-3. **React Developer Tools** (Chrome Extension):
-   - Install from [Chrome Web Store](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi)
-   - Press `F12` or `Cmd+Option+I` to open DevTools
-   - Look for the ⚛️ Components and ⚛️ Profiler tabs
+### Webhooks
+- `GET /api/webhooks` - List webhooks
+- `POST /api/webhooks` - Create webhook
+- `GET/POST/PATCH/DELETE /api/webhooks/[id]` - Webhook CRUD + receive
+- `POST /api/webhooks/lark-base` - Lark events
 
-4. **Start Debugging in VS Code**:
-   - Press `F5` or go to Run > Start Debugging
-   - Select "Next.js: debug" configuration
-   - Chrome will open automatically with DevTools attached
+### Events
+- `GET /api/events/stream` - SSE streaming
+- `GET /api/events/verify` - Verify event
 
-### Debug Scripts
+### Account Feeds
+- `GET /api/account-feeds/[accountId]` - Get feed
+
+### Health
+- `GET /api/health` - Health check
+
+## Environment Variables
+
+```env
+# Required
+NEXTAUTH_SECRET=your-secret
+NEXTAUTH_URL=http://localhost:3000
+POST_FOR_ME_API_KEY=pfm_live_...
+
+# Optional - Webhook (auto-derived if not set)
+NEXT_PUBLIC_WEBHOOK_URL=https://your-app.com/api/webhooks/post-for-me
+
+# Optional - Lark Base (for event logging)
+LARK_HTTP_WORKER_URL=https://lark-http-hype.hypelive.workers.dev
+LARK_APP_TOKEN=...
+LARK_EVENTS_TABLE_ID=...
+
+# Optional - LINE Login
+LINE_CHANNEL_ID=...
+LINE_CHANNEL_SECRET=...
+```
+
+## Architecture
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
+
+See [WIRE_LOGIC_WORKFLOW.md](./WIRE_LOGIC_WORKFLOW.md) for API data flow documentation.
+
+## Health Check
+
+Run automated health check:
 
 ```bash
-# Debug with inspect flag
-pnpm dev:debug
+# Local development
+npm run health-check
 
-# Attach debugger to Node.js
-node --inspect node_modules/.bin/next dev
+# Production
+HEALTH_CHECK_URL=https://hypesocial-post.vercel.app npm run health-check
 ```
+
+## Deployment
+
+### Vercel
+
+```bash
+# Build and deploy
+vercel --prod
+```
+
+### Environment Setup
+
+1. Add environment variables in Vercel dashboard
+2. Set `NEXT_PUBLIC_WEBHOOK_URL` to your production URL
+3. Configure webhook in Post For Me to point to `/api/webhooks/post-for-me`
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Architecture patterns & best practices |
+| [WIRE_LOGIC_WORKFLOW.md](./WIRE_LOGIC_WORKFLOW.md) | API data flow documentation |
+| [CLAUDE.md](./CLAUDE.md) | Claude-specific context |
 
 ## License
 
-Private - Hypelive Projects
+MIT

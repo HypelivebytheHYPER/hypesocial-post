@@ -3,6 +3,49 @@
  * Extracted from feed/page.tsx for reuse in analytics and other pages.
  */
 
+/**
+ * METRIC VARIANCE NOTICE
+ * 
+ * When fetching analytics with Post for Me, you may notice discrepancies between
+ * the data returned through the API and the numbers displayed directly on a social
+ * platform's native app. These variances are normal and occur because platforms
+ * process, verify, and serve third-party API data differently than they serve
+ * real-time user counters.
+ * 
+ * We do not process any of the metrics returned from the platforms — rather the
+ * metrics are always the current lifetime value returned directly from the
+ * platforms' API. Any variance that occurs is due to differences in how the
+ * platform treats their API and Native App.
+ * 
+ * PLATFORM-SPECIFIC NOTES:
+ * 
+ * Meta (Facebook/Instagram):
+ * - Metrics may take up to 48 hours to become fully available/accurate via API
+ * - Data is only stored for 2 years
+ * - Views breakdown: API shows video_views_autoplayed, video_views_clicked_to_play,
+ *   video_views_unique vs native app's aggregated count
+ * - Privacy thresholds: Demographic data not returned if below threshold
+ * - Views metric is "in development" — calculation method may differ between API and app
+ * - API returns organic metrics only — AD interactions not included
+ * 
+ * YouTube:
+ * - Premium views: API distinguishes standard views from redViews (YouTube Premium)
+ * - Estimated metrics (estimatedMinutesWatched) may lag behind real-time counter
+ * 
+ * X (Twitter):
+ * - Data buckets: public_metrics (organic+paid), organic_metrics, non_public_metrics (promoted)
+ * - Public impression count includes both organic and paid traffic
+ * - API allows separate display which may show lower "Organic" number than native app
+ * 
+ * LinkedIn:
+ * - Metrics exclusively available for Company Pages only
+ * - Personal profiles not supported for analytics access
+ * 
+ * Bluesky:
+ * - Does not currently expose view counts or impressions via API
+ * - Views will always be unavailable
+ */
+
 import type {
   SocialAccountFeedItemMetrics,
   SocialAccountFeedItem,
@@ -48,6 +91,53 @@ const METRIC_AVAILABILITY: Record<string, MetricAvailability> = {
   threads: { likes: true, comments: true, shares: true, views: true },
   pinterest: { likes: true, comments: true, shares: true, views: true },
 };
+
+/**
+ * Check if LinkedIn account is a personal profile (no metrics available)
+ * LinkedIn only provides metrics for Company Pages, not personal profiles
+ */
+export function isLinkedInPersonalProfile(
+  platform: string,
+  metrics: SocialAccountFeedItemMetrics | undefined,
+): boolean {
+  if (platform.toLowerCase() !== "linkedin") return false;
+  // LinkedIn personal profiles have no metrics or empty metrics object
+  if (!metrics) return true;
+  // Check if all metric values are 0 or undefined (indicates personal profile)
+  const liMetrics = metrics as LinkedInMetrics;
+  const hasAnyValue = 
+    (liMetrics.likeCount && liMetrics.likeCount > 0) ||
+    (liMetrics.commentCount && liMetrics.commentCount > 0) ||
+    (liMetrics.shareCount && liMetrics.shareCount > 0) ||
+    (liMetrics.impressionCount && liMetrics.impressionCount > 0) ||
+    (liMetrics.videoView && liMetrics.videoView > 0);
+  return !hasAnyValue;
+}
+
+/**
+ * Get metric availability for a specific account, considering special cases
+ * like LinkedIn personal profiles
+ */
+export function getMetricAvailabilityForAccount(
+  platform: string,
+  metrics?: SocialAccountFeedItemMetrics,
+): MetricAvailability & { note?: string } {
+  const base = METRIC_AVAILABILITY[platform.toLowerCase()] || DEFAULT_AVAILABILITY;
+  
+  // LinkedIn personal profiles have no metrics
+  if (isLinkedInPersonalProfile(platform, metrics)) {
+    return {
+      ...base,
+      likes: false,
+      comments: false,
+      shares: false,
+      views: false,
+      note: "LinkedIn metrics only available for Company Pages",
+    };
+  }
+  
+  return base;
+}
 
 const DEFAULT_AVAILABILITY: MetricAvailability = {
   likes: true,
@@ -122,6 +212,27 @@ export interface ExtendedTikTokMetrics {
   impressionSources: ImpressionSource[];
   audienceGenders: AudienceGender[];
   audienceCountries: AudienceCountry[];
+}
+
+/**
+ * Extended LinkedIn metrics for Company Page posts.
+ * LinkedIn personal profiles do not have access to these metrics.
+ */
+export interface ExtendedLinkedInMetrics {
+  /** Engagement rate as a decimal (e.g., 0.05 = 5%) */
+  engagement: number;
+  /** Number of clicks */
+  clicks: number;
+  /** Number of impressions */
+  impressions: number;
+  /** Video views (3+ second plays) */
+  videoViews: number;
+  /** Time video was watched in milliseconds */
+  timeWatched: number;
+  /** Time watched for 3+ second play-pause cycles (6-month retention) */
+  timeWatchedForVideoViews: number;
+  /** Unique viewers who made engaged plays */
+  uniqueViewers: number;
 }
 
 // Generic metrics fallback interface
@@ -295,6 +406,35 @@ export function extractExtendedMetrics(
     impressionSources: m.impression_sources || [],
     audienceGenders: m.audience_genders || [],
     audienceCountries: m.audience_countries || [],
+  };
+}
+
+/**
+ * Extract LinkedIn extended metrics from a feed item.
+ * Returns null for non-LinkedIn items or personal profiles (no metrics).
+ * Note: These metrics are only available for LinkedIn Company Pages,
+ * not personal profiles.
+ */
+export function extractLinkedInMetrics(
+  item: SocialAccountFeedItem,
+): ExtendedLinkedInMetrics | null {
+  if (item.platform?.toLowerCase() !== "linkedin") return null;
+  if (!item.metrics) return null;
+  
+  // Verify this is LinkedIn metrics format
+  if (!("likeCount" in item.metrics && "impressionCount" in item.metrics)) {
+    return null;
+  }
+  
+  const m = item.metrics as LinkedInMetrics;
+  return {
+    engagement: m.engagement || 0,
+    clicks: m.clickCount || 0,
+    impressions: m.impressionCount || 0,
+    videoViews: m.videoView || 0,
+    timeWatched: m.timeWatched || 0,
+    timeWatchedForVideoViews: m.timeWatchedForVideoViews || 0,
+    uniqueViewers: m.viewer || 0,
   };
 }
 

@@ -1,948 +1,725 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import {
+import { useSearchParams, useRouter } from "next/navigation";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
+import { 
+  RefreshCw, 
+  AlertCircle, 
+  Search, 
   Plus,
-  RefreshCw,
   Calendar,
-  Clock,
   CheckCircle2,
-  AlertCircle,
+  XCircle,
   FileEdit,
-  MoreHorizontal,
-  ExternalLink,
-  Trash2,
   LayoutGrid,
-  List,
+  List as ListIcon,
+  MoreHorizontal,
+  Trash2,
+  Edit3,
+  Layers,
+  CalendarDays,
+  ImageIcon,
+  Film,
+  Sparkles,
 } from "lucide-react";
-import { platformIconsMap } from "@/lib/social-platforms";
-import { cn, proxyMediaUrl } from "@/lib/utils";
+import { ModernCard, ModernBadge, BlobBackground } from "@/components/ui/modern-card";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isToday, isTomorrow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton, ListSkeleton } from "@/components/ui/skeleton";
+import { EmptyPostsState, EmptySearchState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LazyVideo } from "@/components/ui/lazy-video";
 
 import {
   usePosts,
   useDeletePost,
   useRetryPost,
-  useAccounts,
-  usePostResultsList,
+  useSocialAccounts,
+  usePostResultsMap,
   pfmKeys,
-} from "@/lib/hooks/usePostForMe";
+} from "@/lib/hooks";
+import { usePostsLayout } from "./layout";
+import { usePostFilters } from "./hooks/usePostFilters";
+import type { StatusFilter } from "./config";
+import { platformIconsMap } from "@/lib/social-platforms";
+import { proxyMediaUrl } from "@/lib/utils";
 import type { SocialPost, SocialPostResult } from "@/types/post-for-me-types";
+import dynamic from "next/dynamic";
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useRef } from 'react';
 
-type ViewMode = "board" | "list";
-type StatusFilter =
-  | "all"
-  | "draft"
-  | "scheduled"
-  | "processing"
-  | "processed"
-  | "failed";
+// Dynamic import for CalendarView to reduce initial bundle size
+const CalendarView = dynamic(() => import("./_components/CalendarView").then(mod => ({ default: mod.CalendarView })), {
+  loading: () => <div className="h-full flex items-center justify-center"><Skeleton className="w-full h-full bg-slate-200 dark:bg-slate-800" /></div>,
+});
 
-const statusConfig = {
-  draft: {
-    label: "Draft",
-    icon: FileEdit,
-    color: "bg-slate-100 text-slate-600 border-slate-200",
-    accent: "border-slate-300",
-    bg: "bg-slate-50/50",
-  },
-  scheduled: {
-    label: "Scheduled",
-    icon: Clock,
-    color: "bg-blue-50 text-blue-600 border-blue-200",
-    accent: "border-blue-300",
-    bg: "bg-blue-50/30",
-  },
-  processing: {
-    label: "Processing",
-    icon: RefreshCw,
-    color: "bg-amber-50 text-amber-600 border-amber-200",
-    accent: "border-amber-300",
-    bg: "bg-amber-50/30",
-  },
-  processed: {
-    label: "Published",
-    icon: CheckCircle2,
-    color: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    accent: "border-emerald-300",
-    bg: "bg-emerald-50/30",
-  },
-  failed: {
-    label: "Failed",
-    icon: AlertCircle,
-    color: "bg-red-50 text-red-600 border-red-200",
-    accent: "border-red-300",
-    bg: "bg-red-50/30",
-  },
+// Types
+type ViewMode = "grid" | "list" | "calendar";
+
+// Constants - defined outside component to avoid recreation
+const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
+const STATUS_DOT_COLORS: Record<string, string> = {
+  draft: "bg-amber-500",
+  scheduled: "bg-blue-500",
+  processing: "bg-violet-500",
+  processed: "bg-emerald-500",
+  failed: "bg-red-500",
 };
 
-// Platform icons are now imported from centralized config
-// Using platformIconsMap from @/lib/social-platforms
+// ==================== SIDEBAR COMPONENT ====================
+interface SidebarProps {
+  stats: Record<string, number>;
+  currentFilter: StatusFilter;
+  onFilterChange: (f: StatusFilter) => void;
+  viewMode: ViewMode;
+  onViewChange: (v: ViewMode) => void;
+}
 
-// --- Animation variants ---
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
-  },
-};
+const FILTER_ITEMS = [
+  { id: "all" as StatusFilter, label: "All Posts", icon: Layers },
+  { id: "draft" as StatusFilter, label: "Drafts", icon: FileEdit },
+  { id: "scheduled" as StatusFilter, label: "Scheduled", icon: Calendar },
+  { id: "processed" as StatusFilter, label: "Published", icon: CheckCircle2 },
+  { id: "failed" as StatusFilter, label: "Failed", icon: XCircle },
+];
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
-  },
-};
+const VIEW_MODES = [
+  { id: "grid", icon: LayoutGrid, label: "Grid" },
+  { id: "list", icon: ListIcon, label: "List" },
+  { id: "calendar", icon: CalendarDays, label: "Cal" },
+] as const;
+
+function Sidebar({
+  stats,
+  currentFilter,
+  onFilterChange,
+  viewMode,
+  onViewChange,
+}: SidebarProps) {
+  return (
+    <div className="w-72 shrink-0 h-full flex flex-col p-4 gap-4">
+      {/* Modern Header Card */}
+      <ModernCard variant="glass" padding="md" className="shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-900 dark:text-white">Posts</h2>
+            <p className="text-xs text-slate-500">Manage your content</p>
+          </div>
+        </div>
+      </ModernCard>
+
+      {/* Modern Filter Card */}
+      <ModernCard variant="soft" padding="md" className="flex-1 flex flex-col min-h-0">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+          Filter by Status
+        </p>
+        <div className="flex-1 -mx-2 px-2 overflow-y-auto">
+          <div className="space-y-2">
+            {FILTER_ITEMS.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => onFilterChange(filter.id)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm transition-all duration-200",
+                  currentFilter === filter.id
+                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center transition-colors",
+                    currentFilter === filter.id
+                      ? "bg-white/20"
+                      : "bg-slate-100 dark:bg-slate-800"
+                  )}>
+                    <filter.icon className="w-4 h-4" />
+                  </div>
+                  <span className="font-medium">{filter.label}</span>
+                </div>
+                <ModernBadge 
+                  variant={currentFilter === filter.id ? "default" : "default"}
+                  className={cn(
+                    currentFilter === filter.id 
+                      ? "bg-white/20 text-white" 
+                      : ""
+                  )}
+                >
+                  {stats[filter.id] ?? 0}
+                </ModernBadge>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* View Mode */}
+        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            View Mode
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {VIEW_MODES.map(({ id, icon: Icon, label }) => (
+              <button
+                key={id}
+                onClick={() => onViewChange(id as ViewMode)}
+                className={cn(
+                  "flex flex-col items-center gap-2 py-3 rounded-2xl text-xs transition-all duration-200",
+                  viewMode === id
+                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
+                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </ModernCard>
+    </div>
+  );
+}
+
+// ==================== POST CARD - CLEAN DESIGN ====================
+interface PostCardProps {
+  post: SocialPost;
+  accounts: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
+  results?: SocialPostResult[];
+  onEdit: (post: SocialPost) => void;
+  onDelete: (id: string) => void;
+  onRetry?: (post: SocialPost) => void;
+  viewMode: ViewMode;
+  priority?: boolean;
+}
 
 function PostCard({
   post,
-  onDelete,
-  onRetry,
-  onEdit,
   accounts,
   results,
-}: {
-  post: SocialPost;
-  onDelete: (id: string) => void;
-  onRetry?: (post: SocialPost) => void;
-  onEdit?: (post: SocialPost) => void;
-  accounts: Map<
-    string,
-    {
-      platform: string;
-      username: string | null;
-      profile_photo_url?: string | null;
-    }
-  >;
-  results?: SocialPostResult[];
-}) {
-  const primaryAccount = post.social_accounts?.[0]
-    ? accounts.get(post.social_accounts[0].id)
-    : undefined;
-  const status = post.status as keyof typeof statusConfig;
-  const config = statusConfig[status] || statusConfig.draft;
-  const StatusIcon = config.icon;
+  onEdit,
+  onDelete,
+  onRetry,
+  viewMode,
+  priority = false,
+}: PostCardProps) {
+  const [imageError, setImageError] = useState(false);
+  
+  const status = post.status;
+  const hasError = results?.some((r) => !r.success);
+  const firstMedia = post.media?.[0];
+  const hasMedia = !!firstMedia;
 
-  const hasError = results?.some((r) => !r.success) ?? false;
-  const isPending = post.status === "processing";
+  // Memoize date formatting
+  const dateLabel = useMemo(() => {
+    if (!post.scheduled_at) return formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+    const date = new Date(post.scheduled_at);
+    if (isToday(date)) return `Today, ${format(date, "h:mm a")}`;
+    if (isTomorrow(date)) return `Tomorrow, ${format(date, "h:mm a")}`;
+    return format(date, "MMM d");
+  }, [post.scheduled_at, post.created_at]);
 
-  return (
-    <div className="card-premium p-4 group hover:shadow-lg transition-all duration-300">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          {/* Show all account avatars for multi-channel posts */}
-          <div className="flex -space-x-1.5">
-            {(post.social_accounts || []).slice(0, 4).map((sa) => {
-              const acc = accounts.get(sa.id);
-              const Icon = acc?.platform
-                ? platformIconsMap[acc.platform.toLowerCase()] || ExternalLink
-                : ExternalLink;
-              return acc ? (
-                <Avatar
-                  key={sa.id}
-                  className="w-6 h-6 ring-2 ring-white dark:ring-slate-900"
-                >
-                  <AvatarImage
-                    src={
-                      acc.profile_photo_url
-                        ? proxyMediaUrl(acc.profile_photo_url)
-                        : ""
-                    }
-                  />
-                  <AvatarFallback className="text-[10px] bg-slate-100">
-                    <Icon className="w-3 h-3 text-slate-400" />
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <div
-                  key={sa.id}
-                  className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center ring-2 ring-white dark:ring-slate-900"
-                >
-                  <Icon className="w-3 h-3 text-slate-400" />
-                </div>
-              );
-            })}
-            {(post.social_accounts || []).length > 4 && (
-              <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center ring-2 ring-white dark:ring-slate-900 text-[9px] font-medium text-slate-500">
-                +{(post.social_accounts || []).length - 4}
-              </div>
-            )}
-          </div>
-          <span className="text-xs text-slate-500 font-medium truncate max-w-[120px]">
-            {post.social_accounts?.length === 1
-              ? primaryAccount?.username ||
-                primaryAccount?.platform ||
-                "Unknown"
-              : `${post.social_accounts?.length || 0} channels`}
-          </span>
-        </div>
-        <Badge
-          variant="outline"
-          className={`text-[10px] px-1.5 py-0 h-5 ${config.color}`}
-        >
-          <StatusIcon className="w-3 h-3 mr-1" />
-          {config.label}
-        </Badge>
-      </div>
+  // Memoize platform list
+  const platformList = useMemo(() => {
+    return post.social_accounts?.slice(0, 3).map((sa) => {
+      const acc = accounts.get(sa.id);
+      return acc?.platform;
+    }).filter(Boolean) as string[] || [];
+  }, [post.social_accounts, accounts]);
 
-      {/* Content */}
-      <p className="text-sm text-slate-700 line-clamp-3 mb-3 leading-relaxed">
-        {post.caption}
-      </p>
+  // Memoize handlers
+  const handleEdit = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(post);
+  }, [onEdit, post]);
 
-      {/* Media Preview */}
-      {post.media && post.media.length > 0 && (
-        <div className="relative rounded-xl overflow-hidden mb-3 bg-slate-100">
-          {post.media[0]?.url?.match(/\.(mp4|mov|avi|webm)/i) ? (
-            <LazyVideo
-              src={post.media[0]?.url ?? ""}
-              className="w-full h-32"
-              controls
-              preload="metadata"
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(post.id);
+  }, [onDelete, post.id]);
+
+  if (viewMode === "list") {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING_TRANSITION}
+        className="group flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-800/80 shadow-sm hover:shadow-md border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer"
+        onClick={() => onEdit(post)}
+      >
+        {/* Status Dot */}
+        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white dark:ring-slate-700", STATUS_DOT_COLORS[status])} />
+
+        {/* Thumbnail */}
+        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 shrink-0 shadow-inner">
+          {hasMedia && !imageError ? (
+            <Image
+              src={proxyMediaUrl(firstMedia.url)}
+              alt=""
+              fill
+              sizes="56px"
+              priority={priority}
+              loading={priority ? "eager" : "lazy"}
+              className="object-cover"
+              onError={() => setImageError(true)}
             />
           ) : (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={proxyMediaUrl(post.media[0]?.url ?? "")}
-                alt="Post media"
-                className="w-full h-32 object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </>
-          )}
-          {post.media.length > 1 && (
-            <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/50 rounded-full text-[10px] text-white">
-              +{post.media.length - 1}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Per-Platform Results */}
-      {post.status !== "draft" && post.status !== "scheduled" && (
-        <div className="mb-3 space-y-1">
-          {results && results.length > 0 ? (
-            results.map((result) => {
-              const resultAccount = accounts.get(result.social_account_id);
-              const ResultIcon = resultAccount?.platform
-                ? platformIconsMap[resultAccount.platform.toLowerCase()] ||
-                  ExternalLink
-                : ExternalLink;
-              return (
-                <div
-                  key={result.id}
-                  className={`flex items-center gap-2 text-xs ${result.success ? "text-emerald-600" : "text-red-600"}`}
-                >
-                  <ResultIcon className="w-3 h-3 flex-shrink-0" />
-                  {result.success ? (
-                    <>
-                      <span className="truncate">
-                        {resultAccount?.username ||
-                          resultAccount?.platform ||
-                          "platform"}
-                      </span>
-                      {result.platform_data?.url && (
-                        <a
-                          href={result.platform_data.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-slate-400 hover:text-slate-600 ml-auto flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </>
-                  ) : (
-                    <span
-                      className="truncate"
-                      title={
-                        result.error ? String(result.error) : "Failed to post"
-                      }
-                    >
-                      {resultAccount?.username ||
-                        resultAccount?.platform ||
-                        "platform"}
-                      : {result.error ? String(result.error) : "Failed"}
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          ) : isPending ? (
-            <div className="flex items-center gap-2 text-xs text-amber-600">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>
-                Processing {post.social_accounts?.length || 1} channel(s)...
-              </span>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* Schedule/Date Info */}
-      <div className="flex items-center gap-2 text-xs text-slate-400 mb-3">
-        {post.scheduled_at ? (
-          <>
-            <Clock className="w-3.5 h-3.5" />
-            <span>
-              {post.status === "scheduled"
-                ? formatDistanceToNow(new Date(post.scheduled_at), {
-                    addSuffix: true,
-                  })
-                : format(new Date(post.scheduled_at), "MMM d, h:mm a")}
-            </span>
-          </>
-        ) : (
-          <>
-            <Calendar className="w-3.5 h-3.5" />
-            <span>{format(new Date(post.created_at), "MMM d, h:mm a")}</span>
-          </>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-        <div className="flex items-center gap-1">
-          {hasError && onRetry && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onRetry(post)}
-              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-            >
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-              Retry
-            </Button>
-          )}
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-slate-400 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {onEdit &&
-              (post.status === "draft" || post.status === "scheduled") && (
-                <DropdownMenuItem onClick={() => onEdit(post)}>
-                  <FileEdit className="w-4 h-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
+            <div className="w-full h-full flex items-center justify-center">
+              {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
+                <Film className="w-6 h-6 text-slate-400" />
+              ) : (
+                <ImageIcon className="w-6 h-6 text-slate-400" />
               )}
-            {hasError && onRetry && (
-              <DropdownMenuItem onClick={() => onRetry(post)}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Retry Post
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate">
+            {post.caption || <span className="text-slate-400 italic">No caption</span>}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">{dateLabel}</p>
+        </div>
+
+        {/* Platforms */}
+        <div className="flex -space-x-2 shrink-0">
+          {platformList.map((platform, i) => {
+            const Icon = platform ? platformIconsMap[platform.toLowerCase()] : null;
+            return Icon ? (
+              <div
+                key={i}
+                className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-sm"
+              >
+                <Icon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              </div>
+            ) : null;
+          })}
+        </div>
+
+        {/* Actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
+              aria-label="Post actions"
+            >
+              <MoreHorizontal className="w-4 h-4 text-slate-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl">
+            {status === "draft" && (
+              <DropdownMenuItem onClick={handleEdit} className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-700 rounded-xl">
+                <Edit3 className="w-4 h-4 mr-2" /> Edit
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem
-              className="text-red-600"
-              onClick={() => onDelete(post.id)}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
+            {hasError && onRetry && (
+              <DropdownMenuItem onClick={() => onRetry(post)} className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-700 rounded-xl">
+                <RefreshCw className="w-4 h-4 mr-2" /> Retry
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={handleDelete} className="text-rose-500 focus:bg-rose-50 dark:focus:bg-rose-500/10 rounded-xl">
+              <Trash2 className="w-4 h-4 mr-2" /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-    </div>
-  );
-}
+      </motion.div>
+    );
+  }
 
-function BoardColumn({
-  status,
-  posts,
-  onDelete,
-  onRetry,
-  onEdit,
-  accounts,
-  resultsMap,
-}: {
-  status: StatusFilter;
-  posts: SocialPost[];
-  onDelete: (id: string) => void;
-  onRetry?: (post: SocialPost) => void;
-  onEdit?: (post: SocialPost) => void;
-  accounts: Map<
-    string,
-    {
-      platform: string;
-      username: string | null;
-      profile_photo_url?: string | null;
-    }
-  >;
-  resultsMap: Map<string, SocialPostResult[]>;
-}) {
-  if (status === "all") return null;
-
-  const config = statusConfig[status];
-  const Icon = config.icon;
-
+  // Grid View - Modern Cards (Not Square!)
   return (
-    <div className="flex flex-col min-w-[160px] flex-1">
-      {/* Column Header */}
-      <div
-        className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${config.bg} border ${config.accent} mb-2`}
-      >
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-7 h-7 rounded-lg flex items-center justify-center ${config.color}`}
-          >
-            <Icon className="w-3.5 h-3.5" />
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -4 }}
+      transition={SPRING_TRANSITION}
+      className="group cursor-pointer"
+      onClick={() => onEdit(post)}
+    >
+      {/* Image Container */}
+      <div className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 mb-3 shadow-sm group-hover:shadow-lg transition-shadow">
+        {hasMedia && !imageError ? (
+          <Image
+            src={proxyMediaUrl(firstMedia.url)}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 50vw, 20vw"
+            priority={priority}
+            loading={priority ? "eager" : "lazy"}
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
+            {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
+              <Film className="w-12 h-12 mb-2" />
+            ) : (
+              <ImageIcon className="w-12 h-12 mb-2" />
+            )}
           </div>
-          <span className="font-semibold text-sm text-slate-700 dark:text-slate-200">
-            {config.label}
-          </span>
+        )}
+        
+        {/* Status Dot - Top Left */}
+        <div className="absolute top-3 left-3">
+          <div className={cn("w-2.5 h-2.5 rounded-full ring-2 ring-slate-950", STATUS_DOT_COLORS[status])} />
         </div>
-        <Badge variant="secondary" className="text-[11px] h-5 px-1.5">
-          {posts.length}
-        </Badge>
-      </div>
 
-      {/* Posts */}
-      <div className="flex-1 space-y-2 overflow-y-auto max-h-[calc(100vh-320px)] custom-scrollbar">
-        {posts.length === 0 ? (
-          <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-            <p className="text-xs text-slate-400">
-              ไม่มี{config.label.toLowerCase()}
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <p className="text-white text-sm line-clamp-2 font-medium">
+              {post.caption || "No caption"}
             </p>
           </div>
-        ) : (
-          posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onDelete={onDelete}
-              onRetry={onRetry}
-              onEdit={onEdit}
-              accounts={accounts}
-              results={resultsMap.get(post.id)}
-            />
-          ))
-        )}
+          
+          {/* Action Buttons */}
+          <div className="absolute top-3 right-3 flex gap-2">
+            {status === "draft" && (
+              <button
+                onClick={handleEdit}
+                className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors"
+                aria-label="Edit post"
+              >
+                <Edit3 className="w-4 h-4 text-white" />
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-red-500/80 transition-colors"
+              aria-label="Delete post"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+
+        {/* Platform Icons - Bottom Right */}
+        <div className="absolute bottom-3 right-3 flex -space-x-1.5">
+          {platformList.slice(0, 3).map((platform, i) => {
+            const Icon = platform ? platformIconsMap[platform.toLowerCase()] : null;
+            return Icon ? (
+              <div
+                key={i}
+                className="w-6 h-6 rounded-full bg-slate-900/80 backdrop-blur-sm flex items-center justify-center ring-2 ring-slate-950"
+              >
+                <Icon className="w-3 h-3 text-slate-300" />
+              </div>
+            ) : null;
+          })}
+        </div>
+      </div>
+
+      {/* Caption - Below Image */}
+      <div className="px-1">
+        <p className="text-sm text-slate-300 line-clamp-1 mb-1">
+          {post.caption || <span className="text-slate-500 italic">No caption</span>}
+        </p>
+        <p className="text-xs text-slate-500">{dateLabel}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+// ==================== VIRTUALIZED POSTS GRID ====================
+interface VirtualizedPostsGridProps {
+  posts: SocialPost[];
+  accountsMap: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
+  resultsMap: Map<string, SocialPostResult[]>;
+  viewMode: ViewMode;
+  onEdit: (post: SocialPost) => void;
+  onDelete: (id: string) => void;
+  onRetry?: (post: SocialPost) => void;
+}
+
+function VirtualizedPostsGrid({
+  posts,
+  accountsMap,
+  resultsMap,
+  viewMode,
+  onEdit,
+  onDelete,
+  onRetry,
+}: VirtualizedPostsGridProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  
+  // Grid configuration
+  const isListView = viewMode === "list";
+  const columnCount = isListView ? 1 : 5; // 1 for list, 5 for grid
+  const rowCount = Math.ceil(posts.length / columnCount);
+  const itemHeight = isListView ? 80 : 320; // px
+  const itemWidth = isListView ? '100%' : `${100 / columnCount}%`;
+
+  const virtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => itemHeight,
+    overscan: 3,
+  });
+
+  const virtualRows = virtualizer.getVirtualItems();
+
+  return (
+    <div 
+      ref={parentRef}
+      className="h-full overflow-auto"
+      style={{ height: 'calc(100vh - 200px)' }}
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualRows.map((virtualRow) => {
+          const rowIndex = virtualRow.index;
+          const startIndex = rowIndex * columnCount;
+          const rowPosts = posts.slice(startIndex, startIndex + columnCount);
+
+          return (
+            <div
+              key={virtualRow.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+              className={isListView ? "px-6" : "px-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"}
+            >
+              {rowPosts.map((post, index) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  accounts={accountsMap}
+                  results={resultsMap.get(post.id)}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onRetry={onRetry}
+                  viewMode={viewMode}
+                  priority={rowIndex === 0 && index === 0}  // First visible post gets priority
+                />
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// ==================== MAIN PAGE ====================
 export default function PostsPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>("board");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { openCompose, setEditingPostId } = usePostsLayout();
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  const {
-    data: postsResponse,
-    isLoading: postsLoading,
-    error: postsError,
-  } = usePosts({ limit: 100 });
-  const { data: accountsResponse, isLoading: accountsLoading } = useAccounts();
+  // URL params effect
+  useEffect(() => {
+    const compose = searchParams.get("compose");
+    const edit = searchParams.get("edit");
+    if (compose === "open") {
+      if (edit) setEditingPostId(edit);
+      openCompose(edit || undefined);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("compose");
+      url.searchParams.delete("edit");
+      window.history.replaceState({}, "", url);
+    }
+  }, [searchParams, openCompose, setEditingPostId]);
+
+  // Data fetching with placeholderData for instant UI (no loading spinners on refresh)
+  const { data: posts = [], isLoading, error, isFetching } = usePosts(
+    { limit: 100 },
+    { 
+      select: (r) => r?.data ?? [],
+      placeholderData: (previous) => previous, // Show cached data immediately
+    }
+  );
+  
+  const { data: accounts = [] } = useSocialAccounts(
+    100, 0, undefined, undefined,
+    { 
+      select: (r) => r?.data ?? [],
+      placeholderData: (previous) => previous, // Show cached data immediately
+    }
+  );
+  
+  const { data: resultsMap = new Map() } = usePostResultsMap(100);
   const deletePost = useDeletePost();
   const retryPost = useRetryPost();
 
-  const posts = useMemo(() => postsResponse?.data ?? [], [postsResponse?.data]);
-  const accounts = useMemo(
-    () => accountsResponse?.data ?? [],
-    [accountsResponse?.data],
+  const { statusFilter, setStatusFilter, searchQuery, setSearchQuery, filteredPosts } = usePostFilters(posts);
+
+  // Memoize accounts map
+  const accountsMap = useMemo(() => 
+    new Map(accounts.map(a => [a.id, { 
+      platform: a.platform, 
+      username: a.username, 
+      profile_photo_url: a.profile_photo_url 
+    }])),
+    [accounts]
   );
 
-  // Bulk-fetch all post results in one query (eliminates N+1 per-card fetching)
-  const { data: allResultsResponse } = usePostResultsList({
-    limit: 500,
-  });
-
-  // Build lookup map: post_id → SocialPostResult[]
-  const resultsMap = useMemo(() => {
-    const map = new Map<string, SocialPostResult[]>();
-    if (!allResultsResponse?.data) return map;
-    for (const result of allResultsResponse.data) {
-      const existing = map.get(result.post_id);
-      if (existing) {
-        existing.push(result);
-      } else {
-        map.set(result.post_id, [result]);
-      }
-    }
-    return map;
-  }, [allResultsResponse]);
-
-  // Focus refetch is handled by React Query's refetchOnWindowFocus (enabled globally + per-query in usePosts)
-
-  // Create accounts lookup map
-  const accountsMap = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        platform: string;
-        username: string | null;
-        profile_photo_url?: string | null;
-      }
-    >();
-    accounts.forEach((acc) => {
-      map.set(acc.id, {
-        platform: acc.platform,
-        username: acc.username,
-        profile_photo_url: acc.profile_photo_url,
-      });
+  // Memoize stats calculation
+  const stats = useMemo(() => {
+    let failed = 0;
+    resultsMap.forEach((results: SocialPostResult[]) => {
+      if (results.some((r: SocialPostResult) => !r.success)) failed++;
     });
-    return map;
-  }, [accounts]);
-
-  // Group posts by status
-  const postsByStatus = useMemo(() => {
-    const grouped: Record<string, SocialPost[]> = {
-      draft: [],
-      scheduled: [],
-      processing: [],
-      processed: [],
-      failed: [],
+    
+    return {
+      total: posts.length,
+      draft: posts.filter(p => p.status === "draft").length,
+      scheduled: posts.filter(p => p.status === "scheduled").length,
+      processed: posts.filter(p => p.status === "processed").length,
+      failed,
     };
-    posts.forEach((post) => {
-      const status = post.status || "draft";
-      if (!grouped[status]) grouped[status] = [];
-      grouped[status].push(post);
-    });
-    // "Failed" = posts that have at least one unsuccessful result
-    grouped.failed = posts.filter((post) => {
-      const results = resultsMap.get(post.id);
-      return results?.some((r) => !r.success);
-    });
-    // Sort each group by date
-    Object.keys(grouped).forEach((key) => {
-      const arr = grouped[key];
-      if (!arr) return;
-      arr.sort((a, b) => {
-        const dateA = new Date(a.scheduled_at || a.created_at || 0);
-        const dateB = new Date(b.scheduled_at || b.created_at || 0);
-        return dateB.getTime() - dateA.getTime();
-      });
-    });
-    return grouped;
   }, [posts, resultsMap]);
 
-  const handleDelete = async (id: string) => {
+  // Memoize handlers
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Delete this post?")) return;
-
     try {
       await deletePost.mutateAsync(id);
       toast.success("Post deleted");
     } catch {
-      toast.error("Failed to delete post");
+      toast.error("Failed to delete");
     }
-  };
+  }, [deletePost]);
 
-  const handleRetry = async (post: SocialPost) => {
-    try {
-      await retryPost.mutateAsync(post);
-      toast.success("Post retry initiated");
-    } catch {
-      toast.error("Failed to retry post");
-    }
-  };
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
+  }, [queryClient]);
 
-  const handleEdit = (post: SocialPost) => {
-    router.push(`/posts/new?edit=${post.id}`);
-  };
-
-  const isLoading = postsLoading || accountsLoading;
-
-  // Stats
-  const stats = useMemo(() => {
-    return {
-      total: posts.length,
-      scheduled: postsByStatus.scheduled?.length || 0,
-      processed: postsByStatus.processed?.length || 0,
-      failed: postsByStatus.failed?.length || 0,
-    };
-  }, [posts, postsByStatus]);
-
-  if (isLoading) {
+  // Only show loading skeleton on initial load (no cached data)
+  // On refresh, placeholderData shows previous data instantly
+  if (isLoading && !posts.length) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <Skeleton className="h-8 w-32 mb-2" />
-            <Skeleton className="h-4 w-48" />
-          </div>
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <div className="flex gap-6 overflow-x-auto">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton
-              key={i}
-              className="min-w-[280px] flex-1 h-[400px] rounded-3xl"
-            />
-          ))}
+      <div className="h-full flex bg-bg-base">
+        <div className="w-64 border-r border-border-subtle bg-bg-elevated" />
+        <div className="flex-1 p-8">
+          <ListSkeleton count={8} />
         </div>
       </div>
     );
   }
 
-  if (postsError) {
+  if (error) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="greeting-title">Posts</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Manage your social content
-            </p>
-          </div>
-        </div>
-        <div className="card-premium p-12 text-center border-red-200">
+      <div className="h-full flex items-center justify-center bg-slate-950">
+        <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-800 mb-2">
-            Failed to load posts
-          </h3>
-          <p className="text-slate-500 mb-6">{postsError.message}</p>
-          <Button
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: pfmKeys.posts() })
-            }
-            variant="premium"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Try Again
-          </Button>
+          <p className="text-slate-400">{error.message}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      className="space-y-5 pb-4"
-      variants={stagger}
-      initial="hidden"
-      animate="visible"
-    >
-      {/* Header */}
-      <motion.div
-        variants={fadeUp}
-        className="flex flex-col lg:flex-row lg:items-end justify-between gap-4"
-      >
-        <div>
-          <h1 className="greeting-title">Posts</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            จัดการคอนเทนต์ทุกแพลตฟอร์ม
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="soft"
-            size="sm"
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: pfmKeys.posts() })
-            }
-          >
-            <RefreshCw
-              className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
-          <Button size="sm" variant="premium" asChild>
-            <Link href="/posts/new">
-              <Plus className="w-4 h-4 mr-2" />
-              New Post
-            </Link>
-          </Button>
-        </div>
-      </motion.div>
+    <div className="h-full flex bg-slate-50/50 dark:bg-slate-950/50 relative overflow-hidden">
+      {/* Organic blob background */}
+      <BlobBackground />
+      {/* Sidebar */}
+      <Sidebar
+        stats={stats}
+        currentFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+        viewMode={viewMode}
+        onViewChange={setViewMode}
+      />
 
-      {/* Stat Ribbon */}
-      <motion.div variants={fadeUp}>
-        <div className="flex items-center flex-wrap rounded-2xl bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-slate-100/80 dark:border-slate-800/80 px-5 py-4 gap-x-5 gap-y-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
-              {stats.total}
-            </span>
-            <span className="text-xs text-slate-400 font-medium">posts</span>
-          </div>
-          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
-              {stats.scheduled}
-            </span>
-            <span className="text-xs text-slate-400 hidden sm:inline">
-              scheduled
-            </span>
-          </div>
-          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
-              {stats.processed}
-            </span>
-            <span className="text-xs text-slate-400 hidden sm:inline">
-              published
-            </span>
-          </div>
-          <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 flex-shrink-0 hidden sm:block" />
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-            <span className="text-lg font-semibold text-slate-700 dark:text-slate-200">
-              {stats.failed}
-            </span>
-            <span className="text-xs text-slate-400 hidden sm:inline">
-              failed
-            </span>
-          </div>
-          {stats.total > 0 && (
-            <div className="flex-1 min-w-[80px] hidden lg:block">
-              <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                {stats.processed > 0 && (
-                  <div
-                    className="bg-emerald-500 h-full transition-all duration-700"
-                    style={{
-                      width: `${(stats.processed / stats.total) * 100}%`,
-                    }}
-                  />
-                )}
-                {stats.scheduled > 0 && (
-                  <div
-                    className="bg-blue-500 h-full transition-all duration-700"
-                    style={{
-                      width: `${(stats.scheduled / stats.total) * 100}%`,
-                    }}
-                  />
-                )}
-                {stats.failed > 0 && (
-                  <div
-                    className="bg-red-400 h-full transition-all duration-700"
-                    style={{ width: `${(stats.failed / stats.total) * 100}%` }}
-                  />
-                )}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 p-4">
+        <ModernCard variant="soft" padding="none" className="flex-1 flex flex-col">
+          {/* Top Bar - Sticky Header */}
+          <div className="sticky top-0 z-20 h-16 px-6 flex items-center justify-between shrink-0 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-t-2xl">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search posts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 border-0 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/50"
+                />
               </div>
             </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Controls */}
-      <motion.div
-        variants={fadeUp}
-        className="flex items-center justify-between gap-3"
-      >
-        {/* Filter pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          {[
-            {
-              value: "all" as StatusFilter,
-              label: "ทั้งหมด",
-              dot: "",
-              count: stats.total,
-            },
-            {
-              value: "scheduled" as StatusFilter,
-              label: "รอโพสต์",
-              dot: "bg-blue-500",
-              count: stats.scheduled,
-            },
-            {
-              value: "processed" as StatusFilter,
-              label: "โพสต์แล้ว",
-              dot: "bg-emerald-500",
-              count: stats.processed,
-            },
-            {
-              value: "draft" as StatusFilter,
-              label: "แบบร่าง",
-              dot: "bg-slate-400",
-              count: postsByStatus.draft?.length || 0,
-            },
-            {
-              value: "failed" as StatusFilter,
-              label: "ล้มเหลว",
-              dot: "bg-red-500",
-              count: stats.failed,
-            },
-          ].map((filter) => (
-            <button
-              key={filter.value}
-              onClick={() => setStatusFilter(filter.value)}
-              className={cn(
-                "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0",
-                statusFilter === filter.value
-                  ? "bg-slate-800 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                  : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800",
-              )}
-            >
-              {filter.dot && (
-                <span className={`w-1.5 h-1.5 rounded-full ${filter.dot}`} />
-              )}
-              {filter.label}
-              {filter.count > 0 && (
-                <span
-                  className={cn(
-                    "text-[10px] tabular-nums",
-                    statusFilter === filter.value ? "opacity-60" : "opacity-40",
-                  )}
-                >
-                  {filter.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        {/* View toggle */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 flex-shrink-0">
-          <button
-            onClick={() => setViewMode("board")}
-            className={cn(
-              "p-2 rounded-md transition-all duration-200",
-              viewMode === "board"
-                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
-                : "text-slate-400 hover:text-slate-600",
-            )}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            className={cn(
-              "p-2 rounded-md transition-all duration-200",
-              viewMode === "list"
-                ? "bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200"
-                : "text-slate-400 hover:text-slate-600",
-            )}
-          >
-            <List className="w-4 h-4" />
-          </button>
-        </div>
-      </motion.div>
-
-      {/* Content */}
-      <motion.div variants={fadeUp}>
-        {posts.length === 0 ? (
-          <div className="card-premium p-16 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center mx-auto mb-6">
-              <Calendar className="w-8 h-8 text-slate-400" />
+            
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isFetching}
+                className="rounded-full border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <RefreshCw className={cn("w-4 h-4 mr-2", isFetching && "animate-spin")} />
+                {isFetching ? "Refreshing..." : "Refresh"}
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => openCompose()} 
+                className="rounded-full bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/30"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Post
+              </Button>
             </div>
-            <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
-              ยังไม่มีโพสต์
-            </h3>
-            <p className="text-slate-400 max-w-sm mx-auto mb-8">
-              สร้างโพสต์แรกเพื่อเริ่มจัดการคอนเทนต์ข้ามแพลตฟอร์ม
-            </p>
-            <Button variant="premium" size="lg" asChild>
-              <Link href="/posts/new">
-                <Plus className="w-5 h-5 mr-2" />
-                สร้างโพสต์แรก
-              </Link>
-            </Button>
           </div>
-        ) : viewMode === "board" ? (
-          <div className="flex gap-3 lg:gap-4 overflow-x-auto pb-4 -mx-4 px-4 lg:mx-0 lg:px-0">
-            {statusFilter === "all" ? (
-              <>
-                <BoardColumn
-                  status="draft"
-                  posts={postsByStatus.draft ?? []}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                  onEdit={handleEdit}
-                  accounts={accountsMap}
-                  resultsMap={resultsMap}
+
+          {/* Content */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            {filteredPosts.length === 0 ? (
+              searchQuery ? (
+                <EmptySearchState query={searchQuery} />
+              ) : (
+                <EmptyPostsState onCreate={() => openCompose()} />
+              )
+            ) : viewMode === "calendar" ? (
+              <div className="h-[calc(100vh-14rem)]">
+                <CalendarView
+                  posts={filteredPosts}
+                  onSelectDate={(date) => console.log(date)}
+                  onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
+                  onCreatePost={(_date) => openCompose()}
                 />
-                <BoardColumn
-                  status="scheduled"
-                  posts={postsByStatus.scheduled ?? []}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                  onEdit={handleEdit}
-                  accounts={accountsMap}
-                  resultsMap={resultsMap}
-                />
-                <BoardColumn
-                  status="processing"
-                  posts={postsByStatus.processing ?? []}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                  onEdit={handleEdit}
-                  accounts={accountsMap}
-                  resultsMap={resultsMap}
-                />
-                <BoardColumn
-                  status="processed"
-                  posts={postsByStatus.processed ?? []}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                  onEdit={handleEdit}
-                  accounts={accountsMap}
-                  resultsMap={resultsMap}
-                />
-                <BoardColumn
-                  status="failed"
-                  posts={postsByStatus.failed ?? []}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                  onEdit={handleEdit}
-                  accounts={accountsMap}
-                  resultsMap={resultsMap}
-                />
-              </>
+              </div>
             ) : (
-              <BoardColumn
-                status={statusFilter}
-                posts={postsByStatus[statusFilter] || []}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onEdit={handleEdit}
-                accounts={accountsMap}
+              <VirtualizedPostsGrid
+                posts={filteredPosts}
+                accountsMap={accountsMap}
                 resultsMap={resultsMap}
+                viewMode={viewMode}
+                onEdit={(post) => router.push(`/posts/${post.id}/edit`)}
+                onDelete={handleDelete}
+                onRetry={(p) => retryPost.mutate(p)}
               />
             )}
           </div>
-        ) : (
-          // List View
-          <div className="space-y-3">
-            {(statusFilter === "all"
-              ? posts
-              : postsByStatus[statusFilter] || []
-            ).map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onEdit={handleEdit}
-                accounts={accountsMap}
-                results={resultsMap.get(post.id)}
-              />
-            ))}
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
+        </ModernCard>
+      </div>
+    </div>
   );
 }

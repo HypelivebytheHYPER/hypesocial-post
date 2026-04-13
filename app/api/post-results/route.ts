@@ -1,57 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import { parseQuery } from "@/lib/validations";
-import { ListPostResultsQuerySchema } from "@/lib/validations/post-results";
+import { PAGINATION } from "@/lib/constants";
+import {
+  handleApiError,
+  buildValidationError,
+  sendErrorResponse,
+} from "@/lib/api-errors";
+
+const ListPostResultsQuerySchema = z.object({
+  post_id: z.array(z.string()).optional(),
+  social_account_id: z.array(z.string()).optional(),
+  limit: z.coerce.number().int().min(1).max(PAGINATION.MAX_PAGE_SIZE).default(PAGINATION.DEFAULT_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 /**
  * GET /api/post-results
- * Official API: GET /v1/social-post-results
+ * Official API: GET /v1/post-results
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const q = parseQuery(ListPostResultsQuerySchema, {
-      offset: searchParams.get("offset") ?? undefined,
+    const queryResult = ListPostResultsQuerySchema.safeParse({
+      post_id: searchParams.getAll("post_id"),
+      social_account_id: searchParams.getAll("social_account_id"),
       limit: searchParams.get("limit") ?? undefined,
-      post_id:
-        searchParams.getAll("post_id").length > 0
-          ? searchParams.getAll("post_id")
-          : undefined,
-      social_account_id:
-        searchParams.getAll("social_account_id").length > 0
-          ? searchParams.getAll("social_account_id")
-          : undefined,
-      platform:
-        searchParams.getAll("platform").length > 0
-          ? searchParams.getAll("platform")
-          : undefined,
+      offset: searchParams.get("offset") ?? undefined,
     });
-    if (!q.success) return q.response;
 
-    const data = await pfm.socialPostResults.list(q.data);
-
-    return NextResponse.json(data);
-  } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
+    if (!queryResult.success) {
+      const issues = queryResult.error.issues.map(
+        (i) => `${i.path.join(".")}: ${i.message}`,
+      );
+      return sendErrorResponse(
+        buildValidationError(`Invalid query parameters: ${issues.join(", ")}`, issues),
+        400,
       );
     }
-    console.error("[API] Error fetching post results:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+
+    const query: Record<string, string | string[]> = {};
+    if (queryResult.data.post_id?.length) query.post_id = queryResult.data.post_id;
+    if (queryResult.data.social_account_id?.length) query.social_account_id = queryResult.data.social_account_id;
+    if (queryResult.data.limit) query.limit = queryResult.data.limit.toString();
+    if (queryResult.data.offset !== undefined) query.offset = queryResult.data.offset.toString();
+
+    const data = await pfm.socialPostResults.list(Object.keys(query).length > 0 ? query : undefined);
+    return NextResponse.json(data);
+  } catch (error) {
+    return handleApiError(error, { context: "fetching post results" });
   }
 }

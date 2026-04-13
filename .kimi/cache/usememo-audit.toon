@@ -1,0 +1,42 @@
+# useMemo/useCallback Audit - Posts Module
+# Generated: 2026-04-12
+# Files analyzed: 6
+
+[13,]{file,hook,line,purpose,dependencies,status}:
+page.tsx,useMemo,72,accountsMap - Map construction from accounts array,[accounts],FIXED
+page.tsx,useMemo,78,stats - Calculate post counts by status,"[posts, resultsMap]",FIXED
+page.tsx,useMemo,102,gridClasses - Grid layout CSS classes,[viewMode],FIXED
+page.tsx,useCallback,87,handleDelete - Delete post handler,[deletePost],FIXED
+page.tsx,useCallback,96,handleRefresh - Refresh posts query,[queryClient],FIXED
+PostCard,useMemo,54,dateLabel - Format scheduled date,"[post.scheduled_at, post.created_at]",FIXED
+PostCard,useMemo,64,platformList - Extract unique platforms,"[post.social_accounts, accounts]",FIXED
+PostCard,useCallback,70,handleEdit - Navigate to edit handler,"[onEdit, post]",FIXED
+PostCard,useCallback,75,handleDelete - Delete with confirm,"[onDelete, post.id]",FIXED
+usePostFilters.ts,useMemo,34,filteredPosts - Filter by search/status,"[posts, searchQuery, statusFilter]",OK
+usePostFilters.ts,useMemo,50,postsByStatus - Group by status key,[filteredPosts],OK
+CalendarView,useMemo,84,postsByDate - Group posts by date string,[posts],OK
+CalendarView,useMemo,99,calendarDays - Calculate calendar grid days,"[currentDate, viewMode]",OK
+CalendarView,useCallback,139,getPostsForDay - Get posts for specific day,[postsByDate],FIXED
+
+[9,]{file,component,issue,severity,fix}:
+@compose/page.tsx,TimeSlots,getPostsAtTime not memoized with useCallback,MEDIUM,Added useCallback with deps
+@compose/page.tsx,MiniCalendar,getPostsForDay not memoized with useCallback,MEDIUM,Added useCallback with [posts]
+@compose/page.tsx,MiniCalendar,weekDays inline array,LOW,Moved outside as WEEK_DAYS constant
+[id]/edit/page.tsx,TimeSlots,getPostsAtTime not memoized with useCallback,MEDIUM,Added useCallback with deps
+[id]/edit/page.tsx,MiniCalendar,getPostsForDay not memoized with useCallback,MEDIUM,Added useCallback with [posts]
+[id]/edit/page.tsx,MiniCalendar,weekDays inline array,LOW,Moved outside as WEEK_DAYS constant
+CalendarView,CalendarView,getPostsForDay not memoized with useCallback,MEDIUM,Added useCallback with [postsByDate]
+CalendarView,CalendarView,weekDays inline array,LOW,Moved outside as WEEK_DAYS constant
+
+[8,]{file,constant,moved_outside}:
+page.tsx,SPRING_TRANSITION,yes
+page.tsx,STATUS_DOT_COLORS,yes
+page.tsx,FILTER_ITEMS,yes
+page.tsx,VIEW_MODES,yes
+@compose/page.tsx,SPRING_TRANSITION,yes
+@compose/page.tsx,WEEK_DAYS,yes
+[id]/edit/page.tsx,SPRING_TRANSITION,yes
+[id]/edit/page.tsx,WEEK_DAYS,yes
+CalendarView.tsx,platformColors,yes
+CalendarView.tsx,statusColors,yes
+CalendarView.tsx,WEEK_DAYS,yes

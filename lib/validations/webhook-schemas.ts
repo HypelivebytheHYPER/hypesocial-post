@@ -64,10 +64,18 @@ export const PostResultCreatedDataSchema = z
 
 export const AccountCreatedDataSchema = z
   .object({
-    id: z.string(),
+    id: z.string(), // Post For Me's UUID for the account
     platform: z.string(),
     username: z.string().nullable(),
+    user_id: z.string().optional(), // Platform's user ID (e.g., Instagram user ID)
+    profile_photo_url: z.string().nullable().optional(),
+    access_token: z.string().optional(),
+    refresh_token: z.string().nullable().optional(),
+    access_token_expires_at: z.string().optional(),
+    refresh_token_expires_at: z.string().nullable().optional(),
     status: z.enum(["connected", "disconnected"]),
+    external_id: z.string().nullable().optional(),
+    metadata: z.record(z.unknown()).nullable().optional(),
   })
   .passthrough();
 
@@ -260,3 +268,59 @@ export type WebhookDto = z.infer<typeof WebhookDtoSchema>;
 export type WebhookListResponse = z.infer<typeof WebhookListResponseSchema>;
 export type CreateWebhookDto = z.infer<typeof CreateWebhookDtoSchema>;
 export type UpdateWebhookDto = z.infer<typeof UpdateWebhookDtoSchema>;
+
+// --- Social Post DTOs (matching Post For Me API spec) ---
+
+export const SocialPostMediaSchema = z.object({
+  url: z.string(),
+  skip_processing: z.boolean().optional(),
+});
+
+export const SocialPostDtoSchema = z.object({
+  id: z.string(),
+  caption: z.string(),
+  status: z.enum(["draft", "scheduled", "processing", "processed"]),
+  scheduled_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  external_id: z.string().nullable(),
+  social_accounts: z.array(z.object({ id: z.string() })),
+  media: z.array(SocialPostMediaSchema),
+  platform_configurations: z.record(z.unknown()).nullable(),
+  account_configurations: z.array(z.record(z.unknown())).optional(),
+});
+
+// --- Social Account DTOs (matching Post For Me API spec) ---
+
+export const SocialAccountMetadataSchema = z.object({}).passthrough();
+
+export const SocialAccountDtoSchema = z.object({
+  id: z.string(),
+  platform: z.string(),
+  username: z.string().nullable(),
+  user_id: z.string(),
+  profile_photo_url: z.string().nullable(),
+  access_token: z.string(),
+  refresh_token: z.string().nullable(),
+  access_token_expires_at: z.string(),
+  refresh_token_expires_at: z.string().nullable(),
+  status: z.enum(["connected", "disconnected"]),
+  external_id: z.string().nullable(),
+  metadata: SocialAccountMetadataSchema.nullable(),
+});
+
+// --- Create DTOs ---
+
+export const CreateSocialPostDtoSchema = z.object({
+  caption: z.string(),
+  status: z.enum(["draft", "scheduled"]).optional(),
+  scheduled_at: z.string().nullable().optional(),
+  social_account_ids: z.array(z.string()),
+  media: z.array(SocialPostMediaSchema).optional(),
+  platform_configurations: z.record(z.unknown()).optional(),
+  account_configurations: z.array(z.record(z.unknown())).optional(),
+});
+
+export type SocialPostDto = z.infer<typeof SocialPostDtoSchema>;
+export type SocialAccountDto = z.infer<typeof SocialAccountDtoSchema>;
+export type CreateSocialPostDto = z.infer<typeof CreateSocialPostDtoSchema>;

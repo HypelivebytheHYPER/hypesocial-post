@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
-import type { PostForMeError } from "@/types/post-for-me-types";
+import { PAGINATION, PLATFORM_LIMITS } from "@/lib/constants";
+import {
+  handleApiError,
+  parseJsonBody,
+  buildValidationError,
+  sendErrorResponse,
+} from "@/lib/api-errors";
 
 // Allowed media storage domains - ONLY Post For Me storage
 const ALLOWED_MEDIA_DOMAINS = [
@@ -16,9 +21,9 @@ const MediaItemSchema = z.object({
 });
 
 const CreatePostSchema = z.object({
-  caption: z.string(),
+  caption: z.string().max(PLATFORM_LIMITS.MAX_CAPTION_LENGTH),
   social_accounts: z.array(z.string()),
-  media: z.array(MediaItemSchema).optional(),
+  media: z.array(MediaItemSchema).max(PLATFORM_LIMITS.MAX_MEDIA_PER_POST).optional(),
   scheduled_at: z.string().datetime().optional(),
   isDraft: z.boolean().optional(),
   platform_configurations: z.record(z.any()).optional(),
@@ -35,7 +40,7 @@ const CreatePostSchema = z.object({
 
 const ListPostsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(PAGINATION.MAX_PAGE_SIZE).default(PAGINATION.DEFAULT_LIMIT),
   status: z
     .array(z.enum(["draft", "scheduled", "processing", "processed"]))
     .optional(),
@@ -104,39 +109,16 @@ export async function GET(request: NextRequest) {
       const issues = queryResult.error.issues.map(
         (i) => `${i.path.join(".")}: ${i.message}`,
       );
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: `Invalid query parameters: ${issues.join(", ")}`,
-          statusCode: 400,
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError(`Invalid query parameters: ${issues.join(", ")}`, issues),
+        400,
       );
     }
 
     const data = await pfm.socialPosts.list(queryResult.data);
-
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error fetching posts:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "fetching posts" });
   }
 }
 
@@ -146,39 +128,12 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    let jsonBody: unknown;
-
-    try {
-      jsonBody = await request.json();
-    } catch {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Bad Request",
-          message: "Invalid JSON in request body",
-          statusCode: 400,
-        },
-        { status: 400 },
-      );
+    const bodyResult = await parseJsonBody(request, CreatePostSchema);
+    if (!bodyResult.success) {
+      return bodyResult.response;
     }
 
-    // Validate with Zod
-    const parseResult = CreatePostSchema.safeParse(jsonBody);
-    if (!parseResult.success) {
-      const issues = parseResult.error.issues.map(
-        (i) => `${i.path.join(".")}: ${i.message}`,
-      );
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: issues.join("; "),
-          statusCode: 400,
-          details: { fields: issues },
-        },
-        { status: 400 },
-      );
-    }
-
-    const body = parseResult.data;
+    const body = bodyResult.data;
 
     // Validate required fields (skip for drafts)
     if (!body.isDraft) {
@@ -187,57 +142,39 @@ export async function POST(request: NextRequest) {
         errors.push("caption is required and must be a non-empty string");
       }
       if (!body.social_accounts || body.social_accounts.length === 0) {
-        errors.push(
-          "social_accounts is required and must be a non-empty array",
-        );
+        errors.push("social_accounts is required and must be a non-empty array");
       }
       if (errors.length > 0) {
-        return NextResponse.json<PostForMeError>(
-          {
-            error: "Validation Error",
-            message: errors.join("; "),
-            statusCode: 400,
-            details: { fields: errors },
-          },
-          { status: 400 },
-        );
+        return sendErrorResponse(buildValidationError(errors.join("; "), errors), 400);
       }
     }
 
     // Validate media URLs
     const mediaValidation = validateMediaUrls(body.media);
     if (!mediaValidation.valid) {
-      return NextResponse.json<PostForMeError>(
-        {
-          error: "Validation Error",
-          message: mediaValidation.error || "Invalid media URL",
-          statusCode: 400,
-          details: {
-            allowed_domains: ALLOWED_MEDIA_DOMAINS,
-            instruction: "Upload media via POST /api/media to get valid URLs",
-          },
-        },
-        { status: 400 },
+      return sendErrorResponse(
+        buildValidationError(mediaValidation.error || "Invalid media URL", [
+          mediaValidation.error || "Invalid media URL",
+        ]),
+        400,
       );
     }
 
-    // Validate TikTok privacy_status is explicitly set (required by TikTok Developer Guidelines)
+    // Validate TikTok privacy_status is explicitly set
     const pc = body.platform_configurations;
     if (pc) {
       for (const key of ["tiktok", "tiktok_business"] as const) {
         const cfg = pc[key];
         if (
           cfg &&
-          (!cfg.privacy_status ||
-            !["public", "private"].includes(cfg.privacy_status))
+          (!cfg.privacy_status || !["public", "private"].includes(cfg.privacy_status))
         ) {
-          return NextResponse.json<PostForMeError>(
-            {
-              error: "Validation Error",
-              message: `${key}.privacy_status must be "public" or "private"`,
-              statusCode: 400,
-            },
-            { status: 400 },
+          return sendErrorResponse(
+            buildValidationError(
+              `${key}.privacy_status must be "public" or "private"`,
+              [`${key}.privacy_status must be "public" or "private"`],
+            ),
+            400,
           );
         }
       }
@@ -247,13 +184,11 @@ export async function POST(request: NextRequest) {
     if (body.scheduled_at && !body.isDraft) {
       const scheduledDate = new Date(body.scheduled_at);
       if (scheduledDate < new Date()) {
-        return NextResponse.json<PostForMeError>(
-          {
-            error: "Validation Error",
-            message: "scheduled_at must be in the future",
-            statusCode: 400,
-          },
-          { status: 400 },
+        return sendErrorResponse(
+          buildValidationError("scheduled_at must be in the future", [
+            "scheduled_at must be in the future",
+          ]),
+          400,
         );
       }
     }
@@ -266,24 +201,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    if (error instanceof APIError) {
-      return NextResponse.json(
-        {
-          error: "API Error",
-          message: error.message,
-          statusCode: error.status,
-        },
-        { status: error.status || 500 },
-      );
-    }
-    console.error("[API] Error creating post:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        message: "Unknown error occurred",
-        statusCode: 500,
-      },
-      { status: 500 },
-    );
+    return handleApiError(error, { context: "creating post" });
   }
 }

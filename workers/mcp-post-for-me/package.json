@@ -1,0 +1,21 @@
+{
+  "name": "mcp-post-for-me-worker",
+  "version": "1.0.0",
+  "description": "Post For Me MCP Server on Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "post-for-me": "^2.7.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.100.0"
+  }
+}

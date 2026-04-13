@@ -18,7 +18,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSession, signOut } from "next-auth/react";
+
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
@@ -36,7 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { pfmKeys } from "@/lib/hooks/usePostForMe";
+import { pfmKeys } from "@/lib/hooks";
 
 const settingsSections = [
   {
@@ -110,7 +110,7 @@ const PREFETCH_MAP: Record<
   ],
   "/diagnostics": [
     {
-      // usePosts({ limit: 1 }) — not covered by server-side prefetch (different query key)
+      // useSocialPosts({ limit: 1 }) — not covered by server-side prefetch (different query key)
       queryKey: [...pfmKeys.posts(), { limit: 1 }],
       endpoint: "/api/posts?limit=1",
     },
@@ -123,11 +123,10 @@ const PREFETCH_MAP: Record<
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
   const { theme, setTheme } = useTheme();
 
-  const userName = session?.user?.name || "Admin";
-  const userEmail = session?.user?.email || "";
+  const userName = "Admin";
+  const userEmail = "admin@hypesocial.app";
   const userInitials = userName
     .split(" ")
     .map((w) => w[0])
@@ -172,25 +171,25 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Sign Out */}
-      <section className="card-premium p-5">
+      {/* Sign Out - Disabled (no auth) */}
+      <section className="card-premium p-5 opacity-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
               <LogOut className="h-4 w-4 text-slate-500" />
             </div>
             <div>
-              <h3 className="text-slate-700 font-medium text-sm">Sign Out</h3>
-              <p className="text-slate-400 text-xs">End your current session</p>
+              <h3 className="text-slate-700 font-medium text-sm">Authentication</h3>
+              <p className="text-slate-400 text-xs">Sign in disabled for testing</p>
             </div>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="border-slate-200 text-slate-600 hover:bg-slate-50"
+            disabled
+            className="border-slate-200 text-slate-600"
           >
-            Sign Out
+            Disabled
           </Button>
         </div>
       </section>

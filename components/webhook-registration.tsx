@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRegisterAppWebhook } from "@/lib/hooks/usePostForMe";
+import { useRegisterAppWebhook } from "@/lib/hooks";
 
 /**
  * Webhook Registration Component
@@ -20,7 +20,7 @@ export function WebhookRegistration() {
     // Called on mount AND when register() identity changes (after query loads).
     // register() internally guards against duplicate calls via attempted.current.
     register().catch((error) => {
-      // Non-critical: app falls back to SSE + polling for updates if the
+      // Non-critical: app falls back to streaming + polling for updates if the
       // webhook can't be registered (no API key, network blip, etc).
       // Surface as warn so it shows up in monitoring without paging.
       console.warn("[Webhook] Registration skipped:", error?.message);

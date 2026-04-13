@@ -19,7 +19,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAccounts, usePosts, useWebhooks } from "@/lib/hooks/usePostForMe";
+import { useSocialAccounts, usePosts, useWebhooks } from "@/lib/hooks";
 
 interface DiagnosticTest {
   id: string;
@@ -77,7 +77,7 @@ export default function DiagnosticsPage() {
     data: accountsData,
     isLoading: accountsLoading,
     error: accountsError,
-  } = useAccounts();
+  } = useSocialAccounts();
   const {
     data: postsData,
     isLoading: postsLoading,
@@ -182,8 +182,8 @@ export default function DiagnosticsPage() {
         "error",
         `Failed to check webhooks: ${webhooksError.message}`,
       );
-    } else if (webhooksData?.data) {
-      const count = webhooksData.data.length;
+    } else if (webhooksData) {
+      const count = webhooksData.length;
       updateTest(
         "webhooks",
         count > 0 ? "success" : "warning",

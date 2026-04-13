@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
       // Lark Drive media URLs (dynamic)
       { protocol: "https", hostname: "*.larksuite.com" },
       { protocol: "https", hostname: "*.feishu.cn" },
+      // Figma MCP Server (for Figma-to-Code workflow)
+      { protocol: "http", hostname: "localhost", port: "3845" },
     ],
   },
   async headers() {
@@ -54,7 +56,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' blob: data: https: data.postforme.dev cjsgitiiwhrsfolwmtby.supabase.co *.larksuite.com *.feishu.cn",
+              "img-src 'self' blob: data: https: http://localhost:3845 data.postforme.dev cjsgitiiwhrsfolwmtby.supabase.co *.larksuite.com *.feishu.cn",
               "connect-src 'self' api.postforme.dev data.postforme.dev cjsgitiiwhrsfolwmtby.supabase.co lark-http-hype.hypelive.workers.dev",
               "font-src 'self'",
               "frame-ancestors 'none'",
@@ -74,6 +76,46 @@ const nextConfig: NextConfig = {
       "recharts",
       "@radix-ui/react-icons",
     ],
+    // Smooth page transitions
+    scrollRestoration: true,
+  },
+  // Code splitting for better performance
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.optimization.splitChunks = {
+        chunks: "all",
+        cacheGroups: {
+          // Separate vendor chunks
+          react: {
+            name: "react-vendor",
+            test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+            chunks: "all",
+            priority: 40,
+          },
+          ui: {
+            name: "ui-vendor",
+            test: /[\\/]node_modules[\\/](@radix-ui|framer-motion|lucide-react)[\\/]/,
+            chunks: "all",
+            priority: 30,
+          },
+          query: {
+            name: "query-vendor",
+            test: /[\\/]node_modules[\\/](@tanstack\/react-query)[\\/]/,
+            chunks: "all",
+            priority: 20,
+          },
+          // Common shared code
+          common: {
+            name: "common",
+            minChunks: 2,
+            chunks: "all",
+            priority: 10,
+            reuseExistingChunk: true,
+          },
+        },
+      };
+    }
+    return config;
   },
 };
 

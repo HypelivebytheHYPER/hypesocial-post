@@ -1,21 +1,13 @@
-import { Suspense } from "react";
-import { HydrationBoundary } from "@tanstack/react-query";
-import { Navigation } from "@/components/navigation";
-import { prefetchDashboardData } from "@/lib/prefetch";
-import DashboardLoading from "./loading";
-
-/**
- * Async component that prefetches data and hydrates the cache.
- * Wrapped in Suspense so the shell + loading.tsx stream immediately
- * while this resolves in the background.
- */
-async function PrefetchedContent({ children }: { children: React.ReactNode }) {
-  const dehydratedState = await prefetchDashboardData();
-
-  return (
-    <HydrationBoundary state={dehydratedState}>{children}</HydrationBoundary>
-  );
-}
+import { SidebarNavigation, MobileNavigation } from "@/components/sidebar-nav";
+import { PageTransition } from "@/components/page-transition";
+import {
+  Shell,
+  Main,
+  Header,
+  HeaderLeft,
+  HeaderRight,
+  Content,
+} from "@/components/design-system";
 
 export default function DashboardLayout({
   children,
@@ -23,13 +15,32 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen">
-      <Navigation />
-      <main className="container-premium pt-16 md:pt-28 pb-20 md:pb-12">
-        <Suspense fallback={<DashboardLoading />}>
-          <PrefetchedContent>{children}</PrefetchedContent>
-        </Suspense>
-      </main>
-    </div>
+    <Shell>
+      {/* Sidebar Navigation - Desktop */}
+      <SidebarNavigation />
+
+      {/* Main Content Area */}
+      <Main>
+        {/* Header - Mobile Only (Desktop has sidebar) */}
+        <Header className="md:hidden">
+          <HeaderLeft>
+            <span className="text-lg font-bold text-foreground">
+              HypePost
+            </span>
+          </HeaderLeft>
+          <HeaderRight>
+            {/* Mobile header actions if needed */}
+          </HeaderRight>
+        </Header>
+
+        {/* Page Content */}
+        <Content className="pb-24 md:pb-8">
+          <PageTransition>{children}</PageTransition>
+        </Content>
+      </Main>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileNavigation />
+    </Shell>
   );
 }
