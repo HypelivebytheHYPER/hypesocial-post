@@ -109,7 +109,7 @@ function Sidebar({
   onViewChange,
 }: SidebarProps) {
   return (
-    <div className="w-72 shrink-0 h-full flex flex-col p-4 gap-4">
+    <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col p-2 md:p-4 gap-2 md:gap-4">
       {/* Modern Header Card */}
       <ModernCard variant="glass" padding="md" className="shrink-0">
         <div className="flex items-center gap-3">
@@ -479,7 +479,7 @@ function VirtualizedPostsGrid({
     <div 
       ref={parentRef}
       className="h-full overflow-auto"
-      style={{ height: 'calc(100vh - 200px)' }}
+      style={{ height: 'calc(100vh - 180px)' }}
     >
       <div
         style={{
@@ -504,7 +504,7 @@ function VirtualizedPostsGrid({
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
-              className={isListView ? "px-6" : "px-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"}
+              className={isListView ? "px-4 md:px-6" : "px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"}
             >
               {rowPosts.map((post, index) => (
                 <PostCard
@@ -638,7 +638,7 @@ export default function PostsPage() {
   }
 
   return (
-    <div className="h-full flex bg-slate-50/50 dark:bg-slate-950/50 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] flex bg-slate-50/50 dark:bg-slate-950/50 relative overflow-hidden">
       {/* Organic blob background */}
       <BlobBackground />
       {/* Sidebar */}
@@ -650,13 +650,13 @@ export default function PostsPage() {
         onViewChange={setViewMode}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 p-4">
+      {/* Main Content - Full width, no extra padding */}
+      <div className="flex-1 flex flex-col min-w-0 p-2 md:p-4">
         <ModernCard variant="soft" padding="none" className="flex-1 flex flex-col">
           {/* Top Bar - Sticky Header */}
           <div className="sticky top-0 z-20 h-16 px-6 flex items-center justify-between shrink-0 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-t-2xl">
             <div className="flex items-center gap-4 flex-1">
-              <div className="relative flex-1 max-w-md">
+              <div className="relative flex-1 max-w-md md:max-w-lg lg:max-w-xl">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   placeholder="Search posts..."
@@ -690,7 +690,7 @@ export default function PostsPage() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-4 md:p-6 overflow-y-auto">
             {filteredPosts.length === 0 ? (
               searchQuery ? (
                 <EmptySearchState query={searchQuery} />
@@ -698,7 +698,7 @@ export default function PostsPage() {
                 <EmptyPostsState onCreate={() => openCompose()} />
               )
             ) : viewMode === "calendar" ? (
-              <div className="h-[calc(100vh-14rem)]">
+              <div className="h-[calc(100vh-12rem)]">
                 <CalendarView
                   posts={filteredPosts}
                   onSelectDate={(date) => console.log(date)}

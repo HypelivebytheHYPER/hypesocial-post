@@ -33,8 +33,8 @@ export default function DashboardLayout({
           </HeaderRight>
         </Header>
 
-        {/* Page Content */}
-        <Content className="pb-24 md:pb-8">
+        {/* Page Content - Reduced padding for full-width layouts */}
+        <Content className="p-0 md:p-2 lg:p-4 pb-24 md:pb-8">
           <PageTransition>{children}</PageTransition>
         </Content>
       </Main>

@@ -49,7 +49,7 @@ export default function PostsLayout({
     <PostsLayoutContext.Provider
       value={{ isComposeOpen, openCompose, closeCompose, editingPostId, setEditingPostId }}
     >
-      <div className="h-[calc(100vh-8rem)] flex gap-4">
+      <div className="h-[calc(100vh-6rem)] flex gap-2 md:gap-4 w-full">
         {/* Main Content - Post List */}
         <motion.div
           className={cn(
