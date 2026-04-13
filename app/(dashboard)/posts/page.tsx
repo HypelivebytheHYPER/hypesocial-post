@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -23,30 +23,26 @@ import {
   CalendarDays,
   ImageIcon,
   Film,
-  ChevronDown,
+  Sparkles,
+  ArrowUpRight,
   Filter,
   Clock,
   BarChart3,
-  ArrowUpRight,
-  Play,
-  RotateCcw,
-  CalendarClock,
-  Check,
+  ChevronDown,
+  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDistanceToNow, format, isToday, isTomorrow, isPast } from "date-fns";
+import { formatDistanceToNow, format, isToday, isTomorrow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
-import { Skeleton, ListSkeleton } from "@/components/ui/skeleton";
-import { EmptyPostsState, EmptySearchState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   usePosts,
@@ -63,430 +59,221 @@ import { platformIconsMap } from "@/lib/social-platforms";
 import { proxyMediaUrl } from "@/lib/utils";
 import type { SocialPost, SocialPostResult } from "@/types/post-for-me-types";
 import dynamic from "next/dynamic";
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { Text3DFlip } from "@/components/magicui/text-3d-flip";
 
 // Dynamic import for CalendarView
 const CalendarView = dynamic(() => import("./_components/CalendarView").then(mod => ({ default: mod.CalendarView })), {
-  loading: () => <div className="h-full flex items-center justify-center"><Skeleton className="w-full h-full bg-slate-200 dark:bg-slate-800" /></div>,
+  loading: () => <div className="h-full flex items-center justify-center"><Skeleton className="w-full h-full" /></div>,
 });
 
 type ViewMode = "list" | "grid" | "calendar";
-type SortBy = "newest" | "oldest" | "scheduled";
 
-// Status configuration
+// TweakCN AI Style - Glassmorphism Status Config
 const STATUS_CONFIG: Record<string, { 
   label: string; 
-  color: string; 
-  bg: string;
+  gradient: string;
   icon: React.ElementType;
+  glow: string;
 }> = {
   draft: { 
     label: "Draft", 
-    color: "text-amber-600 dark:text-amber-400", 
-    bg: "bg-amber-50 dark:bg-amber-500/10",
+    gradient: "from-amber-500/20 to-orange-500/20",
     icon: FileEdit,
+    glow: "shadow-amber-500/20",
   },
   scheduled: { 
     label: "Scheduled", 
-    color: "text-blue-600 dark:text-blue-400", 
-    bg: "bg-blue-50 dark:bg-blue-500/10",
-    icon: CalendarClock,
+    gradient: "from-blue-500/20 to-cyan-500/20",
+    icon: Clock,
+    glow: "shadow-blue-500/20",
   },
   processing: { 
     label: "Processing", 
-    color: "text-violet-600 dark:text-violet-400", 
-    bg: "bg-violet-50 dark:bg-violet-500/10",
-    icon: Clock,
+    gradient: "from-violet-500/20 to-purple-500/20",
+    icon: Sparkles,
+    glow: "shadow-violet-500/20",
   },
   processed: { 
     label: "Published", 
-    color: "text-emerald-600 dark:text-emerald-400", 
-    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+    gradient: "from-emerald-500/20 to-teal-500/20",
     icon: CheckCircle2,
+    glow: "shadow-emerald-500/20",
   },
   failed: { 
     label: "Failed", 
-    color: "text-red-600 dark:text-red-400", 
-    bg: "bg-red-50 dark:bg-red-500/10",
+    gradient: "from-red-500/20 to-rose-500/20",
     icon: XCircle,
+    glow: "shadow-red-500/20",
   },
 };
 
-// ==================== SIDEBAR - SYSTEM NAVIGATION ====================
-interface SidebarProps {
-  stats: Record<string, number>;
-  currentFilter: StatusFilter;
-  onFilterChange: (f: StatusFilter) => void;
-  currentSort: SortBy;
-  onSortChange: (s: SortBy) => void;
-}
-
-function Sidebar({
-  stats,
-  currentFilter,
-  onFilterChange,
-  currentSort,
-  onSortChange,
-}: SidebarProps) {
-  const total = stats.total || 0;
-  
+// Glassmorphism Card Component
+function GlassCard({ 
+  children, 
+  className,
+  hover = true 
+}: { 
+  children: React.ReactNode; 
+  className?: string;
+  hover?: boolean;
+}) {
   return (
-    <div className="w-56 shrink-0 h-full flex flex-col border-r border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-slate-900 dark:bg-white flex items-center justify-center">
-            <Layers className="w-3.5 h-3.5 text-white dark:text-slate-900" />
-          </div>
-          <div>
-            <h2 className="font-medium text-slate-900 dark:text-white text-sm">Posts</h2>
-            <p className="text-[11px] text-slate-500">{total.toLocaleString()} total</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-2">
-        {/* Section: Status */}
-        <div className="px-3 mb-4">
-          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1 px-2">
-            Status
-          </p>
-          <nav className="space-y-0.5">
-            {[
-              { id: "all" as StatusFilter, label: "All Posts", count: stats.total },
-              { id: "draft" as StatusFilter, label: "Drafts", count: stats.draft },
-              { id: "scheduled" as StatusFilter, label: "Scheduled", count: stats.scheduled },
-              { id: "processed" as StatusFilter, label: "Published", count: stats.processed },
-              { id: "failed" as StatusFilter, label: "Failed", count: stats.failed },
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onFilterChange(item.id)}
-                className={cn(
-                  "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors",
-                  currentFilter === item.id
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                )}
-              >
-                <span className="font-medium">{item.label}</span>
-                <span className={cn(
-                  "text-xs tabular-nums",
-                  currentFilter === item.id 
-                    ? "text-slate-900 dark:text-white" 
-                    : "text-slate-400"
-                )}>
-                  {item.count || 0}
-                </span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Section: Sort */}
-        <div className="px-3">
-          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1 px-2">
-            Sort By
-          </p>
-          <div className="space-y-0.5">
-            {[
-              { id: "newest" as SortBy, label: "Newest First" },
-              { id: "oldest" as SortBy, label: "Oldest First" },
-              { id: "scheduled" as SortBy, label: "Scheduled Date" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onSortChange(item.id)}
-                className={cn(
-                  "w-full flex items-center px-2 py-1.5 rounded-md text-sm transition-colors",
-                  currentSort === item.id
-                    ? "text-slate-900 dark:text-white"
-                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full border mr-2 flex items-center justify-center",
-                  currentSort === item.id
-                    ? "border-slate-900 dark:border-white bg-slate-900 dark:bg-white"
-                    : "border-slate-300 dark:border-slate-600"
-                )}>
-                  {currentSort === item.id && <Check className="w-2.5 h-2.5 text-white dark:text-slate-900" />}
-                </div>
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+    <div className={cn(
+      "relative overflow-hidden rounded-2xl",
+      "bg-white/40 dark:bg-white/5",
+      "backdrop-blur-xl",
+      "border border-white/20 dark:border-white/10",
+      "shadow-[0_8px_32px_rgba(0,0,0,0.08)]",
+      hover && "hover:shadow-[0_8px_32px_rgba(99,102,241,0.15)] hover:border-indigo-500/20",
+      "transition-all duration-500",
+      className
+    )}>
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-transparent to-transparent dark:from-white/10 pointer-events-none" />
+      {children}
     </div>
   );
 }
 
-// ==================== COMMAND BAR ====================
-interface CommandBarProps {
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  viewMode: ViewMode;
-  onViewChange: (v: ViewMode) => void;
-  onRefresh: () => void;
-  isRefreshing: boolean;
-  onNewPost: () => void;
-  resultCount: number;
-  totalCount: number;
-}
-
-function CommandBar({
-  searchQuery,
-  onSearchChange,
-  viewMode,
-  onViewChange,
-  onRefresh,
-  isRefreshing,
-  onNewPost,
-  resultCount,
-  totalCount,
-}: CommandBarProps) {
+// Animated Counter
+function AnimatedCounter({ value, label }: { value: number; label: string }) {
   return (
-    <div className="h-14 px-4 flex items-center gap-4 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md">
-      {/* Search */}
-      <div className="relative flex-1 max-w-md">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <Input
-          placeholder="Search posts..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-8 rounded-md bg-slate-100/80 dark:bg-slate-800/50 border-0 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-300 dark:focus-visible:ring-slate-600"
-        />
-      </div>
-
-      {/* Results count */}
-      <div className="text-xs text-slate-500">
-        {resultCount === totalCount ? (
-          `${totalCount.toLocaleString()} posts`
-        ) : (
-          <span className="text-slate-700 dark:text-slate-300 font-medium">{resultCount}</span>
-        )}
-      </div>
-
-      <div className="flex-1" />
-
-      {/* View Toggle */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/50 rounded-md">
-        {[
-          { id: "list", icon: ListIcon, label: "List" },
-          { id: "grid", icon: LayoutGrid, label: "Grid" },
-          { id: "calendar", icon: CalendarDays, label: "Calendar" },
-        ].map(({ id, icon: Icon, label }) => (
-          <button
-            key={id}
-            onClick={() => onViewChange(id as ViewMode)}
-            className={cn(
-              "flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors",
-              viewMode === id
-                ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-            )}
-            title={label}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="h-8 px-2.5 text-slate-500 hover:text-slate-700"
-        >
-          <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
-        </Button>
-        <Button 
-          size="sm" 
-          onClick={onNewPost}
-          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-sm font-medium rounded-md"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          New Post
-        </Button>
-      </div>
+    <div className="text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
+      >
+        {value}
+      </motion.div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
     </div>
   );
 }
 
-// ==================== POST ROW - TABLE STYLE ====================
-interface PostRowProps {
-  post: SocialPost;
-  accounts: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
-  results?: SocialPostResult[];
-  onEdit: (post: SocialPost) => void;
-  onDelete: (id: string) => void;
-  onRetry?: (post: SocialPost) => void;
-}
-
-function PostRow({ post, accounts, results, onEdit, onDelete, onRetry }: PostRowProps) {
-  const [imageError, setImageError] = useState(false);
-  const status = post.status;
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
-  
-  const hasError = results?.some((r) => !r.success);
-  const firstMedia = post.media?.[0];
-  const hasMedia = !!firstMedia;
-
-  const dateLabel = useMemo(() => {
-    if (!post.scheduled_at) return formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
-    const date = new Date(post.scheduled_at);
-    if (isToday(date)) return `Today, ${format(date, "h:mm a")}`;
-    if (isTomorrow(date)) return `Tomorrow, ${format(date, "h:mm a")}`;
-    return format(date, "MMM d, h:mm a");
-  }, [post.scheduled_at, post.created_at]);
-
-  const platforms = useMemo(() => {
-    return post.social_accounts?.map((sa) => {
-      const acc = accounts.get(sa.id);
-      return acc?.platform;
-    }).filter(Boolean) as string[] || [];
-  }, [post.social_accounts, accounts]);
-
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete(post.id);
-  }, [onDelete, post.id]);
-
-  const handleRetry = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onRetry?.(post);
-  }, [onRetry, post]);
-
+// Hero Section with 3D Text
+function PostsHero({ stats }: { stats: Record<string, number> }) {
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer transition-colors"
-      onClick={() => onEdit(post)}
-    >
-      {/* Status */}
-      <div className={cn("w-2 h-2 rounded-full", config?.bg?.replace('bg-', 'bg-')?.replace('50', '500')?.replace('/10', '') || "bg-slate-500")} />
-
-      {/* Thumbnail */}
-      <div className="w-10 h-10 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
-        {hasMedia && !imageError ? (
-          <Image
-            src={proxyMediaUrl(firstMedia.url)}
-            alt=""
-            width={40}
-            height={40}
-            className="object-cover w-full h-full"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
-              <Film className="w-4 h-4 text-slate-400" />
-            ) : (
-              <ImageIcon className="w-4 h-4 text-slate-400" />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-slate-900 dark:text-slate-100 font-medium truncate">
-          {post.caption || <span className="text-slate-400 italic">No caption</span>}
-        </p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className={cn("text-[11px] font-medium px-1.5 py-0.5 rounded", config?.bg, config?.color)}>
-            {config?.label}
-          </span>
-          <span className="text-xs text-slate-400">{dateLabel}</span>
-        </div>
-      </div>
-
-      {/* Platforms */}
-      <div className="flex items-center gap-1 shrink-0">
-        {platforms.slice(0, 4).map((platform) => {
-          const Icon = platformIconsMap[platform];
-          if (!Icon) return null;
-          return (
-            <div 
-              key={platform} 
-              className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-              title={platform}
-            >
-              <Icon className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+    <div className="relative overflow-hidden rounded-3xl mb-8">
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 dark:from-indigo-500/20 dark:via-purple-500/20 dark:to-pink-500/20" />
+      <div className="absolute inset-0 backdrop-blur-3xl" />
+      
+      {/* Grid pattern */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+      }} />
+      
+      <div className="relative px-8 py-12 md:py-16">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="text-center md:text-left">
+            <div className="mb-4">
+              <Text3DFlip
+                className="font-bold text-4xl md:text-6xl"
+                textClassName="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
+                flipTextClassName="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent"
+                rotateDirection="top"
+                staggerDuration={0.04}
+                staggerFrom="first"
+                transition={{ type: "spring", damping: 25, stiffness: 160 }}
+              >
+                Posts
+              </Text3DFlip>
             </div>
-          );
-        })}
-        {platforms.length > 4 && (
-          <span className="text-[10px] text-slate-400 px-1">+{platforms.length - 4}</span>
-        )}
+            <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md">
+              Manage and schedule your content across all platforms
+            </p>
+          </div>
+          
+          {/* Stats Grid */}
+          <div className="flex gap-8">
+            <AnimatedCounter value={stats.total || 0} label="Total" />
+            <AnimatedCounter value={stats.scheduled || 0} label="Scheduled" />
+            <AnimatedCounter value={stats.processed || 0} label="Published" />
+          </div>
+        </div>
       </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        {hasError && onRetry && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRetry}
-            className="h-7 px-2 text-slate-500 hover:text-slate-700"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="h-7 px-2 text-slate-400 hover:text-red-600"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-slate-500"
-        >
-          <ArrowUpRight className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-    </motion.div>
+    </div>
   );
 }
 
-// ==================== POST GRID CARD ====================
-interface PostCardProps {
-  post: SocialPost;
-  accounts: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
-  results?: SocialPostResult[];
-  onEdit: (post: SocialPost) => void;
-  onDelete: (id: string) => void;
-  onRetry?: (post: SocialPost) => void;
+// Floating Action Button
+function FloatingActionButton({ onClick }: { onClick: () => void }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      className={cn(
+        "fixed bottom-8 right-8 z-50",
+        "w-14 h-14 rounded-full",
+        "bg-gradient-to-r from-indigo-600 to-purple-600",
+        "text-white shadow-lg shadow-indigo-500/30",
+        "flex items-center justify-center",
+        "hover:shadow-xl hover:shadow-indigo-500/40 hover:scale-105",
+        "transition-all duration-300"
+      )}
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <Plus className="w-6 h-6" />
+    </motion.button>
+  );
 }
 
-function PostCard({ post, accounts, results, onEdit, onDelete, onRetry }: PostCardProps) {
+// Glass Filter Pill
+function FilterPill({ 
+  active, 
+  onClick, 
+  children,
+  count
+}: { 
+  active: boolean; 
+  onClick: () => void; 
+  children: React.ReactNode;
+  count?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative px-4 py-2 rounded-full text-sm font-medium",
+        "transition-all duration-300",
+        active 
+          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25"
+          : "bg-white/50 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-white/80 dark:hover:bg-white/10 border border-white/20 dark:border-white/10"
+      )}
+    >
+      {children}
+      {count !== undefined && (
+        <span className={cn(
+          "ml-2 px-1.5 py-0.5 rounded-full text-xs",
+          active ? "bg-white/20" : "bg-slate-200 dark:bg-slate-700"
+        )}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Glass Post Card
+function GlassPostCard({ 
+  post, 
+  accounts, 
+  onEdit, 
+  onDelete 
+}: { 
+  post: SocialPost; 
+  accounts: Map<string, { platform: string; username: string | null }>;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const [imageError, setImageError] = useState(false);
   const status = post.status;
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  const StatusIcon = config?.icon || FileEdit;
   
   const firstMedia = post.media?.[0];
   const hasMedia = !!firstMedia;
-
-  const dateLabel = useMemo(() => {
-    if (!post.scheduled_at) return formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
-    const date = new Date(post.scheduled_at);
-    if (isToday(date)) return `Today, ${format(date, "h:mm a")}`;
-    if (isTomorrow(date)) return `Tomorrow, ${format(date, "h:mm a")}`;
-    return format(date, "MMM d");
-  }, [post.scheduled_at, post.created_at]);
 
   const platforms = useMemo(() => {
     return post.social_accounts?.map((sa) => {
@@ -498,143 +285,109 @@ function PostCard({ post, accounts, results, onEdit, onDelete, onRetry }: PostCa
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, scale: 0.98 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      className="group relative rounded-lg border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-[#111111] overflow-hidden cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-      onClick={() => onEdit(post)}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileHover={{ y: -4 }}
+      className="group"
     >
-      {/* Media */}
-      <div className="aspect-[4/3] relative bg-slate-100 dark:bg-slate-800">
-        {hasMedia && !imageError ? (
-          <Image
-            src={proxyMediaUrl(firstMedia.url)}
-            alt=""
-            fill
-            className="object-cover"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
-              <Film className="w-8 h-8 text-slate-400" />
-            ) : (
-              <ImageIcon className="w-8 h-8 text-slate-400" />
-            )}
+      <GlassCard className="h-full">
+        {/* Media */}
+        <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl">
+          {hasMedia && !imageError ? (
+            <Image
+              src={proxyMediaUrl(firstMedia.url)}
+              alt=""
+              fill
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center">
+              {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
+                <Film className="w-12 h-12 text-slate-400" />
+              ) : (
+                <ImageIcon className="w-12 h-12 text-slate-400" />
+              )}
+            </div>
+          )}
+          
+          {/* Status Badge */}
+          <div className="absolute top-3 left-3">
+            <div className={cn(
+              "px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5",
+              "bg-gradient-to-r",
+              config?.gradient || "from-slate-500/20 to-slate-600/20",
+              "backdrop-blur-md border border-white/20",
+              config?.glow || "shadow-slate-500/20",
+              "shadow-lg"
+            )}>
+              <StatusIcon className="w-3 h-3" />
+              {config?.label || status}
+            </div>
           </div>
-        )}
-        
-        {/* Status Badge */}
-        <div className="absolute top-2 left-2">
-          <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", config?.bg, config?.color)}>
-            {config?.label}
-          </span>
-        </div>
 
-        {/* Hover Actions */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-8 text-xs"
-            onClick={(e) => { e.stopPropagation(); onEdit(post); }}
-          >
-            <Edit3 className="w-3.5 h-3.5 mr-1" />
-            Edit
-          </Button>
-          {onRetry && (
+          {/* Hover Actions */}
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2">
             <Button
               size="sm"
-              variant="secondary"
-              className="h-8 text-xs"
-              onClick={(e) => { e.stopPropagation(); onRetry(post); }}
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="bg-white/20 backdrop-blur-md hover:bg-white/30 text-white border-0"
             >
-              <RotateCcw className="w-3.5 h-3.5 mr-1" />
-              Retry
+              <Edit3 className="w-4 h-4 mr-1" />
+              Edit
             </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-3">
-        <p className="text-sm text-slate-900 dark:text-slate-100 font-medium line-clamp-2 mb-2">
-          {post.caption || <span className="text-slate-400 italic">No caption</span>}
-        </p>
-        
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400">{dateLabel}</span>
-          <div className="flex items-center gap-1">
-            {platforms.slice(0, 3).map((platform) => {
-              const Icon = platformIconsMap[platform];
-              if (!Icon) return null;
-              return <Icon key={platform} className="w-3.5 h-3.5 text-slate-400" />;
-            })}
+            <Button
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="bg-red-500/80 backdrop-blur-md hover:bg-red-500 text-white border-0"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
-      </div>
+
+        {/* Content */}
+        <div className="p-4 relative">
+          <h3 className="font-medium text-slate-900 dark:text-white line-clamp-2 mb-2">
+            {post.caption || <span className="text-slate-400 italic">No caption</span>}
+          </h3>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              {platforms.slice(0, 3).map((platform) => {
+                const Icon = platformIconsMap[platform];
+                if (!Icon) return null;
+                return (
+                  <div 
+                    key={platform} 
+                    className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  </div>
+                );
+              })}
+              {platforms.length > 3 && (
+                <span className="text-xs text-slate-400 ml-1">+{platforms.length - 3}</span>
+              )}
+            </div>
+            <span className="text-xs text-slate-400">
+              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+            </span>
+          </div>
+        </div>
+      </GlassCard>
     </motion.div>
   );
 }
 
-// ==================== VIRTUALIZED LIST ====================
-interface PostsListProps {
-  posts: SocialPost[];
-  accountsMap: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
-  resultsMap?: Map<string, SocialPostResult[]> | null;
-  viewMode: ViewMode;
-  onEdit: (post: SocialPost) => void;
-  onDelete: (id: string) => void;
-  onRetry?: (post: SocialPost) => void;
-}
-
-function PostsList({ posts, accountsMap, resultsMap, viewMode, onEdit, onDelete, onRetry }: PostsListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  
-  if (viewMode === "grid") {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
-        {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            accounts={accountsMap}
-            results={resultsMap?.get(post.id)}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onRetry={onRetry}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  // List view
-  return (
-    <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
-      {posts.map((post) => (
-        <PostRow
-          key={post.id}
-          post={post}
-          accounts={accountsMap}
-          results={resultsMap?.get(post.id)}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onRetry={onRetry}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ==================== MAIN PAGE ====================
+// Main Page
 export default function PostsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { openCompose, setEditingPostId } = usePostsLayout();
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [sortBy, setSortBy] = useState<SortBy>("newest");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   // URL params effect
   useEffect(() => {
@@ -651,15 +404,13 @@ export default function PostsPage() {
   // Data fetching
   const { data: postsData, isLoading, isFetching, error } = usePosts(
     { limit: 100 },
-    {
-      placeholderData: (previous) => previous,
-    }
+    { placeholderData: (previous) => previous }
   );
   const { data: accountsData } = useSocialAccounts();
   const posts = postsData?.data ?? [];
   const accounts = accountsData?.data ?? [];
 
-  // Create maps for efficient lookup
+  // Create maps
   const accountsMap = useMemo(() => {
     const map = new Map();
     accounts.forEach((acc) => map.set(acc.id, acc));
@@ -671,38 +422,19 @@ export default function PostsPage() {
   // Filters
   const { statusFilter, setStatusFilter, searchQuery, setSearchQuery, filteredPosts } = usePostFilters(posts);
 
-  // Sorting
-  const sortedPosts = useMemo(() => {
-    const sorted = [...filteredPosts];
-    switch (sortBy) {
-      case "newest":
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      case "oldest":
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      case "scheduled":
-        return sorted.sort((a, b) => {
-          if (!a.scheduled_at && !b.scheduled_at) return 0;
-          if (!a.scheduled_at) return 1;
-          if (!b.scheduled_at) return -1;
-          return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
-        });
-      default:
-        return sorted;
-    }
-  }, [filteredPosts, sortBy]);
-
   // Stats
   const stats = useMemo(() => {
-    let failed = 0;
-    resultsMap?.forEach((results: SocialPostResult[]) => {
-      if (results.some((r: SocialPostResult) => !r.success)) failed++;
-    });
+    // Get failed posts from resultsMap
+    const failedCount = resultsMap ? Array.from(resultsMap.entries()).filter(([_, results]) => 
+      results.some((r: SocialPostResult) => !r.success)
+    ).length : 0;
+    
     return {
       total: posts.length,
-      draft: posts.filter((p) => p.status === "draft").length,
-      scheduled: posts.filter((p) => p.status === "scheduled").length,
-      processed: posts.filter((p) => p.status === "processed").length,
-      failed,
+      draft: posts.filter((p: SocialPost) => p.status === "draft").length,
+      scheduled: posts.filter((p: SocialPost) => p.status === "scheduled").length,
+      processed: posts.filter((p: SocialPost) => p.status === "processed").length,
+      failed: failedCount,
     };
   }, [posts, resultsMap]);
 
@@ -726,10 +458,14 @@ export default function PostsPage() {
 
   if (isLoading && !posts.length) {
     return (
-      <div className="h-full flex bg-[#fafafa] dark:bg-[#0a0a0a]">
-        <div className="w-56 shrink-0 h-full border-r border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50" />
-        <div className="flex-1 p-8">
-          <ListSkeleton count={8} />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="h-64 rounded-3xl bg-white/50 dark:bg-white/5 animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-80 rounded-2xl bg-white/50 dark:bg-white/5 animate-pulse" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -737,71 +473,162 @@ export default function PostsPage() {
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#0a0a0a]">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-50">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-slate-400">{error.message}</p>
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-slate-600 dark:text-slate-400">{error.message}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex bg-[#fafafa] dark:bg-[#0a0a0a]">
-      {/* Sidebar */}
-      <Sidebar
-        stats={stats}
-        currentFilter={statusFilter}
-        onFilterChange={setStatusFilter}
-        currentSort={sortBy}
-        onSortChange={setSortBy}
-      />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero with 3D Text */}
+        <PostsHero stats={stats} />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Command Bar */}
-        <CommandBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          viewMode={viewMode}
-          onViewChange={setViewMode}
-          onRefresh={handleRefresh}
-          isRefreshing={isFetching}
-          onNewPost={() => openCompose()}
-          resultCount={filteredPosts.length}
-          totalCount={posts.length}
-        />
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredPosts.length === 0 ? (
-            searchQuery ? (
-              <EmptySearchState query={searchQuery} />
-            ) : (
-              <EmptyPostsState onCreate={() => openCompose()} />
-            )
-          ) : viewMode === "calendar" ? (
-            <div className="h-[calc(100vh-8rem)]">
-              <CalendarView
-                posts={filteredPosts}
-                onSelectDate={(date) => console.log(date)}
-                onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
-                onCreatePost={(_date) => openCompose()}
+        {/* Filters Bar */}
+        <GlassCard className="mb-8 p-4" hover={false}>
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            {/* Search */}
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                placeholder="Search posts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 h-12 rounded-xl bg-white/50 dark:bg-white/5 border-white/20 dark:border-white/10 focus:bg-white dark:focus:bg-white/10 transition-colors"
               />
             </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterPill active={statusFilter === "all"} onClick={() => setStatusFilter("all")} count={stats.total}>
+                All
+              </FilterPill>
+              <FilterPill active={statusFilter === "draft"} onClick={() => setStatusFilter("draft")} count={stats.draft}>
+                Drafts
+              </FilterPill>
+              <FilterPill active={statusFilter === "scheduled"} onClick={() => setStatusFilter("scheduled")} count={stats.scheduled}>
+                Scheduled
+              </FilterPill>
+              <FilterPill active={statusFilter === "processed"} onClick={() => setStatusFilter("processed")} count={stats.processed}>
+                Published
+              </FilterPill>
+            </div>
+
+            {/* View Toggle */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/50 dark:bg-white/5 border border-white/20 dark:border-white/10">
+              {[
+                { id: "grid", icon: LayoutGrid },
+                { id: "list", icon: ListIcon },
+                { id: "calendar", icon: CalendarDays },
+              ].map(({ id, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setViewMode(id as ViewMode)}
+                  className={cn(
+                    "p-2.5 rounded-lg transition-all duration-300",
+                    viewMode === id
+                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              ))}
+            </div>
+
+            {/* Refresh */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className="h-12 w-12 rounded-xl bg-white/50 dark:bg-white/5 border-white/20 dark:border-white/10"
+            >
+              <RefreshCw className={cn("w-5 h-5", isFetching && "animate-spin")} />
+            </Button>
+          </div>
+        </GlassCard>
+
+        {/* Content */}
+        <AnimatePresence mode="wait">
+          {viewMode === "calendar" ? (
+            <motion.div
+              key="calendar"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="h-[600px]"
+            >
+              <GlassCard className="h-full p-6" hover={false}>
+                <CalendarView
+                  posts={filteredPosts}
+                  onSelectDate={(date) => console.log(date)}
+                  onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
+                  onCreatePost={(_date) => openCompose()}
+                />
+              </GlassCard>
+            </motion.div>
           ) : (
-            <PostsList
-              posts={sortedPosts}
-              accountsMap={accountsMap}
-              resultsMap={resultsMap}
-              viewMode={viewMode}
-              onEdit={(post) => router.push(`/posts/${post.id}/edit`)}
-              onDelete={handleDelete}
-              onRetry={(p) => retryPost.mutate(p)}
-            />
+            <motion.div
+              key="grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className={cn(
+                "grid gap-6",
+                viewMode === "grid" 
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" 
+                  : "grid-cols-1"
+              )}
+            >
+              {filteredPosts.map((post) => (
+                <GlassPostCard
+                  key={post.id}
+                  post={post}
+                  accounts={accountsMap}
+                  onEdit={() => router.push(`/posts/${post.id}/edit`)}
+                  onDelete={() => handleDelete(post.id)}
+                />
+              ))}
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
+
+        {/* Empty State */}
+        {filteredPosts.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-20"
+          >
+            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
+              <Sparkles className="w-10 h-10 text-indigo-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+              {searchQuery ? "No posts found" : "No posts yet"}
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">
+              {searchQuery ? "Try adjusting your search" : "Create your first post to get started"}
+            </p>
+            {!searchQuery && (
+              <Button
+                onClick={() => openCompose()}
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Post
+              </Button>
+            )}
+          </motion.div>
+        )}
       </div>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton onClick={() => openCompose()} />
     </div>
   );
 }
