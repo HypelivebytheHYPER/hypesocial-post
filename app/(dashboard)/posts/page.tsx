@@ -25,7 +25,7 @@ import {
   Film,
   Sparkles,
 } from "lucide-react";
-import { ModernCard, ModernBadge, BlobBackground } from "@/components/ui/modern-card";
+import { Surface, VStack, HStack } from "@/components/design-system";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow, format, isToday, isTomorrow } from "date-fns";
@@ -109,88 +109,75 @@ function Sidebar({
   onViewChange,
 }: SidebarProps) {
   return (
-    <div className="w-64 lg:w-72 shrink-0 h-full flex flex-col p-2 md:p-4 gap-2 md:gap-4">
-      {/* Modern Header Card */}
-      <ModernCard variant="glass" padding="md" className="shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-bold text-slate-900 dark:text-white">Posts</h2>
-            <p className="text-xs text-slate-500">Manage your content</p>
-          </div>
+    <div className="w-56 lg:w-64 shrink-0 h-full flex flex-col p-4 gap-6">
+      {/* Header - Clean */}
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-white flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-white dark:text-slate-900" />
         </div>
-      </ModernCard>
+        <div>
+          <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Posts</h2>
+          <p className="text-xs text-slate-500">Manage content</p>
+        </div>
+      </div>
 
-      {/* Modern Filter Card */}
-      <ModernCard variant="soft" padding="md" className="flex-1 flex flex-col min-h-0">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Filter by Status
+      {/* Filters - Clean, minimal */}
+      <div className="flex-1 min-h-0">
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2 px-2">
+          Filters
         </p>
-        <div className="flex-1 -mx-2 px-2 overflow-y-auto">
-          <div className="space-y-2">
-            {FILTER_ITEMS.map((filter) => (
-              <button
-                key={filter.id}
-                onClick={() => onFilterChange(filter.id)}
-                className={cn(
-                  "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm transition-all duration-200",
-                  currentFilter === filter.id
-                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-xl flex items-center justify-center transition-colors",
-                    currentFilter === filter.id
-                      ? "bg-white/20"
-                      : "bg-slate-100 dark:bg-slate-800"
-                  )}>
-                    <filter.icon className="w-4 h-4" />
-                  </div>
-                  <span className="font-medium">{filter.label}</span>
-                </div>
-                <ModernBadge 
-                  variant={currentFilter === filter.id ? "default" : "default"}
-                  className={cn(
-                    currentFilter === filter.id 
-                      ? "bg-white/20 text-white" 
-                      : ""
-                  )}
-                >
-                  {stats[filter.id] ?? 0}
-                </ModernBadge>
-              </button>
-            ))}
-          </div>
+        <div className="space-y-0.5">
+          {FILTER_ITEMS.map((filter) => (
+            <button
+              key={filter.id}
+              onClick={() => onFilterChange(filter.id)}
+              className={cn(
+                "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors duration-150",
+                currentFilter === filter.id
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <filter.icon className="w-4 h-4 text-slate-400" />
+                <span className="font-medium">{filter.label}</span>
+              </div>
+              <span className={cn(
+                "text-xs tabular-nums",
+                currentFilter === filter.id 
+                  ? "text-slate-900 dark:text-white font-medium" 
+                  : "text-slate-400"
+              )}>
+                {stats[filter.id] ?? 0}
+              </span>
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* View Mode */}
-        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            View Mode
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {VIEW_MODES.map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                onClick={() => onViewChange(id as ViewMode)}
-                className={cn(
-                  "flex flex-col items-center gap-2 py-3 rounded-2xl text-xs transition-all duration-200",
-                  viewMode === id
-                    ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25"
-                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
+      {/* View Mode - Clean */}
+      <div>
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2 px-2">
+          View
+        </p>
+        <div className="flex gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/50 rounded-lg">
+          {VIEW_MODES.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => onViewChange(id as ViewMode)}
+              className={cn(
+                "flex-1 flex items-center justify-center py-1.5 rounded-md text-xs transition-colors duration-150",
+                viewMode === id
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              )}
+              title={label}
+            >
+              <Icon className="w-4 h-4" />
+            </button>
+          ))}
         </div>
-      </ModernCard>
+      </div>
     </div>
   );
 }
@@ -479,7 +466,7 @@ function VirtualizedPostsGrid({
     <div 
       ref={parentRef}
       className="h-full overflow-auto"
-      style={{ height: 'calc(100vh - 180px)' }}
+      style={{ height: 'calc(100vh - 140px)' }}
     >
       <div
         style={{
@@ -638,9 +625,7 @@ export default function PostsPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex bg-slate-50/50 dark:bg-slate-950/50 relative overflow-hidden">
-      {/* Organic blob background */}
-      <BlobBackground />
+    <div className="min-h-[calc(100vh-4rem)] flex bg-[#fafafa] dark:bg-[#0a0a0a]">
       {/* Sidebar */}
       <Sidebar
         stats={stats}
@@ -650,47 +635,45 @@ export default function PostsPage() {
         onViewChange={setViewMode}
       />
 
-      {/* Main Content - Full width, no extra padding */}
-      <div className="flex-1 flex flex-col min-w-0 p-2 md:p-4">
-        <ModernCard variant="soft" padding="none" className="flex-1 flex flex-col">
-          {/* Top Bar - Sticky Header */}
-          <div className="sticky top-0 z-20 h-16 px-6 flex items-center justify-between shrink-0 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-t-2xl">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="relative flex-1 max-w-md md:max-w-lg lg:max-w-xl">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search posts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 border-0 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/50"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isFetching}
-                className="rounded-full border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <RefreshCw className={cn("w-4 h-4 mr-2", isFetching && "animate-spin")} />
-                {isFetching ? "Refreshing..." : "Refresh"}
-              </Button>
-              <Button 
-                size="sm" 
-                onClick={() => openCompose()} 
-                className="rounded-full bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/30"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Post
-              </Button>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header - Clean, minimal */}
+        <header className="sticky top-0 z-20 h-14 px-6 flex items-center justify-between shrink-0 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search posts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 rounded-lg bg-slate-100/80 dark:bg-slate-800/50 border-0 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600"
+              />
             </div>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className="h-8 px-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={() => openCompose()} 
+              className="h-8 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-sm font-medium rounded-lg"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              New Post
+            </Button>
+          </div>
+        </header>
 
-          {/* Content */}
-          <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        {/* Content */}
+        <div className="flex-1 p-6 overflow-y-auto">
             {filteredPosts.length === 0 ? (
               searchQuery ? (
                 <EmptySearchState query={searchQuery} />
@@ -698,7 +681,7 @@ export default function PostsPage() {
                 <EmptyPostsState onCreate={() => openCompose()} />
               )
             ) : viewMode === "calendar" ? (
-              <div className="h-[calc(100vh-12rem)]">
+              <div className="h-[calc(100vh-8rem)]">
                 <CalendarView
                   posts={filteredPosts}
                   onSelectDate={(date) => console.log(date)}
@@ -717,8 +700,7 @@ export default function PostsPage() {
                 onRetry={(p) => retryPost.mutate(p)}
               />
             )}
-          </div>
-        </ModernCard>
+        </div>
       </div>
     </div>
   );

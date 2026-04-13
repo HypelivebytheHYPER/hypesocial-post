@@ -7,11 +7,11 @@
 export * from "./tokens";
 
 // Components
-export { Surface, surfaceVariants } from "./surface";
+export { Surface, surfaceVariants, Divider } from "./surface";
+export { Stack, VStack, HStack, stackVariants } from "./stack";
 export { Text, Heading, textVariants } from "./typography";
-export { Stack, Inline, Grid, stackVariants, gridVariants } from "./stack";
 
 // Types
 export type { SurfaceProps } from "./surface";
+export type { StackProps } from "./stack";
 export type { TextProps, HeadingProps } from "./typography";
-export type { StackProps, GridProps } from "./stack";

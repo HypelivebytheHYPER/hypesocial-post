@@ -1,40 +1,35 @@
 /**
- * Stack Component
- * Flex and Grid layout utilities
+ * Stack Component - Consistent vertical/horizontal spacing
+ * Linear-style 4px grid system
  */
+
+"use client";
 
 import { cn } from "@/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import { forwardRef } from "react";
 
-/* ==================== FLEX STACK ==================== */
-
 const stackVariants = cva("flex", {
   variants: {
     direction: {
-      row: "flex-row",
-      column: "flex-col",
-      "row-reverse": "flex-row-reverse",
-      "column-reverse": "flex-col-reverse",
+      vertical: "flex-col",
+      horizontal: "flex-row",
     },
     gap: {
       0: "gap-0",
-      1: "gap-1",
-      2: "gap-2",
-      3: "gap-3",
-      4: "gap-4",
-      5: "gap-5",
-      6: "gap-6",
-      8: "gap-8",
-      10: "gap-10",
-      12: "gap-12",
+      1: "gap-1",    // 4px
+      2: "gap-2",    // 8px
+      3: "gap-3",    // 12px
+      4: "gap-4",    // 16px
+      6: "gap-6",    // 24px
+      8: "gap-8",    // 32px
+      10: "gap-10",  // 40px
     },
     align: {
       start: "items-start",
       center: "items-center",
       end: "items-end",
       stretch: "items-stretch",
-      baseline: "items-baseline",
     },
     justify: {
       start: "justify-start",
@@ -42,7 +37,6 @@ const stackVariants = cva("flex", {
       end: "justify-end",
       between: "justify-between",
       around: "justify-around",
-      evenly: "justify-evenly",
     },
     wrap: {
       true: "flex-wrap",
@@ -50,7 +44,7 @@ const stackVariants = cva("flex", {
     },
   },
   defaultVariants: {
-    direction: "column",
+    direction: "vertical",
     gap: 4,
     align: "stretch",
     justify: "start",
@@ -64,15 +58,7 @@ export interface StackProps
 
 const Stack = forwardRef<HTMLDivElement, StackProps>(
   (
-    {
-      className,
-      direction,
-      gap,
-      align,
-      justify,
-      wrap,
-      ...props
-    },
+    { className, direction, gap, align, justify, wrap, children, ...props },
     ref
   ) => {
     return (
@@ -83,69 +69,23 @@ const Stack = forwardRef<HTMLDivElement, StackProps>(
           className
         )}
         {...props}
-      />
+      >
+        {children}
+      </div>
     );
   }
 );
 Stack.displayName = "Stack";
 
-/* ==================== INLINE (Horizontal Stack) ==================== */
-
-const Inline = forwardRef<HTMLDivElement, Omit<StackProps, "direction">>(
-  (props, ref) => <Stack ref={ref} direction="row" {...props} />
+// Convenience components
+const VStack = forwardRef<HTMLDivElement, Omit<StackProps, "direction">>(
+  (props, ref) => <Stack ref={ref} direction="vertical" {...props} />
 );
-Inline.displayName = "Inline";
+VStack.displayName = "VStack";
 
-/* ==================== GRID ==================== */
-
-const gridVariants = cva("grid", {
-  variants: {
-    columns: {
-      1: "grid-cols-1",
-      2: "grid-cols-2",
-      3: "grid-cols-3",
-      4: "grid-cols-4",
-      5: "grid-cols-5",
-      6: "grid-cols-6",
-      12: "grid-cols-12",
-      none: "grid-cols-none",
-    },
-    gap: {
-      0: "gap-0",
-      1: "gap-1",
-      2: "gap-2",
-      3: "gap-3",
-      4: "gap-4",
-      5: "gap-5",
-      6: "gap-6",
-      8: "gap-8",
-      10: "gap-10",
-      12: "gap-12",
-    },
-  },
-  defaultVariants: {
-    columns: 1,
-    gap: 4,
-  },
-});
-
-export interface GridProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof gridVariants> {}
-
-const Grid = forwardRef<HTMLDivElement, GridProps>(
-  ({ className, columns, gap, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn(gridVariants({ columns, gap }), className)}
-        {...props}
-      />
-    );
-  }
+const HStack = forwardRef<HTMLDivElement, Omit<StackProps, "direction">>(
+  (props, ref) => <Stack ref={ref} direction="horizontal" {...props} />
 );
-Grid.displayName = "Grid";
+HStack.displayName = "HStack";
 
-/* ==================== EXPORT ==================== */
-
-export { Stack, Inline, Grid, stackVariants, gridVariants };
+export { Stack, VStack, HStack, stackVariants };
