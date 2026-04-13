@@ -18,6 +18,7 @@ import {
   UserPlus,
   Shield,
   User,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,65 +56,6 @@ interface Person {
   lastActive: string;
 }
 
-// Mock data
-const MOCK_PEOPLE: Person[] = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    email: "sarah@company.com",
-    role: "admin",
-    status: "active",
-    department: "Engineering",
-    location: "San Francisco",
-    joinDate: "2023-01-15",
-    lastActive: "2 minutes ago",
-  },
-  {
-    id: "2",
-    name: "Marcus Johnson",
-    email: "marcus@company.com",
-    role: "editor",
-    status: "active",
-    department: "Marketing",
-    location: "New York",
-    joinDate: "2023-03-22",
-    lastActive: "1 hour ago",
-  },
-  {
-    id: "3",
-    name: "Emma Wilson",
-    email: "emma@company.com",
-    role: "viewer",
-    status: "pending",
-    department: "Design",
-    location: "London",
-    joinDate: "2024-01-10",
-    lastActive: "Never",
-  },
-  {
-    id: "4",
-    name: "David Kim",
-    email: "david@company.com",
-    role: "editor",
-    status: "inactive",
-    department: "Engineering",
-    location: "Seoul",
-    joinDate: "2022-08-05",
-    lastActive: "2 weeks ago",
-  },
-  {
-    id: "5",
-    name: "Lisa Anderson",
-    email: "lisa@company.com",
-    role: "admin",
-    status: "active",
-    department: "Product",
-    location: "Berlin",
-    joinDate: "2023-06-18",
-    lastActive: "5 minutes ago",
-  },
-];
-
 // Animation variants
 const container = {
   hidden: { opacity: 0 },
@@ -134,9 +76,13 @@ export default function PeoplePage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(false);
 
+  // TODO: Replace with actual API call to fetch team members
+  // const { data: people, isLoading } = usePeople();
+  const people: Person[] = []; // Empty until API is connected
+
   // Filter people
   const filteredPeople = useMemo(() => {
-    return MOCK_PEOPLE.filter((person) => {
+    return people.filter((person) => {
       const matchesSearch =
         person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         person.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -146,17 +92,17 @@ export default function PeoplePage() {
         statusFilter === "all" || person.status === statusFilter;
       return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [searchQuery, roleFilter, statusFilter]);
+  }, [people, searchQuery, roleFilter, statusFilter]);
 
   // Stats
   const stats = useMemo(() => {
     return {
-      total: MOCK_PEOPLE.length,
-      active: MOCK_PEOPLE.filter((p) => p.status === "active").length,
-      pending: MOCK_PEOPLE.filter((p) => p.status === "pending").length,
-      admins: MOCK_PEOPLE.filter((p) => p.role === "admin").length,
+      total: people.length,
+      active: people.filter((p) => p.status === "active").length,
+      pending: people.filter((p) => p.status === "pending").length,
+      admins: people.filter((p) => p.role === "admin").length,
     };
-  }, []);
+  }, [people]);
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -230,7 +176,6 @@ export default function PeoplePage() {
           icon={CheckCircle2}
           iconVariant="soft"
           value={stats.active}
-          change={{ value: "85%", positive: true }}
         />
         <DashboardCard
           title="Pending"
@@ -290,14 +235,10 @@ export default function PeoplePage() {
       {/* People List */}
       {filteredPeople.length === 0 ? (
         <EmptyState
-          icon={User}
-          title="No people found"
-          description="Try adjusting your search or filters"
-          action={{ label: "Clear filters", onClick: () => {
-            setSearchQuery("");
-            setRoleFilter("all");
-            setStatusFilter("all");
-          }}}
+          icon={Users}
+          title="No team members yet"
+          description="Add your first team member to get started"
+          action={{ label: "Add Person", onClick: () => console.log("Add person") }}
         />
       ) : (
         <motion.div
