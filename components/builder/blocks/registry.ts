@@ -25,6 +25,7 @@ import { EditorShowcaseBlock, type EditorShowcaseBlockProps } from "./editor-sho
 import { TableBlock, type TableBlockProps } from "./table-block";
 import { PromoCatalogBlock, type PromoCatalogBlockProps } from "./promo-catalog-block";
 import { ImageBlock, type ImageBlockProps } from "./image-block";
+import { AiDesignBlock, type AiDesignBlockProps } from "./ai-design-block";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutTemplate,
@@ -38,6 +39,7 @@ const iconMap: Record<string, LucideIcon> = {
   Table2,
   TicketPercent,
   Image: ImageIcon,
+  Sparkles: Wand2,
 };
 
 export function getBlockIcon(iconName: string): LucideIcon {
@@ -374,6 +376,24 @@ function imageCodeTemplate(props: ImageBlockProps) {
 </section>`;
 }
 
+function aiDesignCodeTemplate(props: AiDesignBlockProps) {
+  const p = { ...props };
+  const alignClass = p.alignment === "left" ? "items-start text-left" : "items-center text-center";
+  return `<section className="relative w-full overflow-hidden bg-background">
+  <div className="relative mx-auto flex min-h-[360px] max-w-5xl flex-col justify-center px-6 py-16 lg:py-24">
+    ${p.src ? `<img src="${p.src}" alt="${p.headline}" className="absolute inset-0 h-full w-full object-cover" />` : `<div className="absolute inset-0 bg-muted" />`}
+    ${p.overlay ? `<div className="absolute inset-0 bg-black/50" />` : ""}
+    <div className="relative z-10 flex flex-col ${alignClass}">
+      <h1 className="mb-4 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        ${p.headline}
+      </h1>
+      <p className="mb-8 max-w-xl text-lg text-white/90">${p.subheadline}</p>
+      <Button size="lg">${p.ctaText}</Button>
+    </div>
+  </div>
+</section>`;
+}
+
 function promoCatalogCodeTemplate(props: PromoCatalogBlockProps) {
   const p = { ...props };
   const products = p.products || [];
@@ -697,6 +717,23 @@ export const blockRegistry: Record<BlockType, BlockRegistryEntry> = {
     component: ImageBlock,
     codeTemplate: imageCodeTemplate,
   },
+  "ai-design": {
+    type: "ai-design",
+    name: "AI Design",
+    description: "Hero with AI-generated background",
+    iconName: "Sparkles",
+    defaultProps: {
+      prompt: "",
+      src: "",
+      headline: "Your Design Here",
+      subheadline: "AI-generated backgrounds for stunning visuals.",
+      ctaText: "Get Started",
+      overlay: true,
+      alignment: "center",
+    } as unknown as Record<string, unknown>,
+    component: AiDesignBlock,
+    codeTemplate: aiDesignCodeTemplate,
+  },
 };
 
 export const blockConfigs: Record<BlockType, BlockConfig> = {
@@ -807,6 +844,16 @@ export const blockConfigs: Record<BlockType, BlockConfig> = {
       { key: "objectFit", label: "Object Fit", type: "select", options: ["cover", "contain"] },
     ],
   },
+  "ai-design": {
+    fields: [
+      { key: "prompt", label: "Generation Prompt", type: "textarea" },
+      { key: "headline", label: "Headline", type: "text" },
+      { key: "subheadline", label: "Subheadline", type: "textarea" },
+      { key: "ctaText", label: "CTA Text", type: "text" },
+      { key: "overlay", label: "Dark Overlay", type: "boolean" },
+      { key: "alignment", label: "Alignment", type: "select", options: ["left", "center"] },
+    ],
+  },
 };
 
 export const allBlockTypes: BlockType[] = [
@@ -821,6 +868,7 @@ export const allBlockTypes: BlockType[] = [
   "table",
   "promo-catalog",
   "image",
+  "ai-design",
 ];
 
 // Variants for shuffle feature — each type has alternate prop sets
@@ -1075,6 +1123,21 @@ export const blockVariants: Record<BlockType, Array<{ type: BlockType; props: Re
         rounded: true,
         shadow: "lg",
         objectFit: "cover",
+      },
+    },
+  ],
+  "ai-design": [
+    { type: "ai-design", props: blockRegistry["ai-design"].defaultProps },
+    {
+      type: "ai-design",
+      props: {
+        prompt: "futuristic city skyline at sunset, neon lights, cyberpunk aesthetic",
+        src: "",
+        headline: "Future Ready",
+        subheadline: "AI-crafted visuals that transport your audience.",
+        ctaText: "Explore",
+        overlay: true,
+        alignment: "left",
       },
     },
   ],

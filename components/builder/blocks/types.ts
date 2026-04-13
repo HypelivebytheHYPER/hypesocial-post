@@ -11,7 +11,8 @@ export type BlockType =
   | "editor-showcase"
   | "table"
   | "promo-catalog"
-  | "image";
+  | "image"
+  | "ai-design";
 
 export interface BuilderBlock {
   id: string;

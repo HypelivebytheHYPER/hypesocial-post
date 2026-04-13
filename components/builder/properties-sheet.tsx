@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Settings2 } from "lucide-react";
 import { RangeInput } from "./range-input";
 import { ImagePicker } from "./image-picker";
+import { AiDesignPropertyEditor } from "./blocks/ai-design-block";
 import type { PropertyField, BuilderBlock } from "./blocks/types";
 
 function RowEditor({
@@ -466,15 +467,23 @@ export function PropertiesPanel() {
       </div>
       <ScrollArea className="flex-1 p-3">
         <div className="space-y-4">
-          {config.fields.map((field: PropertyField) => (
-            <FieldEditor
-              key={field.key}
-              field={field}
-              value={block.props[field.key]}
-              onChange={(val: unknown) => updateBlock(block.id, { [field.key]: val })}
-              blockProps={block.props}
+          {block.type === "ai-design" && (
+            <AiDesignPropertyEditor
+              value={block.props as import("./blocks/ai-design-block").AiDesignBlockProps}
+              onChange={(val) => updateBlock(block.id, val)}
             />
-          ))}
+          )}
+          {config.fields
+            .filter((field) => block.type !== "ai-design" || field.key !== "prompt")
+            .map((field: PropertyField) => (
+              <FieldEditor
+                key={field.key}
+                field={field}
+                value={block.props[field.key]}
+                onChange={(val: unknown) => updateBlock(block.id, { [field.key]: val })}
+                blockProps={block.props}
+              />
+            ))}
         </div>
       </ScrollArea>
     </aside>
