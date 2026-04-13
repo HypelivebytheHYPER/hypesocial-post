@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Layers, Palette, Type, ExternalLink } from "lucide-react";
+import { Loader2, Layers, Palette, Type, ExternalLink, Zap, Grid3X3, LayoutTemplate, Code2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBuilderStore } from "./store";
 
@@ -196,6 +196,46 @@ export function PenpotPanel({ open, onClose }: { open: boolean; onClose: () => v
           </Button>
 
           {error && <p className="text-[10px] text-destructive">{error}</p>}
+
+          {!fileData && (
+            <div className="space-y-2 pt-1">
+              <Card className="p-2">
+                <p className="mb-1 text-[10px] font-medium text-foreground">Penpot 2.0 Highlights</p>
+                <ul className="space-y-1">
+                  <li className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Grid3X3 className="h-3 w-3 text-primary" />
+                    CSS Grid Layout
+                  </li>
+                  <li className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <LayoutTemplate className="h-3 w-3 text-primary" />
+                    New Components System
+                  </li>
+                  <li className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Zap className="h-3 w-3 text-primary" />
+                    Redesigned UI & Accessibility
+                  </li>
+                  <li className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Code2 className="h-3 w-3 text-primary" />
+                    HTML Markup Export
+                  </li>
+                </ul>
+              </Card>
+              <Card className="p-2">
+                <p className="mb-1 text-[10px] font-medium text-foreground">MCP Server</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Connect Claude/Cursor to Penpot for bidirectional design-to-code workflows.
+                </p>
+                <a
+                  href="https://help.penpot.app/mcp/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-[10px] text-primary hover:underline"
+                >
+                  View MCP docs →
+                </a>
+              </Card>
+            </div>
+          )}
 
           {fileData && (
             <div className="space-y-3 pt-2">
