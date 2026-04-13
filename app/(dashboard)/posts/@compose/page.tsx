@@ -65,6 +65,8 @@ import {
   getWarningThreshold,
 } from "@/types/post-for-me-types";
 import { UPLOAD } from "@/lib/constants";
+import { TemplateGallery } from "@/components/template-gallery";
+import type { PostTemplate } from "@/lib/templates/social-templates";
 
 // Auto-save draft key
 const DRAFT_STORAGE_KEY = "hypesocial_post_draft_v3";
@@ -570,7 +572,7 @@ export default function ComposePanel() {
         <div className={cn("flex-1 flex flex-col min-w-0 transition-all", showPreview && "lg:w-1/2")}>
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <TabsList className="mx-4 mt-2 grid grid-cols-3 bg-slate-100/80 p-1 rounded-2xl">
+            <TabsList className="mx-4 mt-2 grid grid-cols-4 bg-slate-100/80 p-1 rounded-2xl">
               <TabsTrigger value="compose" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
                 <Sparkles className="w-4 h-4 text-blue-500" />
                 <span className="hidden sm:inline">Compose</span>
@@ -588,6 +590,10 @@ export default function ComposePanel() {
                 <CalendarDays className="w-4 h-4 text-emerald-500" />
                 <span className="hidden sm:inline">Schedule</span>
                 {scheduledDate && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="gap-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <span className="hidden sm:inline">Templates</span>
               </TabsTrigger>
             </TabsList>
 
@@ -744,6 +750,18 @@ export default function ComposePanel() {
                     </div>
                   </motion.div>
                 )}
+              </TabsContent>
+
+              {/* Templates Tab */}
+              <TabsContent value="templates" className="mt-0 p-4 h-full">
+                <TemplateGallery
+                  onSelectTemplate={(template: PostTemplate) => {
+                    setContent(template.caption);
+                    setActiveTab("compose");
+                    toast.success(`Template "${template.name}" applied!`);
+                  }}
+                  selectedPlatform={selectedPlatforms[0]}
+                />
               </TabsContent>
             </ScrollArea>
           </Tabs>
