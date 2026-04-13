@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence, type Transition } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   RefreshCw, 
   AlertCircle, 
@@ -23,25 +23,31 @@ import {
   CalendarDays,
   ImageIcon,
   Film,
-  Sparkles,
+  ChevronDown,
+  Filter,
+  Clock,
+  BarChart3,
+  ArrowUpRight,
+  Play,
+  RotateCcw,
+  CalendarClock,
+  Check,
 } from "lucide-react";
-import { Surface, VStack, HStack } from "@/components/design-system";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDistanceToNow, format, isToday, isTomorrow } from "date-fns";
+import { formatDistanceToNow, format, isToday, isTomorrow, isPast } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton, ListSkeleton } from "@/components/ui/skeleton";
 import { EmptyPostsState, EmptySearchState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-
 import {
   usePosts,
   useDeletePost,
@@ -58,131 +64,405 @@ import { proxyMediaUrl } from "@/lib/utils";
 import type { SocialPost, SocialPostResult } from "@/types/post-for-me-types";
 import dynamic from "next/dynamic";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useRef } from 'react';
 
-// Dynamic import for CalendarView to reduce initial bundle size
+// Dynamic import for CalendarView
 const CalendarView = dynamic(() => import("./_components/CalendarView").then(mod => ({ default: mod.CalendarView })), {
   loading: () => <div className="h-full flex items-center justify-center"><Skeleton className="w-full h-full bg-slate-200 dark:bg-slate-800" /></div>,
 });
 
-// Types
-type ViewMode = "grid" | "list" | "calendar";
+type ViewMode = "list" | "grid" | "calendar";
+type SortBy = "newest" | "oldest" | "scheduled";
 
-// Constants - defined outside component to avoid recreation
-const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
-const STATUS_DOT_COLORS: Record<string, string> = {
-  draft: "bg-amber-500",
-  scheduled: "bg-blue-500",
-  processing: "bg-violet-500",
-  processed: "bg-emerald-500",
-  failed: "bg-red-500",
+// Status configuration
+const STATUS_CONFIG: Record<string, { 
+  label: string; 
+  color: string; 
+  bg: string;
+  icon: React.ElementType;
+}> = {
+  draft: { 
+    label: "Draft", 
+    color: "text-amber-600 dark:text-amber-400", 
+    bg: "bg-amber-50 dark:bg-amber-500/10",
+    icon: FileEdit,
+  },
+  scheduled: { 
+    label: "Scheduled", 
+    color: "text-blue-600 dark:text-blue-400", 
+    bg: "bg-blue-50 dark:bg-blue-500/10",
+    icon: CalendarClock,
+  },
+  processing: { 
+    label: "Processing", 
+    color: "text-violet-600 dark:text-violet-400", 
+    bg: "bg-violet-50 dark:bg-violet-500/10",
+    icon: Clock,
+  },
+  processed: { 
+    label: "Published", 
+    color: "text-emerald-600 dark:text-emerald-400", 
+    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+    icon: CheckCircle2,
+  },
+  failed: { 
+    label: "Failed", 
+    color: "text-red-600 dark:text-red-400", 
+    bg: "bg-red-50 dark:bg-red-500/10",
+    icon: XCircle,
+  },
 };
 
-// ==================== SIDEBAR COMPONENT ====================
+// ==================== SIDEBAR - SYSTEM NAVIGATION ====================
 interface SidebarProps {
   stats: Record<string, number>;
   currentFilter: StatusFilter;
   onFilterChange: (f: StatusFilter) => void;
-  viewMode: ViewMode;
-  onViewChange: (v: ViewMode) => void;
+  currentSort: SortBy;
+  onSortChange: (s: SortBy) => void;
 }
-
-const FILTER_ITEMS = [
-  { id: "all" as StatusFilter, label: "All Posts", icon: Layers },
-  { id: "draft" as StatusFilter, label: "Drafts", icon: FileEdit },
-  { id: "scheduled" as StatusFilter, label: "Scheduled", icon: Calendar },
-  { id: "processed" as StatusFilter, label: "Published", icon: CheckCircle2 },
-  { id: "failed" as StatusFilter, label: "Failed", icon: XCircle },
-];
-
-const VIEW_MODES = [
-  { id: "grid", icon: LayoutGrid, label: "Grid" },
-  { id: "list", icon: ListIcon, label: "List" },
-  { id: "calendar", icon: CalendarDays, label: "Cal" },
-] as const;
 
 function Sidebar({
   stats,
   currentFilter,
   onFilterChange,
-  viewMode,
-  onViewChange,
+  currentSort,
+  onSortChange,
 }: SidebarProps) {
+  const total = stats.total || 0;
+  
   return (
-    <div className="w-56 lg:w-64 shrink-0 h-full flex flex-col p-4 gap-6">
-      {/* Header - Clean */}
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-white flex items-center justify-center">
-          <Sparkles className="w-4 h-4 text-white dark:text-slate-900" />
-        </div>
-        <div>
-          <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Posts</h2>
-          <p className="text-xs text-slate-500">Manage content</p>
-        </div>
-      </div>
-
-      {/* Filters - Clean, minimal */}
-      <div className="flex-1 min-h-0">
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2 px-2">
-          Filters
-        </p>
-        <div className="space-y-0.5">
-          {FILTER_ITEMS.map((filter) => (
-            <button
-              key={filter.id}
-              onClick={() => onFilterChange(filter.id)}
-              className={cn(
-                "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors duration-150",
-                currentFilter === filter.id
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <filter.icon className="w-4 h-4 text-slate-400" />
-                <span className="font-medium">{filter.label}</span>
-              </div>
-              <span className={cn(
-                "text-xs tabular-nums",
-                currentFilter === filter.id 
-                  ? "text-slate-900 dark:text-white font-medium" 
-                  : "text-slate-400"
-              )}>
-                {stats[filter.id] ?? 0}
-              </span>
-            </button>
-          ))}
+    <div className="w-56 shrink-0 h-full flex flex-col border-r border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50">
+      {/* Header */}
+      <div className="p-4 border-b border-slate-200/60 dark:border-slate-800/60">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-md bg-slate-900 dark:bg-white flex items-center justify-center">
+            <Layers className="w-3.5 h-3.5 text-white dark:text-slate-900" />
+          </div>
+          <div>
+            <h2 className="font-medium text-slate-900 dark:text-white text-sm">Posts</h2>
+            <p className="text-[11px] text-slate-500">{total.toLocaleString()} total</p>
+          </div>
         </div>
       </div>
 
-      {/* View Mode - Clean */}
-      <div>
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2 px-2">
-          View
-        </p>
-        <div className="flex gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/50 rounded-lg">
-          {VIEW_MODES.map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => onViewChange(id as ViewMode)}
-              className={cn(
-                "flex-1 flex items-center justify-center py-1.5 rounded-md text-xs transition-colors duration-150",
-                viewMode === id
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              )}
-              title={label}
-            >
-              <Icon className="w-4 h-4" />
-            </button>
-          ))}
+      {/* Navigation */}
+      <div className="flex-1 overflow-y-auto py-2">
+        {/* Section: Status */}
+        <div className="px-3 mb-4">
+          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1 px-2">
+            Status
+          </p>
+          <nav className="space-y-0.5">
+            {[
+              { id: "all" as StatusFilter, label: "All Posts", count: stats.total },
+              { id: "draft" as StatusFilter, label: "Drafts", count: stats.draft },
+              { id: "scheduled" as StatusFilter, label: "Scheduled", count: stats.scheduled },
+              { id: "processed" as StatusFilter, label: "Published", count: stats.processed },
+              { id: "failed" as StatusFilter, label: "Failed", count: stats.failed },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onFilterChange(item.id)}
+                className={cn(
+                  "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors",
+                  currentFilter === item.id
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                )}
+              >
+                <span className="font-medium">{item.label}</span>
+                <span className={cn(
+                  "text-xs tabular-nums",
+                  currentFilter === item.id 
+                    ? "text-slate-900 dark:text-white" 
+                    : "text-slate-400"
+                )}>
+                  {item.count || 0}
+                </span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Section: Sort */}
+        <div className="px-3">
+          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1 px-2">
+            Sort By
+          </p>
+          <div className="space-y-0.5">
+            {[
+              { id: "newest" as SortBy, label: "Newest First" },
+              { id: "oldest" as SortBy, label: "Oldest First" },
+              { id: "scheduled" as SortBy, label: "Scheduled Date" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onSortChange(item.id)}
+                className={cn(
+                  "w-full flex items-center px-2 py-1.5 rounded-md text-sm transition-colors",
+                  currentSort === item.id
+                    ? "text-slate-900 dark:text-white"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <div className={cn(
+                  "w-4 h-4 rounded-full border mr-2 flex items-center justify-center",
+                  currentSort === item.id
+                    ? "border-slate-900 dark:border-white bg-slate-900 dark:bg-white"
+                    : "border-slate-300 dark:border-slate-600"
+                )}>
+                  {currentSort === item.id && <Check className="w-2.5 h-2.5 text-white dark:text-slate-900" />}
+                </div>
+                <span className="font-medium">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ==================== POST CARD - CLEAN DESIGN ====================
+// ==================== COMMAND BAR ====================
+interface CommandBarProps {
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  viewMode: ViewMode;
+  onViewChange: (v: ViewMode) => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  onNewPost: () => void;
+  resultCount: number;
+  totalCount: number;
+}
+
+function CommandBar({
+  searchQuery,
+  onSearchChange,
+  viewMode,
+  onViewChange,
+  onRefresh,
+  isRefreshing,
+  onNewPost,
+  resultCount,
+  totalCount,
+}: CommandBarProps) {
+  return (
+    <div className="h-14 px-4 flex items-center gap-4 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md">
+      {/* Search */}
+      <div className="relative flex-1 max-w-md">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Input
+          placeholder="Search posts..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="pl-9 h-8 rounded-md bg-slate-100/80 dark:bg-slate-800/50 border-0 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-300 dark:focus-visible:ring-slate-600"
+        />
+      </div>
+
+      {/* Results count */}
+      <div className="text-xs text-slate-500">
+        {resultCount === totalCount ? (
+          `${totalCount.toLocaleString()} posts`
+        ) : (
+          <span className="text-slate-700 dark:text-slate-300 font-medium">{resultCount}</span>
+        )}
+      </div>
+
+      <div className="flex-1" />
+
+      {/* View Toggle */}
+      <div className="flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/50 rounded-md">
+        {[
+          { id: "list", icon: ListIcon, label: "List" },
+          { id: "grid", icon: LayoutGrid, label: "Grid" },
+          { id: "calendar", icon: CalendarDays, label: "Calendar" },
+        ].map(({ id, icon: Icon, label }) => (
+          <button
+            key={id}
+            onClick={() => onViewChange(id as ViewMode)}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors",
+              viewMode === id
+                ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            )}
+            title={label}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="h-8 px-2.5 text-slate-500 hover:text-slate-700"
+        >
+          <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+        </Button>
+        <Button 
+          size="sm" 
+          onClick={onNewPost}
+          className="h-8 px-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-sm font-medium rounded-md"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          New Post
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ==================== POST ROW - TABLE STYLE ====================
+interface PostRowProps {
+  post: SocialPost;
+  accounts: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
+  results?: SocialPostResult[];
+  onEdit: (post: SocialPost) => void;
+  onDelete: (id: string) => void;
+  onRetry?: (post: SocialPost) => void;
+}
+
+function PostRow({ post, accounts, results, onEdit, onDelete, onRetry }: PostRowProps) {
+  const [imageError, setImageError] = useState(false);
+  const status = post.status;
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  
+  const hasError = results?.some((r) => !r.success);
+  const firstMedia = post.media?.[0];
+  const hasMedia = !!firstMedia;
+
+  const dateLabel = useMemo(() => {
+    if (!post.scheduled_at) return formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+    const date = new Date(post.scheduled_at);
+    if (isToday(date)) return `Today, ${format(date, "h:mm a")}`;
+    if (isTomorrow(date)) return `Tomorrow, ${format(date, "h:mm a")}`;
+    return format(date, "MMM d, h:mm a");
+  }, [post.scheduled_at, post.created_at]);
+
+  const platforms = useMemo(() => {
+    return post.social_accounts?.map((sa) => {
+      const acc = accounts.get(sa.id);
+      return acc?.platform;
+    }).filter(Boolean) as string[] || [];
+  }, [post.social_accounts, accounts]);
+
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(post.id);
+  }, [onDelete, post.id]);
+
+  const handleRetry = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRetry?.(post);
+  }, [onRetry, post]);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/50 cursor-pointer transition-colors"
+      onClick={() => onEdit(post)}
+    >
+      {/* Status */}
+      <div className={cn("w-2 h-2 rounded-full", config?.bg?.replace('bg-', 'bg-')?.replace('50', '500')?.replace('/10', '') || "bg-slate-500")} />
+
+      {/* Thumbnail */}
+      <div className="w-10 h-10 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
+        {hasMedia && !imageError ? (
+          <Image
+            src={proxyMediaUrl(firstMedia.url)}
+            alt=""
+            width={40}
+            height={40}
+            className="object-cover w-full h-full"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
+              <Film className="w-4 h-4 text-slate-400" />
+            ) : (
+              <ImageIcon className="w-4 h-4 text-slate-400" />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-900 dark:text-slate-100 font-medium truncate">
+          {post.caption || <span className="text-slate-400 italic">No caption</span>}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={cn("text-[11px] font-medium px-1.5 py-0.5 rounded", config?.bg, config?.color)}>
+            {config?.label}
+          </span>
+          <span className="text-xs text-slate-400">{dateLabel}</span>
+        </div>
+      </div>
+
+      {/* Platforms */}
+      <div className="flex items-center gap-1 shrink-0">
+        {platforms.slice(0, 4).map((platform) => {
+          const Icon = platformIconsMap[platform];
+          if (!Icon) return null;
+          return (
+            <div 
+              key={platform} 
+              className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+              title={platform}
+            >
+              <Icon className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+            </div>
+          );
+        })}
+        {platforms.length > 4 && (
+          <span className="text-[10px] text-slate-400 px-1">+{platforms.length - 4}</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {hasError && onRetry && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRetry}
+            className="h-7 px-2 text-slate-500 hover:text-slate-700"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          className="h-7 px-2 text-slate-400 hover:text-red-600"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-slate-500"
+        >
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ==================== POST GRID CARD ====================
 interface PostCardProps {
   post: SocialPost;
   accounts: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
@@ -190,28 +470,16 @@ interface PostCardProps {
   onEdit: (post: SocialPost) => void;
   onDelete: (id: string) => void;
   onRetry?: (post: SocialPost) => void;
-  viewMode: ViewMode;
-  priority?: boolean;
 }
 
-function PostCard({
-  post,
-  accounts,
-  results,
-  onEdit,
-  onDelete,
-  onRetry,
-  viewMode,
-  priority = false,
-}: PostCardProps) {
+function PostCard({ post, accounts, results, onEdit, onDelete, onRetry }: PostCardProps) {
   const [imageError, setImageError] = useState(false);
-  
   const status = post.status;
-  const hasError = results?.some((r) => !r.success);
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  
   const firstMedia = post.media?.[0];
   const hasMedia = !!firstMedia;
 
-  // Memoize date formatting
   const dateLabel = useMemo(() => {
     if (!post.scheduled_at) return formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
     const date = new Date(post.scheduled_at);
@@ -220,296 +488,141 @@ function PostCard({
     return format(date, "MMM d");
   }, [post.scheduled_at, post.created_at]);
 
-  // Memoize platform list
-  const platformList = useMemo(() => {
-    return post.social_accounts?.slice(0, 3).map((sa) => {
+  const platforms = useMemo(() => {
+    return post.social_accounts?.map((sa) => {
       const acc = accounts.get(sa.id);
       return acc?.platform;
     }).filter(Boolean) as string[] || [];
   }, [post.social_accounts, accounts]);
 
-  // Memoize handlers
-  const handleEdit = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onEdit(post);
-  }, [onEdit, post]);
-
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete(post.id);
-  }, [onDelete, post.id]);
-
-  if (viewMode === "list") {
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={SPRING_TRANSITION}
-        className="group flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-slate-800/80 shadow-sm hover:shadow-md border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer"
-        onClick={() => onEdit(post)}
-      >
-        {/* Status Dot */}
-        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white dark:ring-slate-700", STATUS_DOT_COLORS[status])} />
-
-        {/* Thumbnail */}
-        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 shrink-0 shadow-inner">
-          {hasMedia && !imageError ? (
-            <Image
-              src={proxyMediaUrl(firstMedia.url)}
-              alt=""
-              fill
-              sizes="56px"
-              priority={priority}
-              loading={priority ? "eager" : "lazy"}
-              className="object-cover"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
-                <Film className="w-6 h-6 text-slate-400" />
-              ) : (
-                <ImageIcon className="w-6 h-6 text-slate-400" />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate">
-            {post.caption || <span className="text-slate-400 italic">No caption</span>}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">{dateLabel}</p>
-        </div>
-
-        {/* Platforms */}
-        <div className="flex -space-x-2 shrink-0">
-          {platformList.map((platform, i) => {
-            const Icon = platform ? platformIconsMap[platform.toLowerCase()] : null;
-            return Icon ? (
-              <div
-                key={i}
-                className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-sm"
-              >
-                <Icon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-              </div>
-            ) : null;
-          })}
-        </div>
-
-        {/* Actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <button 
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Post actions"
-            >
-              <MoreHorizontal className="w-4 h-4 text-slate-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl">
-            {status === "draft" && (
-              <DropdownMenuItem onClick={handleEdit} className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-700 rounded-xl">
-                <Edit3 className="w-4 h-4 mr-2" /> Edit
-              </DropdownMenuItem>
-            )}
-            {hasError && onRetry && (
-              <DropdownMenuItem onClick={() => onRetry(post)} className="text-slate-700 dark:text-slate-200 focus:bg-slate-100 dark:focus:bg-slate-700 rounded-xl">
-                <RefreshCw className="w-4 h-4 mr-2" /> Retry
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={handleDelete} className="text-rose-500 focus:bg-rose-50 dark:focus:bg-rose-500/10 rounded-xl">
-              <Trash2 className="w-4 h-4 mr-2" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </motion.div>
-    );
-  }
-
-  // Grid View - Modern Cards (Not Square!)
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
-      transition={SPRING_TRANSITION}
-      className="group cursor-pointer"
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      className="group relative rounded-lg border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-[#111111] overflow-hidden cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
       onClick={() => onEdit(post)}
     >
-      {/* Image Container */}
-      <div className="relative aspect-[4/5] rounded-[1.5rem] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 mb-3 shadow-sm group-hover:shadow-lg transition-shadow">
+      {/* Media */}
+      <div className="aspect-[4/3] relative bg-slate-100 dark:bg-slate-800">
         {hasMedia && !imageError ? (
           <Image
             src={proxyMediaUrl(firstMedia.url)}
             alt=""
             fill
-            sizes="(max-width: 768px) 50vw, 20vw"
-            priority={priority}
-            loading={priority ? "eager" : "lazy"}
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover"
             onError={() => setImageError(true)}
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
+          <div className="w-full h-full flex items-center justify-center">
             {post.media?.[0]?.url?.match(/video|mp4|mov/i) ? (
-              <Film className="w-12 h-12 mb-2" />
+              <Film className="w-8 h-8 text-slate-400" />
             ) : (
-              <ImageIcon className="w-12 h-12 mb-2" />
+              <ImageIcon className="w-8 h-8 text-slate-400" />
             )}
           </div>
         )}
         
-        {/* Status Dot - Top Left */}
-        <div className="absolute top-3 left-3">
-          <div className={cn("w-2.5 h-2.5 rounded-full ring-2 ring-slate-950", STATUS_DOT_COLORS[status])} />
+        {/* Status Badge */}
+        <div className="absolute top-2 left-2">
+          <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", config?.bg, config?.color)}>
+            {config?.label}
+          </span>
         </div>
 
-        {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <p className="text-white text-sm line-clamp-2 font-medium">
-              {post.caption || "No caption"}
-            </p>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="absolute top-3 right-3 flex gap-2">
-            {status === "draft" && (
-              <button
-                onClick={handleEdit}
-                className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors"
-                aria-label="Edit post"
-              >
-                <Edit3 className="w-4 h-4 text-white" />
-              </button>
-            )}
-            <button
-              onClick={handleDelete}
-              className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-red-500/80 transition-colors"
-              aria-label="Delete post"
+        {/* Hover Actions */}
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 text-xs"
+            onClick={(e) => { e.stopPropagation(); onEdit(post); }}
+          >
+            <Edit3 className="w-3.5 h-3.5 mr-1" />
+            Edit
+          </Button>
+          {onRetry && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-8 text-xs"
+              onClick={(e) => { e.stopPropagation(); onRetry(post); }}
             >
-              <Trash2 className="w-4 h-4 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Platform Icons - Bottom Right */}
-        <div className="absolute bottom-3 right-3 flex -space-x-1.5">
-          {platformList.slice(0, 3).map((platform, i) => {
-            const Icon = platform ? platformIconsMap[platform.toLowerCase()] : null;
-            return Icon ? (
-              <div
-                key={i}
-                className="w-6 h-6 rounded-full bg-slate-900/80 backdrop-blur-sm flex items-center justify-center ring-2 ring-slate-950"
-              >
-                <Icon className="w-3 h-3 text-slate-300" />
-              </div>
-            ) : null;
-          })}
+              <RotateCcw className="w-3.5 h-3.5 mr-1" />
+              Retry
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Caption - Below Image */}
-      <div className="px-1">
-        <p className="text-sm text-slate-300 line-clamp-1 mb-1">
-          {post.caption || <span className="text-slate-500 italic">No caption</span>}
+      {/* Content */}
+      <div className="p-3">
+        <p className="text-sm text-slate-900 dark:text-slate-100 font-medium line-clamp-2 mb-2">
+          {post.caption || <span className="text-slate-400 italic">No caption</span>}
         </p>
-        <p className="text-xs text-slate-500">{dateLabel}</p>
+        
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-400">{dateLabel}</span>
+          <div className="flex items-center gap-1">
+            {platforms.slice(0, 3).map((platform) => {
+              const Icon = platformIconsMap[platform];
+              if (!Icon) return null;
+              return <Icon key={platform} className="w-3.5 h-3.5 text-slate-400" />;
+            })}
+          </div>
+        </div>
       </div>
     </motion.div>
   );
 }
 
-// ==================== VIRTUALIZED POSTS GRID ====================
-interface VirtualizedPostsGridProps {
+// ==================== VIRTUALIZED LIST ====================
+interface PostsListProps {
   posts: SocialPost[];
   accountsMap: Map<string, { platform: string; username: string | null; profile_photo_url?: string | null }>;
-  resultsMap: Map<string, SocialPostResult[]>;
+  resultsMap?: Map<string, SocialPostResult[]> | null;
   viewMode: ViewMode;
   onEdit: (post: SocialPost) => void;
   onDelete: (id: string) => void;
   onRetry?: (post: SocialPost) => void;
 }
 
-function VirtualizedPostsGrid({
-  posts,
-  accountsMap,
-  resultsMap,
-  viewMode,
-  onEdit,
-  onDelete,
-  onRetry,
-}: VirtualizedPostsGridProps) {
+function PostsList({ posts, accountsMap, resultsMap, viewMode, onEdit, onDelete, onRetry }: PostsListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   
-  // Grid configuration
-  const isListView = viewMode === "list";
-  const columnCount = isListView ? 1 : 5; // 1 for list, 5 for grid
-  const rowCount = Math.ceil(posts.length / columnCount);
-  const itemHeight = isListView ? 80 : 320; // px
-  const itemWidth = isListView ? '100%' : `${100 / columnCount}%`;
-
-  const virtualizer = useVirtualizer({
-    count: rowCount,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => itemHeight,
-    overscan: 3,
-  });
-
-  const virtualRows = virtualizer.getVirtualItems();
-
-  return (
-    <div 
-      ref={parentRef}
-      className="h-full overflow-auto"
-      style={{ height: 'calc(100vh - 140px)' }}
-    >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: '100%',
-          position: 'relative',
-        }}
-      >
-        {virtualRows.map((virtualRow) => {
-          const rowIndex = virtualRow.index;
-          const startIndex = rowIndex * columnCount;
-          const rowPosts = posts.slice(startIndex, startIndex + columnCount);
-
-          return (
-            <div
-              key={virtualRow.key}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-              className={isListView ? "px-4 md:px-6" : "px-4 md:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"}
-            >
-              {rowPosts.map((post, index) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  accounts={accountsMap}
-                  results={resultsMap.get(post.id)}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onRetry={onRetry}
-                  viewMode={viewMode}
-                  priority={rowIndex === 0 && index === 0}  // First visible post gets priority
-                />
-              ))}
-            </div>
-          );
-        })}
+  if (viewMode === "grid") {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+        {posts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            accounts={accountsMap}
+            results={resultsMap?.get(post.id)}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onRetry={onRetry}
+          />
+        ))}
       </div>
+    );
+  }
+
+  // List view
+  return (
+    <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+      {posts.map((post) => (
+        <PostRow
+          key={post.id}
+          post={post}
+          accounts={accountsMap}
+          results={resultsMap?.get(post.id)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onRetry={onRetry}
+        />
+      ))}
     </div>
   );
 }
@@ -520,72 +633,83 @@ export default function PostsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { openCompose, setEditingPostId } = usePostsLayout();
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [sortBy, setSortBy] = useState<SortBy>("newest");
 
   // URL params effect
   useEffect(() => {
     const compose = searchParams.get("compose");
     const edit = searchParams.get("edit");
-    if (compose === "open") {
-      if (edit) setEditingPostId(edit);
-      openCompose(edit || undefined);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("compose");
-      url.searchParams.delete("edit");
-      window.history.replaceState({}, "", url);
+    if (compose === "new") {
+      openCompose();
+    } else if (edit) {
+      setEditingPostId(edit);
+      openCompose(edit);
     }
   }, [searchParams, openCompose, setEditingPostId]);
 
-  // Data fetching with placeholderData for instant UI (no loading spinners on refresh)
-  const { data: posts = [], isLoading, error, isFetching } = usePosts(
+  // Data fetching
+  const { data: postsData, isLoading, isFetching, error } = usePosts(
     { limit: 100 },
-    { 
-      select: (r) => r?.data ?? [],
-      placeholderData: (previous) => previous, // Show cached data immediately
+    {
+      placeholderData: (previous) => previous,
     }
   );
-  
-  const { data: accounts = [] } = useSocialAccounts(
-    100, 0, undefined, undefined,
-    { 
-      select: (r) => r?.data ?? [],
-      placeholderData: (previous) => previous, // Show cached data immediately
-    }
-  );
-  
-  const { data: resultsMap = new Map() } = usePostResultsMap(100);
-  const deletePost = useDeletePost();
-  const retryPost = useRetryPost();
+  const { data: accountsData } = useSocialAccounts();
+  const posts = postsData?.data ?? [];
+  const accounts = accountsData?.data ?? [];
 
+  // Create maps for efficient lookup
+  const accountsMap = useMemo(() => {
+    const map = new Map();
+    accounts.forEach((acc) => map.set(acc.id, acc));
+    return map;
+  }, [accounts]);
+
+  const { data: resultsMap } = usePostResultsMap();
+
+  // Filters
   const { statusFilter, setStatusFilter, searchQuery, setSearchQuery, filteredPosts } = usePostFilters(posts);
 
-  // Memoize accounts map
-  const accountsMap = useMemo(() => 
-    new Map(accounts.map(a => [a.id, { 
-      platform: a.platform, 
-      username: a.username, 
-      profile_photo_url: a.profile_photo_url 
-    }])),
-    [accounts]
-  );
+  // Sorting
+  const sortedPosts = useMemo(() => {
+    const sorted = [...filteredPosts];
+    switch (sortBy) {
+      case "newest":
+        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      case "oldest":
+        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      case "scheduled":
+        return sorted.sort((a, b) => {
+          if (!a.scheduled_at && !b.scheduled_at) return 0;
+          if (!a.scheduled_at) return 1;
+          if (!b.scheduled_at) return -1;
+          return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+        });
+      default:
+        return sorted;
+    }
+  }, [filteredPosts, sortBy]);
 
-  // Memoize stats calculation
+  // Stats
   const stats = useMemo(() => {
     let failed = 0;
-    resultsMap.forEach((results: SocialPostResult[]) => {
+    resultsMap?.forEach((results: SocialPostResult[]) => {
       if (results.some((r: SocialPostResult) => !r.success)) failed++;
     });
-    
     return {
       total: posts.length,
-      draft: posts.filter(p => p.status === "draft").length,
-      scheduled: posts.filter(p => p.status === "scheduled").length,
-      processed: posts.filter(p => p.status === "processed").length,
+      draft: posts.filter((p) => p.status === "draft").length,
+      scheduled: posts.filter((p) => p.status === "scheduled").length,
+      processed: posts.filter((p) => p.status === "processed").length,
       failed,
     };
   }, [posts, resultsMap]);
 
-  // Memoize handlers
+  // Mutations
+  const deletePost = useDeletePost();
+  const retryPost = useRetryPost();
+
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Delete this post?")) return;
     try {
@@ -600,12 +724,10 @@ export default function PostsPage() {
     queryClient.invalidateQueries({ queryKey: pfmKeys.posts() });
   }, [queryClient]);
 
-  // Only show loading skeleton on initial load (no cached data)
-  // On refresh, placeholderData shows previous data instantly
   if (isLoading && !posts.length) {
     return (
-      <div className="h-full flex bg-bg-base">
-        <div className="w-64 border-r border-border-subtle bg-bg-elevated" />
+      <div className="h-full flex bg-[#fafafa] dark:bg-[#0a0a0a]">
+        <div className="w-56 shrink-0 h-full border-r border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50" />
         <div className="flex-1 p-8">
           <ListSkeleton count={8} />
         </div>
@@ -615,7 +737,7 @@ export default function PostsPage() {
 
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-950">
+      <div className="h-full flex items-center justify-center bg-[#0a0a0a]">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-slate-400">{error.message}</p>
@@ -631,75 +753,53 @@ export default function PostsPage() {
         stats={stats}
         currentFilter={statusFilter}
         onFilterChange={setStatusFilter}
-        viewMode={viewMode}
-        onViewChange={setViewMode}
+        currentSort={sortBy}
+        onSortChange={setSortBy}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header - Clean, minimal */}
-        <header className="sticky top-0 z-20 h-14 px-6 flex items-center justify-between shrink-0 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-md">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Search posts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 rounded-lg bg-slate-100/80 dark:bg-slate-800/50 border-0 text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-600"
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isFetching}
-              className="h-8 px-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={() => openCompose()} 
-              className="h-8 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-sm font-medium rounded-lg"
-            >
-              <Plus className="w-4 h-4 mr-1.5" />
-              New Post
-            </Button>
-          </div>
-        </header>
+        {/* Command Bar */}
+        <CommandBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          viewMode={viewMode}
+          onViewChange={setViewMode}
+          onRefresh={handleRefresh}
+          isRefreshing={isFetching}
+          onNewPost={() => openCompose()}
+          resultCount={filteredPosts.length}
+          totalCount={posts.length}
+        />
 
         {/* Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
-            {filteredPosts.length === 0 ? (
-              searchQuery ? (
-                <EmptySearchState query={searchQuery} />
-              ) : (
-                <EmptyPostsState onCreate={() => openCompose()} />
-              )
-            ) : viewMode === "calendar" ? (
-              <div className="h-[calc(100vh-8rem)]">
-                <CalendarView
-                  posts={filteredPosts}
-                  onSelectDate={(date) => console.log(date)}
-                  onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
-                  onCreatePost={(_date) => openCompose()}
-                />
-              </div>
+        <div className="flex-1 overflow-y-auto">
+          {filteredPosts.length === 0 ? (
+            searchQuery ? (
+              <EmptySearchState query={searchQuery} />
             ) : (
-              <VirtualizedPostsGrid
+              <EmptyPostsState onCreate={() => openCompose()} />
+            )
+          ) : viewMode === "calendar" ? (
+            <div className="h-[calc(100vh-8rem)]">
+              <CalendarView
                 posts={filteredPosts}
-                accountsMap={accountsMap}
-                resultsMap={resultsMap}
-                viewMode={viewMode}
-                onEdit={(post) => router.push(`/posts/${post.id}/edit`)}
-                onDelete={handleDelete}
-                onRetry={(p) => retryPost.mutate(p)}
+                onSelectDate={(date) => console.log(date)}
+                onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
+                onCreatePost={(_date) => openCompose()}
               />
-            )}
+            </div>
+          ) : (
+            <PostsList
+              posts={sortedPosts}
+              accountsMap={accountsMap}
+              resultsMap={resultsMap}
+              viewMode={viewMode}
+              onEdit={(post) => router.push(`/posts/${post.id}/edit`)}
+              onDelete={handleDelete}
+              onRetry={(p) => retryPost.mutate(p)}
+            />
+          )}
         </div>
       </div>
     </div>
