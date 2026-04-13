@@ -7,6 +7,16 @@
       "env": {
         "FIGMA_API_TOKEN": "${env:FIGMA_API_TOKEN}"
       }
+    },
+    "shadcn-studio": {
+      "name": "Shadcn Studio",
+      "command": "npx",
+      "args": ["-y", "@shadcnstudio/mcp@latest"]
+    },
+    "penpot": {
+      "name": "Penpot",
+      "transport": "http",
+      "url": "https://design.penpot.app/mcp/stream?userToken=${env:PENPOT_MCP_TOKEN}"
     }
   }
 }

@@ -6,11 +6,12 @@ import { LayersPanel } from "./layers-panel";
 import { PropertiesPanel } from "./properties-sheet";
 import { ExportDialog } from "./export-dialog";
 import { FigmaPanel } from "./figma-panel";
+import { PenpotPanel } from "./penpot-panel";
 import { ThemePanel } from "./theme-panel";
 import { useBuilderStore } from "./store";
 import { hexToHsl } from "./lib/theme";
 import { Button } from "@/components/ui/button";
-import { Code, Trash2, Eye, Plus, Figma, Palette, Save } from "lucide-react";
+import { Code, Trash2, Eye, Plus, Figma, Palette, Save, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { SaveTemplateDialog } from "./save-template-dialog";
@@ -20,6 +21,7 @@ export function BuilderShell() {
   const { blocks, clearCanvas, theme, selectedBlockId } = useBuilderStore();
   const [exportOpen, setExportOpen] = useState(false);
   const [figmaOpen, setFigmaOpen] = useState(false);
+  const [penpotOpen, setPenpotOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [activePage, setActivePage] = useState("Page 1");
@@ -75,7 +77,10 @@ export function BuilderShell() {
             size="sm"
             onClick={() => {
               setFigmaOpen(!figmaOpen);
-              if (!figmaOpen) setThemeOpen(false);
+              if (!figmaOpen) {
+                setThemeOpen(false);
+                setPenpotOpen(false);
+              }
             }}
             className="gap-1.5"
           >
@@ -83,11 +88,29 @@ export function BuilderShell() {
             Figma
           </Button>
           <Button
+            variant={penpotOpen ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => {
+              setPenpotOpen(!penpotOpen);
+              if (!penpotOpen) {
+                setFigmaOpen(false);
+                setThemeOpen(false);
+              }
+            }}
+            className="gap-1.5"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Penpot
+          </Button>
+          <Button
             variant={themeOpen ? "secondary" : "outline"}
             size="sm"
             onClick={() => {
               setThemeOpen(!themeOpen);
-              if (!themeOpen) setFigmaOpen(false);
+              if (!themeOpen) {
+                setFigmaOpen(false);
+                setPenpotOpen(false);
+              }
             }}
             className="gap-1.5"
           >
@@ -143,6 +166,7 @@ export function BuilderShell() {
           <Canvas />
           {selectedBlockId ? <PropertiesPanel /> : <LayersPanel />}
           <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
+          <PenpotPanel open={penpotOpen} onClose={() => setPenpotOpen(false)} />
           <ThemePanel open={themeOpen} onClose={() => setThemeOpen(false)} />
         </div>
       </BuilderDndProvider>
