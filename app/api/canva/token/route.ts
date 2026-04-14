@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCanvaSession, clearCanvaCookie } from "@/lib/canva-client";
+import { getCanvaSession, clearCanvaCookie, isCanvaConfigured } from "@/lib/canva-client";
 import { handleApiError } from "@/lib/api-errors";
 
 /**
@@ -9,9 +9,17 @@ import { handleApiError } from "@/lib/api-errors";
  */
 export async function GET() {
   try {
+    if (!isCanvaConfigured()) {
+      return NextResponse.json({
+        connected: false,
+        configured: false,
+        scope: null,
+      });
+    }
     const session = await getCanvaSession();
     return NextResponse.json({
       connected: !!session,
+      configured: true,
       scope: session?.scope || null,
     });
   } catch (error) {

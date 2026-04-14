@@ -7,9 +7,25 @@
 
 import { EncryptJWT, jwtDecrypt, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
+import crypto from "crypto";
 import type { CanvaTokenResponse } from "@/lib/validations/canva";
 
 // ==================== Config ====================
+
+export class CanvaConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CanvaConfigError";
+  }
+}
+
+export function isCanvaConfigured(): boolean {
+  return !!(
+    process.env.CANVA_CLIENT_ID &&
+    process.env.CANVA_CLIENT_SECRET &&
+    process.env.CANVA_COOKIE_SECRET
+  );
+}
 
 function getConfig() {
   const clientId = process.env.CANVA_CLIENT_ID;
@@ -17,9 +33,9 @@ function getConfig() {
   const cookieSecret = process.env.CANVA_COOKIE_SECRET;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-  if (!clientId) throw new Error("CANVA_CLIENT_ID is not set");
-  if (!clientSecret) throw new Error("CANVA_CLIENT_SECRET is not set");
-  if (!cookieSecret) throw new Error("CANVA_COOKIE_SECRET is not set");
+  if (!clientId) throw new CanvaConfigError("CANVA_CLIENT_ID is not set");
+  if (!clientSecret) throw new CanvaConfigError("CANVA_CLIENT_SECRET is not set");
+  if (!cookieSecret) throw new CanvaConfigError("CANVA_COOKIE_SECRET is not set");
 
   return {
     clientId,
@@ -91,7 +107,16 @@ export async function clearCanvaCookie() {
 
 // ==================== OAuth ====================
 
-export function buildCanvaAuthUrl(state: string): string {
+export function generatePKCE() {
+  const codeVerifier = crypto.randomBytes(96).toString("base64url");
+  const codeChallenge = crypto
+    .createHash("sha256")
+    .update(codeVerifier)
+    .digest("base64url");
+  return { codeVerifier, codeChallenge };
+}
+
+export function buildCanvaAuthUrl(state: string, codeChallenge: string): string {
   const { clientId, redirectUri } = getConfig();
   const params = new URLSearchParams({
     response_type: "code",
@@ -99,11 +124,13 @@ export function buildCanvaAuthUrl(state: string): string {
     redirect_uri: redirectUri,
     scope: "asset:read asset:write design:content:read design:content:write design:meta:read brandtemplate:meta:read brandtemplate:content:read autofill:read autofill:write folder:read folder:write",
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   });
   return `https://www.canva.com/api/oauth/authorize?${params.toString()}`;
 }
 
-export async function exchangeCanvaCode(code: string): Promise<CanvaTokenResponse> {
+export async function exchangeCanvaCode(code: string, codeVerifier: string): Promise<CanvaTokenResponse> {
   const { clientId, clientSecret, redirectUri } = getConfig();
 
   const response = await fetch("https://api.canva.com/rest/v1/oauth/token", {
@@ -116,6 +143,7 @@ export async function exchangeCanvaCode(code: string): Promise<CanvaTokenRespons
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
     }),
   });
 

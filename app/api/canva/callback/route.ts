@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCanvaCode, setCanvaCookie } from "@/lib/canva-client";
+import { exchangeCanvaCode, setCanvaCookie, isCanvaConfigured } from "@/lib/canva-client";
 import { STATE_COOKIE, parseState } from "@/app/api/canva/auth/route";
+
+const VERIFIER_COOKIE = "canva_oauth_verifier";
 
 /**
  * GET /api/canva/callback
@@ -10,6 +12,12 @@ import { STATE_COOKIE, parseState } from "@/app/api/canva/auth/route";
  */
 export async function GET(request: NextRequest) {
   try {
+    if (!isCanvaConfigured()) {
+      return NextResponse.redirect(
+        new URL("/canva?error=not_configured", request.url),
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
     const state = searchParams.get("state");
@@ -29,6 +37,7 @@ export async function GET(request: NextRequest) {
 
     const cookieStore = await cookies();
     const storedState = cookieStore.get(STATE_COOKIE)?.value;
+    const codeVerifier = cookieStore.get(VERIFIER_COOKIE)?.value;
 
     if (!storedState || storedState !== state) {
       return NextResponse.redirect(
@@ -36,11 +45,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Clear state cookie
+    if (!codeVerifier) {
+      return NextResponse.redirect(
+        new URL("/canva?error=missing_code_verifier", request.url),
+      );
+    }
+
+    // Clear cookies
     cookieStore.delete(STATE_COOKIE);
+    cookieStore.delete(VERIFIER_COOKIE);
 
     // Exchange code for tokens
-    const tokenResponse = await exchangeCanvaCode(code);
+    const tokenResponse = await exchangeCanvaCode(code, codeVerifier);
 
     // Build session
     const session = {

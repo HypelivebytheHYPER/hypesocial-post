@@ -27,6 +27,7 @@ import { PageBuilder } from "@/components/canva/page-builder";
 export default function CanvaEditorPage() {
   const { data: tokenData, isLoading: isTokenLoading } = useCanvaToken();
   const connected = tokenData?.connected ?? false;
+  const configured = tokenData?.configured ?? true;
 
   const { data: campaignsRes, isLoading: isCampaignsLoading } = useCanvaCampaigns();
   const createCampaign = useCreateCanvaCampaign();
@@ -64,6 +65,20 @@ export default function CanvaEditorPage() {
     );
   }
 
+function NotConfiguredView() {
+  return (
+    <div className="flex h-[60vh] flex-col items-center justify-center gap-4 text-center p-6">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-900">
+        <Palette className="h-8 w-8 text-slate-500" />
+      </div>
+      <h1 className="text-lg font-semibold">Canva integration not configured</h1>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        Please ask your administrator to set up the Canva Connect API credentials.
+      </p>
+    </div>
+  );
+}
+
 function DisconnectedView() {
   const connect = useConnectCanva();
   return (
@@ -86,6 +101,10 @@ function DisconnectedView() {
     </div>
   );
 }
+
+  if (!configured) {
+    return <NotConfiguredView />;
+  }
 
   if (!connected) {
     return <DisconnectedView />;

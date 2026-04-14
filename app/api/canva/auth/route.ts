@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { buildCanvaAuthUrl } from "@/lib/canva-client";
+import { buildCanvaAuthUrl, generatePKCE } from "@/lib/canva-client";
 import {
   handleApiError,
   buildValidationError,
@@ -13,6 +13,7 @@ const AuthSchema = z.object({
 });
 
 const STATE_COOKIE = "canva_oauth_state";
+const VERIFIER_COOKIE = "canva_oauth_verifier";
 
 function generateState(redirectPath?: string): string {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64url");
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     const { redirect_path } = parseResult.data;
     const state = generateState(redirect_path);
+    const { codeVerifier, codeChallenge } = generatePKCE();
 
     const cookieStore = await cookies();
     cookieStore.set(STATE_COOKIE, state, {
@@ -65,8 +67,15 @@ export async function POST(request: NextRequest) {
       path: "/",
       maxAge: 600, // 10 minutes
     });
+    cookieStore.set(VERIFIER_COOKIE, codeVerifier, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 600,
+    });
 
-    const authUrl = buildCanvaAuthUrl(state);
+    const authUrl = buildCanvaAuthUrl(state, codeChallenge);
     return NextResponse.json({ auth_url: authUrl });
   } catch (error) {
     return handleApiError(error, { context: "creating Canva auth URL" });

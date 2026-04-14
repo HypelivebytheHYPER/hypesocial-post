@@ -1,69 +1,14 @@
-/**
- * Chat API - TanStack AI unified layer with Cloudflare Native AI
- *
- * Accepts AG-UI formatted messages and returns AG-UI SSE stream chunks.
- * Orchestrates AI + MCP tools on the backend.
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import type { UIMessage, ModelMessage } from "@tanstack/ai";
-import { streamChatResponse, getChatResponse } from "@/lib/tanstack-ai-chat";
+import { getChatResponse, buildToolPrompt, RESPONSE_PROMPT } from "@/lib/ai";
 import {
   listMCPTools,
   callMCPTool,
   listLocalMCPTools,
   callLocalMCPTool,
   parseToolCalls,
-  MCPTool,
-} from "@/lib/mcp-client";
-
-const SYSTEM_PROMPT = `You are the HypeSocial AI Assistant. You're friendly, helpful, and speak like a real human social media manager.
-
-HOW TO SPEAK:
-- Use a warm, conversational tone like you're chatting with a friend
-- Use contractions (I'm, don't, can't, let's)
-- Keep it concise - 2-3 sentences max unless explaining something complex
-- Use emojis naturally (not excessively)
-- Greet users casually and show enthusiasm
-- Say "I" instead of "the assistant" or "the AI"
-- React naturally to what users say
-- Do NOT show your reasoning or thinking process
-
-WHEN USING TOOLS:
-1. First, respond naturally ("Let me check that for you!" or "One sec...")
-2. Then use the tool by outputting: <tool_call>{"name": "tool_name", "arguments": {}}</tool_call>
-3. You'll get the results back and can provide a helpful response`;
-
-const RESPONSE_PROMPT = `You are the HypeSocial AI Assistant. Respond based on the tool results.
-
-HOW TO RESPOND:
-- Speak like a friendly human, not a robot
-- Summarize data naturally with enthusiasm
-- Use emojis sparingly but appropriately
-- Offer helpful next steps
-- Keep it conversational and brief
-- Do NOT show your reasoning or thinking process`;
-
-function buildToolPrompt(tools: MCPTool[]): string {
-  const toolsDescription = tools
-    .map((t) => `- ${t.name}: ${t.description || "No description"}`)
-    .join("\n");
-
-  return `${SYSTEM_PROMPT}\n\nAVAILABLE TOOLS:\n${toolsDescription || "No tools available"}\n\nTO USE A TOOL, output exactly:\n<tool_call>{"name": "tool_name", "arguments": {"param": "value"}}</tool_call>\n\nRemember: First respond naturally to the user, then use the tool if needed.`;
-}
-
-function extractText(msg: UIMessage | ModelMessage): string {
-  if ("parts" in msg && Array.isArray(msg.parts)) {
-    return msg.parts
-      .filter((p) => p.type === "text")
-      .map((p) => ("content" in p ? String(p.content) : ""))
-      .join("");
-  }
-  if ("content" in msg && typeof msg.content === "string") {
-    return msg.content;
-  }
-  return "";
-}
+} from "@/lib/mcp";
+import { storeHistory, getHistory, clearHistory } from "@/lib/chat";
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,13 +16,11 @@ export async function POST(request: NextRequest) {
       messages?: Array<UIMessage | ModelMessage>;
       data?: Record<string, unknown>;
       stream?: boolean;
-      // Legacy support
       message?: string;
       userId?: string;
       history?: Array<{ role: string; content: string }>;
     };
 
-    // Normalize messages from TanStack AI or legacy format
     let messages: Array<UIMessage | ModelMessage> = [];
     let userId = body.userId || (body.data?.userId as string) || "anonymous";
     const stream = body.stream ?? true;
@@ -85,11 +28,9 @@ export async function POST(request: NextRequest) {
     if (body.messages && Array.isArray(body.messages)) {
       messages = body.messages;
     } else if (body.message) {
-      // Legacy format conversion
-      const historyMsgs: Array<{ role: string; content: string }> =
-        body.history || [];
+      const history = body.history || [];
       messages = [
-        ...historyMsgs.map((h) => ({
+        ...history.map((h) => ({
           id: generateId("msg"),
           role: h.role as "user" | "assistant",
           parts: [{ type: "text" as const, content: h.content }],
@@ -109,68 +50,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Get MCP tools
-    let mcpTools: MCPTool[] = [];
+    // 1. Collect available MCP tools
+    let mcpTools = [] as Awaited<ReturnType<typeof listMCPTools>>;
     try {
-      const [remoteTools, localTools] = await Promise.all([
+      const [remote, local] = await Promise.all([
         listMCPTools().catch((e) => {
           console.error("[Chat] Remote MCP unavailable:", e);
-          return [];
+          return [] as typeof mcpTools;
         }),
         listLocalMCPTools().catch((e) => {
           console.error("[Chat] Local MCP unavailable:", e);
-          return [];
+          return [] as typeof mcpTools;
         }),
       ]);
-      mcpTools = [...remoteTools, ...localTools];
-    } catch (mcpErr) {
-      console.error("[Chat] MCP unavailable:", mcpErr);
+      mcpTools = [...remote, ...local];
+    } catch (e) {
+      console.error("[Chat] MCP unavailable:", e);
     }
 
-    // Step 2: First AI call to decide tool usage
-    let initialText = "";
-    let initialModel = "";
+    // 2. First AI call to detect tool intent
+    let initialRes: { text: string; model: string };
     try {
-      const res = await getChatResponse(messages, {
+      initialRes = await getChatResponse(messages, {
         systemPrompt: buildToolPrompt(mcpTools),
         userId,
       });
-      initialText = res.text;
-      initialModel = res.model;
     } catch (err) {
       console.error("[Chat] Initial AI call failed:", err);
-      if (stream) {
-        return aguiErrorStream(err);
-      }
+      if (stream) return aguiErrorStream(err);
       return NextResponse.json({
         success: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to connect to AI",
+        error: err instanceof Error ? err.message : "Failed to connect to AI",
       });
     }
 
-    const toolCalls = parseToolCalls(initialText);
-    const cleanContent = initialText
+    const toolCalls = parseToolCalls(initialRes.text);
+    const cleanContent = initialRes.text
       .replace(/<tool_call>.*?<\/tool_call>/gs, "")
       .trim();
 
-    // Step 3: If no tools needed, return/stream directly
+    // 3. No tools needed — return immediately
     if (!toolCalls || toolCalls.length === 0) {
-      storeHistory(userId, messages, cleanContent);
+      const userMsg = [...messages].reverse().find((m) => m.role === "user");
+      storeHistory(userId, userMsg ? extractText(userMsg) : "", cleanContent);
       if (stream) {
-        return aguiStream(messages, cleanContent, [], initialModel, userId);
+        return aguiStream(cleanContent, [], initialRes.model);
       }
       return NextResponse.json({
         success: true,
         response: cleanContent,
         toolsUsed: [],
-        model: initialModel,
+        model: initialRes.model,
       });
     }
 
-    // Step 4: Execute MCP tools
+    // 4. Execute MCP tools
     const toolResults: Record<string, unknown> = {};
     for (const toolCall of toolCalls) {
       const isLocal =
@@ -184,13 +118,18 @@ export async function POST(request: NextRequest) {
       toolResults[toolCall.name] = result;
     }
 
-    // Step 5: Second AI call with tool results
+    // 5. Second AI call with tool results
     const toolMessages: Array<UIMessage | ModelMessage> = [
       ...messages,
       {
         id: generateId("msg"),
         role: "assistant",
-        parts: [{ type: "text", content: cleanContent || "Let me check that for you!" }],
+        parts: [
+          {
+            type: "text",
+            content: cleanContent || "Let me check that for you!",
+          },
+        ],
       } as UIMessage,
       {
         id: generateId("msg"),
@@ -204,39 +143,39 @@ export async function POST(request: NextRequest) {
       } as UIMessage,
     ];
 
-    let finalText = "";
-    let finalModel = "";
+    let finalRes: { text: string; model: string };
     try {
-      const res = await getChatResponse(toolMessages, {
+      finalRes = await getChatResponse(toolMessages, {
         systemPrompt: RESPONSE_PROMPT,
         userId,
       });
-      finalText = res.text;
-      finalModel = res.model;
     } catch (err) {
       console.error("[Chat] Final AI call failed:", err);
+      const userMsg = [...messages].reverse().find((m) => m.role === "user");
+      storeHistory(userId, userMsg ? extractText(userMsg) : "", cleanContent);
       if (stream) {
-        return aguiStream(messages, cleanContent, toolCalls.map((t) => t.name), initialModel, userId);
+        return aguiStream(cleanContent, toolCalls.map((t) => t.name), initialRes.model);
       }
       return NextResponse.json({
         success: true,
         response: cleanContent,
         toolsUsed: toolCalls.map((t) => t.name),
-        model: initialModel,
+        model: initialRes.model,
       });
     }
 
-    storeHistory(userId, messages, finalText);
+    const userMsg = [...messages].reverse().find((m) => m.role === "user");
+    storeHistory(userId, userMsg ? extractText(userMsg) : "", finalRes.text);
 
     if (stream) {
-      return aguiStream(messages, finalText, toolCalls.map((t) => t.name), finalModel, userId);
+      return aguiStream(finalRes.text, toolCalls.map((t) => t.name), finalRes.model);
     }
 
     return NextResponse.json({
       success: true,
-      response: finalText,
+      response: finalRes.text,
       toolsUsed: toolCalls.map((t) => t.name),
-      model: finalModel,
+      model: finalRes.model,
     });
   } catch (error: any) {
     console.error("[Chat] Error:", error);
@@ -247,61 +186,78 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    if (!userId) {
+      return NextResponse.json({ error: "userId required" }, { status: 400 });
+    }
+    return NextResponse.json({ messages: getHistory(userId) });
+  } catch (error: any) {
+    console.error("[Chat] History error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+    if (!userId) {
+      return NextResponse.json({ error: "userId required" }, { status: 400 });
+    }
+    clearHistory(userId);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("[Chat] Delete error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 function generateId(prefix = "id"): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function storeHistory(
-  userId: string,
-  messages: Array<UIMessage | ModelMessage>,
-  assistantResponse: string
-) {
-  const userMsg = [...messages].reverse().find((m) => m.role === "user");
-  const userText = userMsg ? extractText(userMsg) : "";
-
-  const existing = globalThis.chatHistory?.get(userId) || [];
-  existing.push(
-    {
-      role: "user",
-      content: userText,
-      timestamp: new Date().toISOString(),
-    },
-    {
-      role: "assistant",
-      content: assistantResponse,
-      timestamp: new Date().toISOString(),
-    }
-  );
-
-  if (!globalThis.chatHistory) {
-    globalThis.chatHistory = new Map();
+function extractText(msg: UIMessage | ModelMessage): string {
+  if ("parts" in msg && Array.isArray(msg.parts)) {
+    return msg.parts
+      .filter((p) => p.type === "text")
+      .map((p) => ("content" in p ? String(p.content) : ""))
+      .join("");
   }
-  globalThis.chatHistory.set(userId, existing);
+  if ("content" in msg && typeof msg.content === "string") {
+    return msg.content;
+  }
+  return "";
 }
 
 function aguiStream(
-  _messages: Array<UIMessage | ModelMessage>,
   text: string,
   toolsUsed: string[],
-  model: string,
-  userId?: string
+  model: string
 ): Response {
   const encoder = new TextEncoder();
   const runId = generateId("run");
   const messageId = generateId("msg");
 
   const stream = new ReadableStream({
-    async start(controller) {
+    start(controller) {
       const now = Date.now();
-
       const send = (chunk: any) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
+        );
       };
 
       send({ type: "RUN_STARTED", timestamp: now, runId, model });
-      send({ type: "TEXT_MESSAGE_START", timestamp: now, messageId, role: "assistant" });
+      send({
+        type: "TEXT_MESSAGE_START",
+        timestamp: now,
+        messageId,
+        role: "assistant",
+      });
 
-      // Include toolsUsed as a custom event
       if (toolsUsed.length > 0) {
         send({
           type: "CUSTOM",
@@ -325,7 +281,12 @@ function aguiStream(
       }
 
       send({ type: "TEXT_MESSAGE_END", timestamp: Date.now(), messageId });
-      send({ type: "RUN_FINISHED", timestamp: Date.now(), runId, finishReason: "stop" });
+      send({
+        type: "RUN_FINISHED",
+        timestamp: Date.now(),
+        runId,
+        finishReason: "stop",
+      });
       controller.close();
     },
   });
@@ -334,7 +295,7 @@ function aguiStream(
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
     },
   });
 }
@@ -342,12 +303,17 @@ function aguiStream(
 function aguiErrorStream(error: unknown): Response {
   const encoder = new TextEncoder();
   const runId = generateId("run");
+
   const stream = new ReadableStream({
     start(controller) {
       const now = Date.now();
       controller.enqueue(
         encoder.encode(
-          `data: ${JSON.stringify({ type: "RUN_STARTED", timestamp: now, runId })}\n\n`
+          `data: ${JSON.stringify({
+            type: "RUN_STARTED",
+            timestamp: now,
+            runId,
+          })}\n\n`
         )
       );
       controller.enqueue(
@@ -373,41 +339,7 @@ function aguiErrorStream(error: unknown): Response {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
     },
   });
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ error: "userId required" }, { status: 400 });
-    }
-
-    const messages = globalThis.chatHistory?.get(userId) || [];
-    return NextResponse.json({ messages });
-  } catch (error: any) {
-    console.error("[Chat] History error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ error: "userId required" }, { status: 400 });
-    }
-
-    globalThis.chatHistory?.delete(userId);
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[Chat] Delete error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
 }

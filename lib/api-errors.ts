@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { APIError } from "post-for-me";
 import { ZodError } from "zod";
+import { CanvaConfigError } from "@/lib/canva-client";
 
 // ==================== Error Types ====================
 
@@ -233,6 +234,18 @@ export function handleApiError(
   // Handle Zod validation errors
   if (error instanceof ZodError) {
     return sendErrorResponse(buildZodValidationError(error), 400);
+  }
+
+  // Handle Canva configuration errors
+  if (error instanceof CanvaConfigError) {
+    return sendErrorResponse(
+      buildErrorResponse(
+        "Service Unavailable",
+        "Canva integration is not configured. Please contact your administrator.",
+        503,
+      ),
+      503,
+    );
   }
 
   // Handle standard Error objects

@@ -62,6 +62,7 @@ function CanvaPageContent() {
   };
 
   const connected = tokenData?.connected ?? false;
+  const configured = tokenData?.configured ?? true;
   const designs = (designsData as { items?: unknown[] })?.items ?? [];
 
   return (
@@ -151,8 +152,25 @@ function CanvaPageContent() {
           </motion.div>
         )}
 
-        {/* Content */}
-        {!connected && !isTokenLoading ? (
+        {/* Not Configured */}
+        {!configured && !isTokenLoading ? (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
+            className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-12 text-center"
+          >
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-900">
+              <Palette className="h-8 w-8 text-slate-500" />
+            </div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              Canva integration not configured
+            </h2>
+            <p className="mt-2 max-w-sm text-sm text-slate-500">
+              Please ask your administrator to set up the Canva Connect API credentials.
+            </p>
+          </motion.div>
+        ) : !connected && !isTokenLoading ? (
           <motion.div
             initial="hidden"
             animate="visible"

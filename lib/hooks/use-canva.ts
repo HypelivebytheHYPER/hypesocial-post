@@ -27,6 +27,7 @@ export const canvaKeys = {
 
 interface CanvaTokenStatus {
   connected: boolean;
+  configured: boolean;
   scope: string | null;
 }
 

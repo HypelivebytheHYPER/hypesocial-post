@@ -35,7 +35,7 @@ import {
   type Product,
   type Page,
 } from "./canva-catalog-lark";
-import { callChatAgentJSON } from "./chat-agent";
+import { callChatAgentJSON } from "@/lib/ai";
 
 // ============================================================================
 // Canva Tools
