@@ -1,9 +1,7 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useEffect } from "react";
-import { X, Tag, AlertTriangle, Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { Plus } from "lucide-react";
 import type { MediaTag } from "@/types/post-for-me-types";
 
 export function MediaTagInput({

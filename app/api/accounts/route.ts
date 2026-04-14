@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
+
 import { PAGINATION } from "@/lib/constants";
 import {
   handleApiError,
   buildValidationError,
   sendErrorResponse,
 } from "@/lib/api-errors";
-import type { PostForMeError } from "@/types/post-for-me-types";
+
 
 const ListAccountsQuerySchema = z.object({
   platform: z.array(z.string()).optional(),

@@ -3,17 +3,14 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Search, 
-  X, 
-  Image as ImageIcon, 
-  Video, 
-  Filter, 
-  Grid3X3, 
+  Search,
+  X,
+  Video,
+  Grid3X3,
   List,
   Upload,
   Trash2,
   Check,
-  MoreHorizontal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

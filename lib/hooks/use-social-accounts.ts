@@ -19,13 +19,6 @@ import { toast } from "sonner";
 
 // ==================== Types ====================
 
-interface AccountsFilter {
-  limit?: number;
-  offset?: number;
-  platform?: string[];
-  status?: ("connected" | "disconnected")[];
-}
-
 interface AccountFeedOptions {
   limit?: number;
   cursor?: string;
@@ -160,8 +153,6 @@ interface ConnectAccountResponse {
  * Initiates OAuth flow
  */
 export function useConnectSocialAccount() {
-  const queryClient = useQueryClient();
-
   return useMutation<ConnectAccountResponse, Error, ConnectAccountVariables>({
     mutationFn: ({ platform, redirect_uri }) => {
       const body: { 

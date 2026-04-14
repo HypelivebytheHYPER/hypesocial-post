@@ -5,7 +5,6 @@
  * across the application and to downstream services (Lark Base, Post For Me).
  */
 
-import { headers } from "next/headers";
 import { randomUUID } from "crypto";
 
 // Header names for trace propagation

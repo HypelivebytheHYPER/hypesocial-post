@@ -22,8 +22,6 @@ import {
   Share,
   X,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   BoxSelect,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -424,7 +422,7 @@ export function PageBuilder({
   useEffect(() => {
     const state = layersHistory.states[layersHistory.index];
     if (state) setLayers(state);
-  }, [layersHistory.index]);
+  }, [layersHistory.index, layersHistory.states]);
 
   const commitLayers = useCallback((updater: React.SetStateAction<OverlayLayer[]>) => {
     setLayers((prev) => {
@@ -444,12 +442,12 @@ export function PageBuilder({
     });
   }, []);
 
-  const addLayer = (type: OverlayLayer["type"]) => {
+  const addLayer = useCallback((type: OverlayLayer["type"]) => {
     const newLayer = createDefaultLayer(type);
     commitLayers((prev) => [...prev, newLayer]);
     setSelectedLayerId(newLayer.id);
     setActiveTool("select");
-  };
+  }, [commitLayers]);
 
   const updateLayer = (id: string, updates: Partial<OverlayLayer>) => {
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
@@ -596,7 +594,7 @@ export function PageBuilder({
     if (activeTool === "text") addLayer("text");
     if (activeTool === "image") addLayer("image");
     if (activeTool === "badge") addLayer("badge");
-  }, [activeTool]);
+  }, [activeTool, addLayer]);
 
   useEffect(() => {
     const onUp = () => setSnapGuides([]);
@@ -621,17 +619,6 @@ export function PageBuilder({
       title={`${label} (${tool === "select" ? "V" : tool === "text" ? "T" : tool === "image" ? "I" : "B"})`}
     >
       <Icon className="h-4 w-4" />
-    </button>
-  );
-
-  const TogglePill = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-    <button
-      onClick={onClick}
-      className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-        active ? "bg-blue-500/20 text-blue-400" : "text-slate-400 hover:text-slate-200"
-      }`}
-    >
-      {children}
     </button>
   );
 

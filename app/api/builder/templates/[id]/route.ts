@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
+import type { BuilderTemplateV2, Page } from "@/components/builder/types";
 
 const LARK_BASE_URL = "https://lark-http-hype.hypelive.workers.dev";
 const APP_TOKEN = "MJAvbeuwDaBqYjs4AMTlmlWLgng";
@@ -21,31 +22,42 @@ interface LarkRecord {
   };
 }
 
-function mapRecordToTemplate(record: LarkRecord) {
+function mapRecordToTemplate(record: LarkRecord): BuilderTemplateV2 {
   const f = record.fields;
   const blocksRaw = f["Blocks JSON"] ? JSON.parse(f["Blocks JSON"]) : null;
 
-  let format = "ig-post";
-  let layers: unknown[] = [];
-  let canvasBackground = { color: "#ffffff", image: "" };
+  let format: BuilderTemplateV2["format"] = "ig-post";
+  let pages: Page[] = [];
 
   if (Array.isArray(blocksRaw)) {
-    layers = blocksRaw;
+    pages = [{
+      id: "page-1",
+      name: "Page 1",
+      layers: blocksRaw as any,
+      canvasBackground: { color: "#ffffff", image: "" },
+    }];
   } else if (blocksRaw && typeof blocksRaw === "object") {
     format = blocksRaw.format || "ig-post";
-    layers = blocksRaw.layers || [];
-    canvasBackground = blocksRaw.canvasBackground || { color: "#ffffff", image: "" };
+    if (Array.isArray(blocksRaw.pages)) {
+      pages = blocksRaw.pages;
+    } else {
+      pages = [{
+        id: "page-1",
+        name: "Page 1",
+        layers: blocksRaw.layers || [],
+        canvasBackground: blocksRaw.canvasBackground || { color: "#ffffff", image: "" },
+      }];
+    }
   }
 
   return {
     id: record.record_id,
     name: f.Name || f.Text || "Untitled",
     format,
-    layers,
+    pages,
     theme: f["Theme JSON"]
       ? JSON.parse(f["Theme JSON"])
       : { primaryColor: "#2563eb", borderRadius: 8, fontFamily: "Inter", backgroundColor: "#ffffff" },
-    canvasBackground,
     createdAt: f["Created At"] || 0,
     updatedAt: f["Updated At"] || 0,
   };
@@ -57,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const body = (await request.json()) as Partial<{
       name: string;
-      blocks: unknown[] | { format?: string; layers?: unknown[]; canvasBackground?: Record<string, string> };
+      blocks: unknown[] | { format?: string; pages?: Page[]; layers?: unknown[]; canvasBackground?: Record<string, string> };
       theme: Record<string, unknown>;
       updatedAt: number;
     }>;

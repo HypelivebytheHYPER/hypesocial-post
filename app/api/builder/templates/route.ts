@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache, revalidateTag } from "next/cache";
+import type { BuilderTemplateV2, Page } from "@/components/builder/types";
 
 const LARK_BASE_URL = "https://lark-http-hype.hypelive.workers.dev";
 const APP_TOKEN = "MJAvbeuwDaBqYjs4AMTlmlWLgng";
@@ -21,33 +22,47 @@ interface LarkRecord {
   };
 }
 
-function mapRecordToTemplate(record: LarkRecord) {
+function mapRecordToTemplate(record: LarkRecord): BuilderTemplateV2 {
   const f = record.fields;
   const blocksRaw = f["Blocks JSON"] ? JSON.parse(f["Blocks JSON"]) : null;
 
-  // Backward compatibility: old format stored blocks as array
-  // New format stores { format, layers, canvasBackground }
-  let format = "ig-post";
-  let layers: unknown[] = [];
+  // Backward compatibility:
+  // - old format stored blocks as array of layers
+  // - v2 stored { format, layers, canvasBackground }
+  // - v3 stores { format, pages }
+  let format: BuilderTemplateV2["format"] = "ig-post";
+  let pages: Page[] = [];
   let canvasBackground = { color: "#ffffff", image: "" };
 
   if (Array.isArray(blocksRaw)) {
-    layers = blocksRaw;
+    pages = [{
+      id: "page-1",
+      name: "Page 1",
+      layers: blocksRaw as any,
+      canvasBackground: { color: "#ffffff", image: "" },
+    }];
   } else if (blocksRaw && typeof blocksRaw === "object") {
     format = blocksRaw.format || "ig-post";
-    layers = blocksRaw.layers || [];
-    canvasBackground = blocksRaw.canvasBackground || { color: "#ffffff", image: "" };
+    if (Array.isArray(blocksRaw.pages)) {
+      pages = blocksRaw.pages;
+    } else {
+      pages = [{
+        id: "page-1",
+        name: "Page 1",
+        layers: blocksRaw.layers || [],
+        canvasBackground: blocksRaw.canvasBackground || { color: "#ffffff", image: "" },
+      }];
+    }
   }
 
   return {
     id: record.record_id,
     name: f.Name || f.Text || "Untitled",
     format,
-    layers,
+    pages,
     theme: f["Theme JSON"]
       ? JSON.parse(f["Theme JSON"])
       : { primaryColor: "#2563eb", borderRadius: 8, fontFamily: "Inter", backgroundColor: "#ffffff" },
-    canvasBackground,
     createdAt: f["Created At"] || 0,
     updatedAt: f["Updated At"] || 0,
   };
@@ -82,17 +97,25 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       name: string;
       format: string;
-      layers: unknown[];
+      pages?: Page[];
+      layers?: unknown[];
       theme: Record<string, unknown>;
       canvasBackground?: Record<string, string>;
       createdAt: number;
       updatedAt: number;
     };
 
+    const fallbackPage: Page = {
+      id: "page-1",
+      name: "Page 1",
+      layers: (body.layers || []) as any,
+      canvasBackground: { color: body.canvasBackground?.color ?? "#ffffff", image: body.canvasBackground?.image ?? "" },
+    };
+    const pages: Page[] = body.pages || [fallbackPage];
+
     const blocksPayload = {
       format: body.format,
-      layers: body.layers,
-      canvasBackground: body.canvasBackground || { color: "#ffffff", image: "" },
+      pages,
     };
 
     const fields = {

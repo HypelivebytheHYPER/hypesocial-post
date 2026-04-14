@@ -6,7 +6,6 @@ import {
   X, 
   Save, 
   Calendar, 
-  Clock, 
   Image as ImageIcon,
   AlignLeft,
   Hash,

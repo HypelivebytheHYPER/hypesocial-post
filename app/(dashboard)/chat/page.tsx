@@ -23,10 +23,6 @@ function getUserId(): string {
   return userId;
 }
 
-function generateId(prefix = "id"): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-}
-
 export default function ChatPage() {
   const [messages, setMessages] = useState<UIMessage[]>([
     {

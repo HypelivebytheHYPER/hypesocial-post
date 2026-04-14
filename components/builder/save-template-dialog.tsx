@@ -20,7 +20,7 @@ export function SaveTemplateDialog({
   open: boolean;
   onOpenChange: (val: boolean) => void;
 }) {
-  const { layers, theme, format, canvasBackground } = useBuilderStore();
+  const { pages, theme, format } = useBuilderStore();
   const [name, setName] = useState("");
   const saveMutation = useSaveTemplate();
 
@@ -28,13 +28,14 @@ export function SaveTemplateDialog({
     await saveMutation.mutateAsync({
       name: name.trim() || "Untitled Template",
       format,
-      layers: JSON.parse(JSON.stringify(layers)),
+      pages: JSON.parse(JSON.stringify(pages)),
       theme: { ...theme },
-      canvasBackground: { ...canvasBackground },
     });
     setName("");
     onOpenChange(false);
   }
+
+  const hasLayers = pages.some((p) => p.layers.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,7 +57,7 @@ export function SaveTemplateDialog({
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={layers.length === 0 || saveMutation.isPending}>
+            <Button size="sm" onClick={handleSave} disabled={!hasLayers || saveMutation.isPending}>
               {saveMutation.isPending ? "Saving..." : "Save Template"}
             </Button>
           </div>

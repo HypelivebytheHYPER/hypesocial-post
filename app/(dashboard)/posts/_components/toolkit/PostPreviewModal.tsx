@@ -6,7 +6,7 @@ import { X, Smartphone, Monitor, Instagram, Facebook, Twitter, Linkedin, AlertCi
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import type { SocialPost } from "@/types/post-for-me-types";
 
 interface PostPreviewModalProps {
@@ -29,7 +29,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onEdit }: PostPreviewM
 
   if (!post) return null;
 
-  const platform = platforms.find(p => post.social_accounts?.some(sa => sa.platform?.toLowerCase().includes(p.id))) || platforms[0];
+
   const characterCount = post.caption?.length || 0;
   const characterLimit = activePlatform === "x" ? 280 : 2200;
   const isOverLimit = characterCount > characterLimit;
@@ -182,7 +182,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onEdit }: PostPreviewM
                   {/* Status */}
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
-                    <Badge className="mt-1 capitalize">{post.status}</Badge>
+                    <span className="mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">{post.status}</span>
                   </div>
 
                   {/* Platforms */}

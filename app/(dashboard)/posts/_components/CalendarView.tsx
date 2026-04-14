@@ -5,16 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
-  Clock,
   Plus,
-  MoreHorizontal,
-  Instagram,
-  Facebook,
-  Twitter,
-  Linkedin,
-  Image as ImageIcon,
-  Filter,
 } from "lucide-react";
 import {
   format,
@@ -27,19 +18,14 @@ import {
   isSameDay,
   isToday,
   addMonths,
-  subMonths,
   addWeeks,
-  subWeeks,
   addDays,
-  subDays,
   startOfDay,
   isPast,
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { SocialPost } from "@/types/post-for-me-types";
 import { getPlatformIcon } from "@/lib/social-platforms";
 
@@ -221,7 +207,7 @@ export function CalendarView({
               const isSelected = selectedDate && isSameDay(day, selectedDate);
               const isTodayDate = isToday(day);
               const isCurrentMonth = isSameMonth(day, currentDate);
-              const isPastDate = isPast(day) && !isTodayDate;
+
 
               return (
                 <motion.div

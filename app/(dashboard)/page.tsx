@@ -7,23 +7,16 @@ import {
   Send,
   Calendar,
   Clock,
-  ImageIcon,
   Users,
   X,
   Loader2,
   Eye,
   Globe,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Wand2,
   LayoutTemplate,
-  Settings2,
   Type,
-  ImagePlus,
-  MoreHorizontal,
-  Trash2,
-  Plus,
   ArrowLeft,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, isPast } from "date-fns";
@@ -31,11 +24,10 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UploadedFile } from "@/components/ui/file-upload";
@@ -57,12 +49,11 @@ import {
   getWarningThreshold,
 } from "@/types/post-for-me-types";
 import type { PlatformConfigBuilder, SocialPost } from "@/types/post-for-me-types";
-import { UPLOAD, TIME, UI, PLATFORM_LIMITS } from "@/lib/constants";
+import { UPLOAD, TIME, UI } from "@/lib/constants";
 
 const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 const DRAFT_STORAGE_KEY = "hypesocial_home_draft_v1";
 const CALENDAR_START_HOUR = 6;
-const CALENDAR_END_HOUR = 22;
 const TIME_SLOT_INTERVAL_MINUTES = 30;
 const PREVIEW_WIDTH_PX = 320;
 const TIME_SLOTS_COUNT = 34;
@@ -197,80 +188,7 @@ function MiniCalendar({
   );
 }
 
-interface TimeSlotsProps {
-  selectedTime: string;
-  onSelectTime: (time: string) => void;
-  selectedDate?: Date;
-  existingPosts: SocialPost[];
-}
 
-// ==================== TIME SLOTS ====================
-function TimeSlots({
-  selectedTime,
-  onSelectTime,
-  selectedDate,
-  existingPosts,
-}: TimeSlotsProps): React.ReactElement {
-  const timeSlots = useMemo(() => {
-    const slots: string[] = [];
-    for (let hour = CALENDAR_START_HOUR; hour <= CALENDAR_END_HOUR; hour++) {
-      for (let minute = 0; minute < 60; minute += TIME_SLOT_INTERVAL_MINUTES) {
-        const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-        slots.push(time);
-      }
-    }
-    return slots;
-  }, []);
-
-  const getPostsAtTime = useCallback((time: string) => {
-    if (!selectedDate) return [];
-    const [hoursStr, minutesStr] = time.split(":");
-    const hours = parseInt(hoursStr ?? "0", 10);
-    const minutes = parseInt(minutesStr ?? "0", 10);
-    const checkDate = new Date(selectedDate);
-    checkDate.setHours(hours, minutes);
-
-    return existingPosts.filter((post) => {
-      if (!post.scheduled_at) return false;
-      const postDate = new Date(post.scheduled_at);
-      return isSameDay(postDate, checkDate) && postDate.getHours() === hours && postDate.getMinutes() === minutes;
-    });
-  }, [selectedDate, existingPosts]);
-
-  return (
-    <div className="grid grid-cols-4 gap-1.5 max-h-[180px] overflow-y-auto p-0.5">
-      {timeSlots.map((time) => {
-        const postsAtTime = getPostsAtTime(time);
-        const isSelected = time === selectedTime;
-        const hasConflict = postsAtTime.length > 0;
-
-        function getButtonClassNames(): string {
-          if (isSelected) {
-            return "bg-primary text-primary-foreground border-primary";
-          }
-          if (hasConflict) {
-            return "bg-amber-500/10 text-amber-600 border-amber-500/30";
-          }
-          return "bg-card text-foreground border-border hover:border-muted-foreground/50";
-        }
-
-        return (
-          <button
-            key={time}
-            onClick={() => onSelectTime(time)}
-            className={cn(
-              "px-2 py-1.5 rounded-md text-xs font-medium transition-all border",
-              getButtonClassNames()
-            )}
-          >
-            {time}
-            {hasConflict && <span className="ml-1 text-[9px]">({postsAtTime.length})</span>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 interface PlatformPreviewProps {
   content: string;
@@ -378,7 +296,7 @@ export default function HomePage(): React.ReactElement {
   const [showRightPanel, setShowRightPanel] = useState(true);
 
   // Smooth UI: Use transitions for non-urgent updates
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   
   // Data fetching with placeholderData for instant UI (no loading spinners)
   const { data: accountsData } = useSocialAccounts();

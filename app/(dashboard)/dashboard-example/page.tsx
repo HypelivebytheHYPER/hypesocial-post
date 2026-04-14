@@ -11,7 +11,7 @@ import {
   ScheduledCard,
   TrendingCard,
 } from "@/components/ui/dashboard-card";
-import { FileText, TrendingUp, Users, Eye, Heart, Calendar } from "lucide-react";
+import { FileText } from "lucide-react";
 
 const container = {
   hidden: { opacity: 0 },

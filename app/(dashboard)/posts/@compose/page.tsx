@@ -9,9 +9,7 @@ import {
   Calendar,
   Clock,
   Sparkles,
-  ImageIcon,
   Users,
-  Check,
   Loader2,
   ArrowLeft,
   Trash2,
@@ -19,19 +17,15 @@ import {
   ChevronRight,
   Eye,
   CalendarDays,
-  MapPin,
   Globe,
   Zap,
-  CheckCircle2,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, isPast } from "date-fns";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -66,7 +60,6 @@ import type { PostTemplate } from "@/lib/templates/social-templates";
 
 
 // Constants - defined outside component to avoid recreation
-const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
 const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 const DEBOUNCE_DELAY_MS = 800;
 const PREVIEW_WIDTH_PX = 380;
@@ -358,7 +351,7 @@ export default function ComposePanel(): React.ReactElement {
   const uploadMedia = useUploadMedia();
   const postPreview = usePostPreview();
 
-  const accounts = accountsData?.data ?? [];
+  const accounts = useMemo(() => accountsData?.data ?? [], [accountsData]);
   const connectedAccounts = accounts.filter((account) => account.status === "connected");
 
   // Debounced preview API call

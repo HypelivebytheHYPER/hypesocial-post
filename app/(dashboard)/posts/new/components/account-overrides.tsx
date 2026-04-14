@@ -1,11 +1,7 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { PlatformOptions } from "./platform-options";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { OverrideField } from "./override-field";
 import type { AccountConfigurationDetailsDto } from "@/types/post-for-me-types";
 

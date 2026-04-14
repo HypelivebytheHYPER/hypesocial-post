@@ -8,13 +8,11 @@ import {
   Facebook, 
   Linkedin,
   Play,
-  ImageIcon,
   AlertCircle,
   CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { SocialAccount } from "@/types/post-for-me-types";
 

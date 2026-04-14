@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { type Transition } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Send,
@@ -16,9 +14,7 @@ import {
   Trash2,
   Eye,
   CalendarDays,
-  Globe,
   Zap,
-  CheckCircle2,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
@@ -28,18 +24,14 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadedFile } from "@/components/ui/file-upload";
 import { cn } from "@/lib/utils";
 import { PAGINATION, UPLOAD, PLATFORM_LIMITS } from "@/lib/constants";
 
-// Constants - defined outside component to avoid recreation
-const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
 const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 
 import { MediaUploadEnhanced } from "../../@compose/_components/MediaUploadEnhanced";
@@ -335,7 +327,7 @@ export default function EditPostPage() {
 
       toast.success("Post updated successfully");
       router.push("/posts");
-    } catch (error) {
+    } catch {
       toast.error("Failed to update post");
     } finally {
       setIsSubmitting(false);

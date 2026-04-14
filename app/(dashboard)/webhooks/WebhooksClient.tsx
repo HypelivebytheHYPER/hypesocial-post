@@ -37,8 +37,6 @@ import {
   useDeleteWebhook,
   pfmKeys,
 } from "@/lib/hooks";
-import type { WebhookDto } from "@/lib/validations/webhook-api-schemas";
-import { PostForMeEventTypeSchema } from "@/lib/validations/webhook-schemas";
 import type { PostForMeEventType } from "@/lib/validations/webhook-schemas";
 
 interface WebhooksClientProps {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery, useQueries, UseQueryOptions } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { pfmKeys } from "./keys";
 import { TIME } from "@/lib/constants";
-import type { SocialAccount, SocialAccountFeedItem, SocialAccountListResponse } from "@/types/post-for-me-types";
+import type { SocialAccount, SocialAccountFeedItem } from "@/types/post-for-me-types";
 import type { NormalizedMetrics, ExtendedTikTokMetrics } from "@/lib/metrics";
 
 // Types for analytics data

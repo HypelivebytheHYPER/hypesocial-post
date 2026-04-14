@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import Cropper, { Area } from "react-easy-crop";
 import { 
   Upload, 
@@ -20,7 +20,6 @@ import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -96,7 +95,7 @@ export function MediaUploadEnhanced({
                   : f
               )
             );
-          } catch (error) {
+          } catch {
             onFilesChange(
               updatedFiles.map((f) =>
                 f.id === file.id

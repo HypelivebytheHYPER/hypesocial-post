@@ -15,7 +15,7 @@ import {
   FileEdit,
   LayoutGrid,
   List as ListIcon,
-  MoreHorizontal,
+
   Trash2,
   Edit3,
   Clock,
@@ -52,6 +52,7 @@ import { platformIconsMap } from "@/lib/social-platforms";
 import { proxyMediaUrl } from "@/lib/utils";
 import type { SocialPost, SocialPostResult } from "@/types/post-for-me-types";
 import dynamic from "next/dynamic";
+import { PostsTable } from "./components/PostsTable";
 
 const CalendarView = dynamic(() => import("./_components/CalendarView").then(mod => ({ default: mod.CalendarView })), {
   loading: () => <div className="h-96 flex items-center justify-center"><Skeleton className="w-full h-full" /></div>,
@@ -280,7 +281,7 @@ interface PostCardProps {
   viewMode: ViewMode;
 }
 
-function getStatusClasses(config: StatusConfig | undefined, isSelected: boolean): string {
+function getStatusClasses(config: StatusConfig | undefined, _isSelected: boolean): string {
   if (!config) return "";
   return cn(config.bg, config.color);
 }
@@ -596,12 +597,16 @@ export default function PostsPage(): React.ReactElement {
               onSelectPost={(post) => router.push(`/posts/${post.id}/edit`)}
               onCreatePost={handleNewPost}
             />
+          ) : viewMode === "list" ? (
+            <PostsTable
+              posts={filteredPosts}
+              accounts={accountsMap}
+              resultsMap={resultsMap || new Map()}
+              onEdit={handleEditPost}
+              onDelete={handleDelete}
+            />
           ) : (
-            <div className={cn(
-              viewMode === "grid" 
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                : "divide-y divide-slate-200 dark:divide-slate-800"
-            )}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredPosts.map((post) => (
                 <PostCard
                   key={post.id}

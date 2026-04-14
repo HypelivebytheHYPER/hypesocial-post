@@ -119,10 +119,10 @@ export async function pollLarkMessages(userId: string): Promise<Array<{
  * Verify Lark webhook signature
  */
 export function verifyLarkWebhook(
-  signature: string,
-  timestamp: string,
-  nonce: string,
-  body: string
+  _signature: string,
+  _timestamp: string,
+  _nonce: string,
+  _body: string
 ): boolean {
   // Implementation depends on Lark's verification method
   // See: https://open.feishu.cn/document/ukTMukTMukTM/uYDNxYjL2QTM24iN0EjN/event-subscription-overview
@@ -140,8 +140,6 @@ export async function handleLarkWebhook(body: any): Promise<void> {
   switch (event.type) {
     case "im.message.receive_v1": {
       const message = event.message;
-      const sender = event.sender;
-
       // Only process messages from the support group
       if (message.chat_id !== LARK_CONFIG.supportChatId) return;
 

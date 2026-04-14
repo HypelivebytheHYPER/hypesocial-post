@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,29 @@ import { Button } from "@/components/ui/button";
 import { useBuilderStore } from "./store";
 import { useTemplates, useDeleteTemplate, useRenameTemplate } from "./queries";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, List, Search, LayoutTemplate, Trash2, MoreHorizontal, Loader2, Type, Image as ImageIcon, Square, MousePointer2 } from "lucide-react";
+import {
+  LayoutGrid,
+  List,
+  Search,
+  LayoutTemplate,
+  Trash2,
+  MoreHorizontal,
+  Loader2,
+  Type,
+  Image as ImageIcon,
+  Square,
+  MousePointer2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { socialTemplates } from "./social-templates";
+import { socialTemplates, toBuilderTemplateV2 } from "./social-templates";
 import type { CanvasFormat } from "./types";
 import { FORMATS } from "./types";
+import { debounce } from "@tanstack/pacer";
 
 function getFormatBadge(format: CanvasFormat) {
   const spec = FORMATS.find((f) => f.id === format);
@@ -78,6 +91,19 @@ export function BlockSidebar() {
   const deleteMutation = useDeleteTemplate();
   const renameMutation = useRenameTemplate();
 
+  const debouncedSetSearch = useMemo(
+    () => debounce((value: string) => setSearchQuery(value), { wait: 150 }),
+    [setSearchQuery]
+  );
+
+  const [inputValue, setInputValue] = useState(searchQuery);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputValue(value);
+    debouncedSetSearch(value);
+  };
+
   const filteredTemplates = socialTemplates.filter((t) => {
     const q = searchQuery.toLowerCase();
     return t.name.toLowerCase().includes(q) || t.format.toLowerCase().includes(q);
@@ -114,8 +140,8 @@ export function BlockSidebar() {
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={inputValue}
+              onChange={handleSearchChange}
               className="h-8 pl-7 text-xs"
             />
           </div>
@@ -138,20 +164,11 @@ export function BlockSidebar() {
         {activeTab === "templates" && (
           <div className={cn("gap-2", viewMode === "grid" ? "grid grid-cols-1" : "flex flex-col")}>
             {filteredTemplates.map((template) => (
-              <TemplateCard key={template.id} template={template} onLoad={() => loadTemplate({
-                id: template.id,
-                name: template.name,
-                format: template.format,
-                layers: JSON.parse(JSON.stringify(template.layers)),
-                theme: {
-                  primaryColor: template.theme?.primaryColor || "#2563eb",
-                  borderRadius: 8,
-                  fontFamily: "Inter",
-                  backgroundColor: template.theme?.backgroundColor || "#ffffff",
-                },
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-              })} />
+              <TemplateCard
+                key={template.id}
+                template={template}
+                onLoad={() => loadTemplate(toBuilderTemplateV2(template))}
+              />
             ))}
           </div>
         )}
@@ -161,29 +178,81 @@ export function BlockSidebar() {
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-muted-foreground uppercase">Primitives</p>
               <div className="grid grid-cols-3 gap-2">
-                <PrimitiveCard icon={Type} label="Text" onClick={() => addLayer({
-                  type: "text", name: "Text", x: 10, y: 40, width: 80, height: 12,
-                  rotation: 0, zIndex: 10, props: { text: "Double click to edit", fontSize: 20, fontWeight: 600, color: "#0f172a", align: "center" }
-                })} />
-                <PrimitiveCard icon={ImageIcon} label="Image" onClick={() => addLayer({
-                  type: "image", name: "Image", x: 25, y: 25, width: 50, height: 50,
-                  rotation: 0, zIndex: 10, props: { src: "", objectFit: "cover", rounded: true }
-                })} />
-                <PrimitiveCard icon={Square} label="Shape" onClick={() => addLayer({
-                  type: "shape", name: "Shape", x: 35, y: 40, width: 30, height: 20,
-                  rotation: 0, zIndex: 10, props: { shape: "rectangle", color: "#2563eb", text: "", textColor: "#ffffff" }
-                })} />
-                <PrimitiveCard icon={MousePointer2} label="Button" onClick={() => addLayer({
-                  type: "button", name: "Button", x: 30, y: 80, width: 40, height: 8,
-                  rotation: 0, zIndex: 10, props: { text: "Click me", rounded: true }
-                })} />
+                <PrimitiveCard
+                  icon={Type}
+                  label="Text"
+                  onClick={() =>
+                    addLayer({
+                      type: "text",
+                      name: "Text",
+                      x: 10,
+                      y: 40,
+                      width: 80,
+                      height: 12,
+                      rotation: 0,
+                      zIndex: 10,
+                      props: { text: "Double click to edit", fontSize: 20, fontWeight: 600, color: "#0f172a", align: "center" },
+                    })
+                  }
+                />
+                <PrimitiveCard
+                  icon={ImageIcon}
+                  label="Image"
+                  onClick={() =>
+                    addLayer({
+                      type: "image",
+                      name: "Image",
+                      x: 25,
+                      y: 25,
+                      width: 50,
+                      height: 50,
+                      rotation: 0,
+                      zIndex: 10,
+                      props: { src: "", objectFit: "cover", rounded: true },
+                    })
+                  }
+                />
+                <PrimitiveCard
+                  icon={Square}
+                  label="Shape"
+                  onClick={() =>
+                    addLayer({
+                      type: "shape",
+                      name: "Shape",
+                      x: 35,
+                      y: 40,
+                      width: 30,
+                      height: 20,
+                      rotation: 0,
+                      zIndex: 10,
+                      props: { shape: "rectangle", color: "#2563eb", text: "", textColor: "#ffffff" },
+                    })
+                  }
+                />
+                <PrimitiveCard
+                  icon={MousePointer2}
+                  label="Button"
+                  onClick={() =>
+                    addLayer({
+                      type: "button",
+                      name: "Button",
+                      x: 30,
+                      y: 80,
+                      width: 40,
+                      height: 8,
+                      rotation: 0,
+                      zIndex: 10,
+                      props: { text: "Click me", rounded: true },
+                    })
+                  }
+                />
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === "saved" && (
-          templatesLoading ? (
+        {activeTab === "saved" &&
+          (templatesLoading ? (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
               <p>Loading templates...</p>
@@ -209,7 +278,8 @@ export function BlockSidebar() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{template.name}</p>
                       <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {template.layers?.length || 0} layers
+                        {(template.pages?.length || 0)} page{template.pages?.length === 1 ? "" : "s"} ·
+                        {(template.pages?.[0]?.layers?.length || 0)} layers
                       </p>
                     </div>
                     <DropdownMenu>
@@ -219,22 +289,31 @@ export function BlockSidebar() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem onClick={() => renameMutation.mutate({ id: template.id, name: template.name })}>Rename</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => renameMutation.mutate({ id: template.id, name: template.name })}>
+                          Rename
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => loadTemplate(template)}>Load</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deleteMutation.mutate(template.id)} className="text-destructive focus:text-destructive">
+                        <DropdownMenuItem
+                          onClick={() => deleteMutation.mutate(template.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
                           <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  <Button variant="secondary" size="sm" className="mt-3 h-7 w-full text-xs" onClick={() => loadTemplate(template)}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3 h-7 w-full text-xs"
+                    onClick={() => loadTemplate(template)}
+                  >
                     Load Template
                   </Button>
                 </div>
               ))}
             </div>
-          )
-        )}
+          ))}
       </ScrollArea>
     </aside>
   );

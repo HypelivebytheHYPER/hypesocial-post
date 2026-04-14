@@ -31,7 +31,7 @@ import {
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
 import type { SocialAccountFeedItem } from "@/types/post-for-me-types";
-import { UI } from "@/lib/constants";
+
 
 // Time constants in milliseconds
 const MS_PER_MINUTE = 60000;

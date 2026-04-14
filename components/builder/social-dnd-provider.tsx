@@ -4,7 +4,6 @@ import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import type { DragEndEvent, DragMoveEvent } from "@dnd-kit/core";
 import { useBuilderStore } from "./store";
 
-
 const SNAP_THRESHOLD_PX = 8;
 
 function getSnapGuides(
@@ -26,8 +25,8 @@ function getSnapGuides(
   const middle = newY + movingLayer.height / 2;
 
   const thresholds = {
-    x: SNAP_THRESHOLD_PX / artboardWidth * 100,
-    y: SNAP_THRESHOLD_PX / artboardHeight * 100,
+    x: (SNAP_THRESHOLD_PX / artboardWidth) * 100,
+    y: (SNAP_THRESHOLD_PX / artboardHeight) * 100,
   };
 
   let snapX: number | null = null;
@@ -35,7 +34,6 @@ function getSnapGuides(
   let finalX = newX;
   let finalY = newY;
 
-  // Candidate lines
   const xCandidates: number[] = [0, 50, 100];
   const yCandidates: number[] = [0, 50, 100];
 
@@ -44,7 +42,6 @@ function getSnapGuides(
     yCandidates.push(l.y, l.y + l.height / 2, l.y + l.height);
   }
 
-  // Find best X snap
   for (const c of xCandidates) {
     if (Math.abs(left - c) <= thresholds.x) {
       snapX = c;
@@ -63,7 +60,6 @@ function getSnapGuides(
     }
   }
 
-  // Find best Y snap
   for (const c of yCandidates) {
     if (Math.abs(top - c) <= thresholds.y) {
       snapY = c;
@@ -112,14 +108,7 @@ export function SocialDndProvider({ children }: { children: React.ReactNode }) {
     const deltaYPercent = (delta.y / rect.height) * 100;
 
     const otherLayers = layers.filter((l) => l.id !== layerId);
-    const { x, y } = getSnapGuides(
-      layer,
-      deltaXPercent,
-      deltaYPercent,
-      otherLayers,
-      rect.width,
-      rect.height
-    );
+    const { x, y } = getSnapGuides(layer, deltaXPercent, deltaYPercent, otherLayers, rect.width, rect.height);
 
     setSnapGuides({ x, y });
   }
@@ -139,14 +128,7 @@ export function SocialDndProvider({ children }: { children: React.ReactNode }) {
     const deltaYPercent = (delta.y / rect.height) * 100;
 
     const otherLayers = layers.filter((l) => l.id !== layerId);
-    const { newX, newY } = getSnapGuides(
-      layer,
-      deltaXPercent,
-      deltaYPercent,
-      otherLayers,
-      rect.width,
-      rect.height
-    );
+    const { newX, newY } = getSnapGuides(layer, deltaXPercent, deltaYPercent, otherLayers, rect.width, rect.height);
 
     moveLayer(layerId, newX, newY);
   }

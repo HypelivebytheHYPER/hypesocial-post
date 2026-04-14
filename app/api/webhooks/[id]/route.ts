@@ -18,9 +18,6 @@ import {
 import { verifyWebhookSecret } from "@/lib/webhook-secrets";
 import {
   extractErrorDetails,
-  isNotFoundError,
-  isRateLimitError,
-  getRetryAfter,
   formatApiError,
 } from "@/lib/pfm-errors";
 
@@ -156,7 +153,7 @@ export async function POST(
     let body: unknown;
     try {
       body = await request.json();
-    } catch (error) {
+    } catch {
       // JSON parse error (invalid JSON)
       console.error(JSON.stringify(formatRequestLog(ctx, "POST", `/api/webhooks/${id}`, 400, {
         error: "Invalid JSON in request body",

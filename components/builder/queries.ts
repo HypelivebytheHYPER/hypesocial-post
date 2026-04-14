@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { BuilderTemplateV2 } from "./types";
+import type { BuilderTemplateV2, Page } from "./types";
 
 const TEMPLATES_KEY = ["builder", "templates"] as const;
 
@@ -30,18 +30,16 @@ export function useSaveTemplate() {
     {
       name: string;
       format: string;
-      layers: unknown[];
+      pages: Page[];
       theme: Record<string, unknown>;
-      canvasBackground: Record<string, string>;
     }
   >({
-    mutationFn: async ({ name, format, layers, theme, canvasBackground }) => {
+    mutationFn: async ({ name, format, pages, theme }) => {
       const payload = {
         name,
         format,
-        layers,
+        pages,
         theme,
-        canvasBackground,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

@@ -77,8 +77,6 @@ export function FileUpload({
   className,
   disabled = false,
 }: FileUploadProps) {
-  const [dragActive, setDragActive] = useState(false);
-
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
       const newFiles: UploadedFile[] = acceptedFiles.map((file) => ({

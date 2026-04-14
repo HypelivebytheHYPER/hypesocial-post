@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, ImageIcon, FileEdit } from "lucide-react";
+import { Eye } from "lucide-react";
 
 export function EmptyPreviewState({
   hasAccounts,

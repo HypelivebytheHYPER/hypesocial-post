@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Search,
-  Plus,
   MoreHorizontal,
-  Mail,
-  Phone,
   MapPin,
   Calendar,
   CheckCircle2,
-  XCircle,
   Clock,
-  Filter,
   Download,
   UserPlus,
   Shield,
@@ -70,15 +65,16 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+const people: Person[] = []; // Empty until API is connected
+
 export default function PeoplePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = false;
 
   // TODO: Replace with actual API call to fetch team members
   // const { data: people, isLoading } = usePeople();
-  const people: Person[] = []; // Empty until API is connected
 
   // Filter people
   const filteredPeople = useMemo(() => {
@@ -92,7 +88,7 @@ export default function PeoplePage() {
         statusFilter === "all" || person.status === statusFilter;
       return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [people, searchQuery, roleFilter, statusFilter]);
+  }, [searchQuery, roleFilter, statusFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -102,7 +98,7 @@ export default function PeoplePage() {
       pending: people.filter((p) => p.status === "pending").length,
       admins: people.filter((p) => p.role === "admin").length,
     };
-  }, [people]);
+  }, []);
 
   const getRoleIcon = (role: string) => {
     switch (role) {

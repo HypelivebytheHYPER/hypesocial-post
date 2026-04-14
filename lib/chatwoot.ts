@@ -144,9 +144,9 @@ export async function createContact(
  * Verify webhook signature from Chatwoot
  */
 export function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
+  _payload: string,
+  _signature: string,
+  _secret: string
 ): boolean {
   // Chatwoot doesn't sign webhooks by default, but you can add custom validation
   // This is a placeholder for future implementation

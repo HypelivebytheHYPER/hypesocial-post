@@ -3,11 +3,9 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  MoreHorizontal
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, isToday } from "date-fns";
 import { cn } from "@/lib/utils";

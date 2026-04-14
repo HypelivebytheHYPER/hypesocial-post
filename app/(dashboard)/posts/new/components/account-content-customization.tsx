@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { 
-  ChevronDown, Plus, X, ImageIcon, AlertCircle, FileEdit, ChevronRight, Play, Check
+  ChevronDown, Plus, FileEdit, ChevronRight, Play, Check
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
 import { motion, AnimatePresence } from "framer-motion";
 
-import type { MediaItem, MediaTag, AccountConfigurationDetailsDto } from "@/types/post-for-me-types";
+import type { MediaItem, AccountConfigurationDetailsDto } from "@/types/post-for-me-types";
 import { PLATFORM_CHARACTER_LIMITS } from "@/types/post-for-me-types";
 import { getPlatformIcon } from "@/lib/social-platforms";
 import { cn } from "@/lib/utils";

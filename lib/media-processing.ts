@@ -247,7 +247,7 @@ export function needsProcessing(
   file: File,
   options: { maxWidth?: number; maxHeight?: number; maxSizeMB?: number } = {}
 ): boolean {
-  const { maxWidth = 1920, maxHeight = 1920, maxSizeMB = 8 } = options;
+  const { maxSizeMB = 8 } = options;
   
   // Check file size
   if (file.size > maxSizeMB * 1024 * 1024) return true;

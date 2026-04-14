@@ -19,9 +19,9 @@
  */
 
 import { useRef, useCallback } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { pfmKeys } from "./keys";
+
 import {
   SocialPostPreview,
   SocialPostPreviewRequest,

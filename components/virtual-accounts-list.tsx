@@ -7,14 +7,14 @@
 
 "use client";
 
-import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { VirtualList } from "@/components/ui/virtual-list";
 import { platformIconsMap, getPlatformColor } from "@/lib/social-platforms";
 import { cn } from "@/lib/utils";
 import type { SocialAccount } from "@/types/post-for-me-types";
-import { Users, Plus, Loader2 } from "lucide-react";
+import { Users, Loader2 } from "lucide-react";
 import { EmptyAccountsState } from "@/components/ui/empty-state";
 import { CardSkeleton, StatsGridSkeleton } from "@/components/ui/skeleton";
 

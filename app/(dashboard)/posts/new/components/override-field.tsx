@@ -1,12 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { 
-  ChevronDown, Clock, Calendar, Users, Eye, 
-  MessageSquare, ImageIcon, Hash 
-} from "lucide-react";
 
 type OverrideFieldConfig = {
   key: string;

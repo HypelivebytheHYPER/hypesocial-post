@@ -13,13 +13,13 @@ import {
   ImageIcon,
   Edit3,
   AlertCircle,
-  CheckCircle2,
+
   Clock4
 } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,

@@ -52,7 +52,7 @@ const themeMeta: Record<TweakCNThemeName, { icon: string; gradient: string }> = 
 };
 
 export function ThemeSwitcher() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const [currentTweakCN, setCurrentTweakCN] = useState<TweakCNThemeName | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -147,7 +147,7 @@ export function ThemeSwitcher() {
         <DropdownMenuLabel>Themes</DropdownMenuLabel>
         <DropdownMenuGroup>
           {themes.map((t) => {
-            const colors = getThemePreviewColors(t.name);
+            const _colors = getThemePreviewColors(t.name);
             const meta = themeMeta[t.name];
             const isActive = currentTweakCN === t.name;
 

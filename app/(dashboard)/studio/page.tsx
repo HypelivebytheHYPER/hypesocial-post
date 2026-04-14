@@ -14,12 +14,9 @@ import {
   Facebook,
   Linkedin,
   Twitter,
-  Sparkles,
-  Wand2,
   Move,
   ZoomIn,
   ZoomOut,
-  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";

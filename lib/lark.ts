@@ -4,7 +4,6 @@
  * Worker docs: GET https://lark-http-hype.hypelive.workers.dev/
  */
 
-import { TRACE_HEADERS } from "@/lib/request-context";
 import { PAGINATION } from "@/lib/constants";
 
 // ==================== Types ====================
@@ -16,24 +15,6 @@ interface LarkField {
 interface LarkRecord {
   record_id: string;
   fields: LarkField;
-}
-
-interface LarkSearchResponse {
-  code: number;
-  msg: string;
-  data: {
-    items: LarkRecord[];
-    total: number;
-    has_more: boolean;
-    page_token?: string;
-  };
-}
-
-interface LarkBatchResponse {
-  code?: number;
-  msg?: string;
-  data: LarkRecord[];
-  total: number;
 }
 
 export interface LarkFilterCondition {

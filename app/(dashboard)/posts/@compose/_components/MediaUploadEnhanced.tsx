@@ -1,24 +1,19 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import {
-  Upload,
-  X,
-  ImageIcon,
-  Video,
   AlertCircle,
-  CheckCircle2,
   Loader2,
   Plus,
   Trash2,
-  Eye,
   Film,
   Crop,
+  ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+
 import type { UploadedFile } from "@/components/ui/file-upload";
 import { ImageCropper, AspectRatioKey } from "@/components/ui/image-cropper";
 import { UPLOAD, PLATFORM_LIMITS } from "@/lib/constants";
@@ -54,7 +49,6 @@ export function MediaUploadEnhanced({
   ],
   defaultAspectRatio = "square",
 }: MediaUploadEnhancedProps) {
-  const [isDragActive, setIsDragActive] = useState(false);
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropTarget, setCropTarget] = useState<UploadedFile | null>(null);
 

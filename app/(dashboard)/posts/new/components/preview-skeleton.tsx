@@ -1,7 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { Loader2 } from "lucide-react";
+
 
 export function PreviewSkeleton() {
   return (

@@ -1,4 +1,4 @@
-import type { SocialTemplate } from "./types";
+import type { SocialTemplate, BuilderTemplateV2 } from "./types";
 
 export const socialTemplates: SocialTemplate[] = [
   {
@@ -302,4 +302,28 @@ export const socialTemplates: SocialTemplate[] = [
 
 export function getTemplateById(id: string) {
   return socialTemplates.find((t) => t.id === id);
+}
+
+export function toBuilderTemplateV2(template: SocialTemplate): BuilderTemplateV2 {
+  return {
+    id: template.id,
+    name: template.name,
+    format: template.format,
+    pages: [
+      {
+        id: `${template.id}-page-1`,
+        name: "Page 1",
+        layers: JSON.parse(JSON.stringify(template.layers)),
+        canvasBackground: { color: template.theme?.backgroundColor || "#ffffff", image: "" },
+      },
+    ],
+    theme: {
+      primaryColor: template.theme?.primaryColor || "#2563eb",
+      borderRadius: 8,
+      fontFamily: "Inter",
+      backgroundColor: template.theme?.backgroundColor || "#ffffff",
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
 }

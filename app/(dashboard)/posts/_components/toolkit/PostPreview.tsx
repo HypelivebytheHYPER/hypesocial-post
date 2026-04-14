@@ -35,13 +35,6 @@ interface PostPreviewProps {
   onEdit?: () => void;
 }
 
-const platformConfigs: Record<PreviewPlatform, { name: string; icon: string; color: string }> = {
-  twitter: { name: "X", icon: "𝕏", color: "bg-black" },
-  linkedin: { name: "LinkedIn", icon: "in", color: "bg-blue-700" },
-  facebook: { name: "Facebook", icon: "f", color: "bg-blue-600" },
-  instagram: { name: "Instagram", icon: "📷", color: "bg-gradient-to-br from-purple-600 to-pink-500" },
-};
-
 function TwitterPreview({ post }: { post: SocialPost }) {
   const mediaUrls = post.media?.map(m => m.url) || [];
   
