@@ -3,7 +3,7 @@
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent, DragMoveEvent } from "@dnd-kit/core";
 import { useBuilderStore } from "./store";
-import { useRef } from "react";
+
 
 const SNAP_THRESHOLD_PX = 8;
 

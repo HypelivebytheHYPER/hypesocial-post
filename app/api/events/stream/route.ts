@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       // 1. Initial replay — flush everything since lastEventId in batches
       try {
         // Loop in case there are >REPLAY_BATCH_SIZE pending events
-        // eslint-disable-next-line no-constant-condition
+         
         while (true) {
           const batch = await getEventsSince(cursorSeq, {
             limit: REPLAY_BATCH_SIZE,

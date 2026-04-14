@@ -18,7 +18,8 @@ export class BaseMCPClient {
 
   protected async rpcRequest(
     method: string,
-    params: Record<string, unknown> = {}
+    params: Record<string, unknown> = {},
+    retry = true
   ): Promise<any> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -40,8 +41,20 @@ export class BaseMCPClient {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`MCP HTTP ${response.status}: ${error}`);
+      const errorText = await response.text();
+
+      // If session not found, retry once with a fresh session
+      if (
+        retry &&
+        response.status === 404 &&
+        errorText.includes("Session not found")
+      ) {
+        this.sessionId = undefined;
+        await this.ensureInitialized();
+        return this.rpcRequest(method, params, false);
+      }
+
+      throw new Error(`MCP HTTP ${response.status}: ${errorText}`);
     }
 
     const newSessionId = response.headers.get("Mcp-Session-Id");
@@ -52,6 +65,17 @@ export class BaseMCPClient {
     const data = await response.json();
 
     if (data.error) {
+      // If session not found at RPC level, retry once with a fresh session
+      if (
+        retry &&
+        data.error.code === -32001 &&
+        data.error.message?.includes("Session not found")
+      ) {
+        this.sessionId = undefined;
+        await this.ensureInitialized();
+        return this.rpcRequest(method, params, false);
+      }
+
       throw new Error(
         `MCP RPC error: ${data.error.message || JSON.stringify(data.error)}`
       );
@@ -81,11 +105,15 @@ export class BaseMCPClient {
   protected async ensureInitialized(): Promise<void> {
     if (this.sessionId) return;
 
-    await this.rpcRequest("initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "hypesocial-chat", version: "1.0.0" },
-    });
+    await this.rpcRequest(
+      "initialize",
+      {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "hypesocial-chat", version: "1.0.0" },
+      },
+      false
+    );
 
     await this.sendNotification("notifications/initialized");
     // Small delay required for the MCP server to fully register the session

@@ -196,7 +196,7 @@ const builderStore = (set: any, get: any): BuilderState => ({
     }));
   },
 
-  distributeLayers: (direction) => {
+  distributeLayers: (_direction) => {
     const selected = get().selectedLayerId;
     if (!selected) return;
     // Simplistic: align all selected concept not yet multi-select; skip for now
@@ -217,7 +217,7 @@ export const useBuilderStore = create<BuilderState>()(
       }),
       equality: shallow,
       limit: 50,
-      onSave: (state) => {
+      onSave: () => {
         // Only save when meaningful canvas state changes
       },
     }),

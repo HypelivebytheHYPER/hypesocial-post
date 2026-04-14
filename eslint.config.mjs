@@ -10,6 +10,7 @@ export default [
   {
     ignores: [
       ".next/**",
+      ".open-next/**",
       "node_modules/**",
       "*.config.*",
       "scripts/**",
@@ -17,6 +18,10 @@ export default [
       "playwright-report/**",
       ".storybook/**",
       "workers/**",
+      "agents/**",
+      "*.js",
+      "*.mjs",
+      "*.cjs",
     ],
   },
   js.configs.recommended,
