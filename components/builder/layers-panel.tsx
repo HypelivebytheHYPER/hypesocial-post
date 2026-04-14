@@ -1,19 +1,31 @@
 "use client";
 
 import { useBuilderStore } from "./store";
-import { blockRegistry, getBlockIcon } from "./blocks/registry";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Trash2, Shuffle, Layers } from "lucide-react";
-import type { BuilderBlock } from "./blocks/types";
+import { Trash2, Layers, Eye, Type, Image as ImageIcon, Square, MousePointer2 } from "lucide-react";
+import type { Layer } from "./types";
 
-function LayerItem({ block }: { block: BuilderBlock }) {
-  const { selectedBlockId, selectBlock, removeBlock, shuffleBlock } = useBuilderStore();
-  const isSelected = selectedBlockId === block.id;
+function getLayerIcon(type: Layer["type"]) {
+  switch (type) {
+    case "text":
+      return Type;
+    case "image":
+      return ImageIcon;
+    case "shape":
+      return Square;
+    case "button":
+      return MousePointer2;
+    default:
+      return Eye;
+  }
+}
 
-  const registryEntry = blockRegistry[block.type];
-  const Icon = getBlockIcon(registryEntry.iconName);
+function LayerItem({ layer }: { layer: Layer }) {
+  const { selectedLayerId, selectLayer, removeLayer, bringToFront, sendToBack } = useBuilderStore();
+  const isSelected = selectedLayerId === layer.id;
+  const Icon = getLayerIcon(layer.type);
 
   return (
     <div
@@ -23,29 +35,41 @@ function LayerItem({ block }: { block: BuilderBlock }) {
           ? "border-primary bg-primary/5"
           : "border-border bg-card hover:border-primary/30"
       )}
-      onClick={() => selectBlock(block.id)}
+      onClick={() => selectLayer(layer.id)}
     >
       <div className="flex h-6 w-6 items-center justify-center rounded bg-muted text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground">{registryEntry.name}</p>
-        <p className="truncate text-[10px] text-muted-foreground">{registryEntry.description}</p>
+        <p className="truncate text-xs font-medium text-foreground">{layer.name}</p>
+        <p className="truncate text-[10px] text-muted-foreground capitalize">{layer.type}</p>
       </div>
 
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
           variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          size="sm"
+          className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
           onClick={(e) => {
             e.stopPropagation();
-            shuffleBlock(block.id);
+            bringToFront(layer.id);
           }}
-          title="Shuffle variant"
+          title="Bring to front"
         >
-          <Shuffle className="h-3 w-3" />
+          Front
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            sendToBack(layer.id);
+          }}
+          title="Send to back"
+        >
+          Back
         </Button>
         <Button
           variant="ghost"
@@ -53,9 +77,9 @@ function LayerItem({ block }: { block: BuilderBlock }) {
           className="h-6 w-6 text-muted-foreground hover:text-destructive"
           onClick={(e) => {
             e.stopPropagation();
-            removeBlock(block.id);
+            removeLayer(layer.id);
           }}
-          title="Delete block"
+          title="Delete layer"
         >
           <Trash2 className="h-3 w-3" />
         </Button>
@@ -65,7 +89,7 @@ function LayerItem({ block }: { block: BuilderBlock }) {
 }
 
 export function LayersPanel() {
-  const { blocks, clearCanvas } = useBuilderStore();
+  const { layers, clearCanvas } = useBuilderStore();
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-card">
@@ -73,30 +97,33 @@ export function LayersPanel() {
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Layers</h2>
-          <span className="text-xs text-muted-foreground">{blocks.length}</span>
+          <span className="text-xs text-muted-foreground">{layers.length}</span>
         </div>
         <Button
           variant="ghost"
           size="sm"
           className="h-7 text-xs text-muted-foreground hover:text-destructive"
           onClick={clearCanvas}
-          disabled={blocks.length === 0}
+          disabled={layers.length === 0}
         >
           Clear All
         </Button>
       </div>
 
       <ScrollArea className="flex-1 p-3">
-        {blocks.length === 0 ? (
+        {layers.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">
-            <p>No blocks yet</p>
-            <p className="mt-1">Add blocks from the left panel</p>
+            <p>No layers yet</p>
+            <p className="mt-1">Pick a template to get started</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {blocks.map((block) => (
-              <LayerItem key={block.id} block={block} />
-            ))}
+            {layers
+              .slice()
+              .sort((a, b) => b.zIndex - a.zIndex)
+              .map((layer) => (
+                <LayerItem key={layer.id} layer={layer} />
+              ))}
           </div>
         )}
       </ScrollArea>

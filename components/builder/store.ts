@@ -2,42 +2,48 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { BuilderBlock, BlockType } from "./blocks/types";
-import { blockRegistry, blockVariants } from "./blocks/registry";
+import type { CanvasFormat, Layer, BuilderTemplateV2 } from "./types";
 
 interface ThemeState {
   primaryColor: string;
   borderRadius: number;
   fontFamily: string;
-}
-
-export interface BuilderTemplate {
-  id: string;
-  name: string;
-  blocks: BuilderBlock[];
-  theme: ThemeState;
-  createdAt: number;
-  updatedAt: number;
+  backgroundColor: string;
 }
 
 interface BuilderState {
-  blocks: BuilderBlock[];
-  selectedBlockId: string | null;
+  // Canvas
+  format: CanvasFormat;
+  layers: Layer[];
+  selectedLayerId: string | null;
+  canvasBackground: {
+    color: string;
+    image: string;
+  };
+
+  // UI
   searchQuery: string;
   viewMode: "grid" | "list";
   theme: ThemeState;
-  addBlock: (type: BlockType, index?: number) => void;
-  moveBlock: (fromIndex: number, toIndex: number) => void;
-  updateBlock: (id: string, props: Record<string, unknown>) => void;
-  removeBlock: (id: string) => void;
-  selectBlock: (id: string | null) => void;
+
+  // Actions
+  setFormat: (format: CanvasFormat) => void;
+  addLayer: (layer: Omit<Layer, "id">) => void;
+  updateLayer: (id: string, updates: Partial<Omit<Layer, "id">>) => void;
+  removeLayer: (id: string) => void;
+  selectLayer: (id: string | null) => void;
+  moveLayer: (id: string, x: number, y: number) => void;
+  resizeLayer: (id: string, width: number, height: number) => void;
+  bringToFront: (id: string) => void;
+  sendToBack: (id: string) => void;
   clearCanvas: () => void;
-  shuffleBlock: (id: string) => void;
+  setCanvasBackground: (bg: Partial<BuilderState["canvasBackground"]>) => void;
+
   setSearchQuery: (q: string) => void;
   setViewMode: (mode: "grid" | "list") => void;
   setTheme: (theme: Partial<ThemeState>) => void;
   resetTheme: () => void;
-  loadTemplate: (template: BuilderTemplate) => void;
+  loadTemplate: (template: BuilderTemplateV2) => void;
 }
 
 function generateId() {
@@ -48,115 +54,122 @@ const defaultTheme: ThemeState = {
   primaryColor: "#2563eb",
   borderRadius: 8,
   fontFamily: "Inter",
+  backgroundColor: "#ffffff",
 };
 
 export const useBuilderStore = create<BuilderState>()(
   persist(
     (set) => ({
-      blocks: [],
-      selectedBlockId: null,
+      format: "ig-post",
+      layers: [],
+      selectedLayerId: null,
+      canvasBackground: {
+        color: "#ffffff",
+        image: "",
+      },
       searchQuery: "",
       viewMode: "grid",
       theme: { ...defaultTheme },
 
-      addBlock: (type: BlockType, index?: number) => {
-        const registryEntry = blockRegistry[type];
-        if (!registryEntry) return;
+      setFormat: (format) => set({ format }),
 
-        const newBlock: BuilderBlock = {
+      addLayer: (layer) => {
+        const newLayer: Layer = {
+          ...layer,
           id: generateId(),
-          type,
-          props: { ...registryEntry.defaultProps },
         };
-
-        set((state) => {
-          const blocks = [...state.blocks];
-          const insertIndex = index !== undefined && index >= 0 ? index : blocks.length;
-          blocks.splice(insertIndex, 0, newBlock);
-          return { blocks, selectedBlockId: newBlock.id };
-        });
-      },
-
-      moveBlock: (fromIndex: number, toIndex: number) => {
-        set((state) => {
-          const blocks = [...state.blocks];
-          const [moved] = blocks.splice(fromIndex, 1);
-          if (!moved) return state;
-          blocks.splice(toIndex, 0, moved);
-          return { blocks };
-        });
-      },
-
-      updateBlock: (id: string, props: Record<string, unknown>) => {
         set((state) => ({
-          blocks: state.blocks.map((block) =>
-            block.id === id ? { ...block, props: { ...block.props, ...props } } : block
+          layers: [...state.layers, newLayer],
+          selectedLayerId: newLayer.id,
+        }));
+      },
+
+      updateLayer: (id, updates) => {
+        set((state) => ({
+          layers: state.layers.map((l) =>
+            l.id === id ? { ...l, ...updates } : l
           ),
         }));
       },
 
-      removeBlock: (id: string) => {
+      removeLayer: (id) => {
         set((state) => ({
-          blocks: state.blocks.filter((block) => block.id !== id),
-          selectedBlockId: state.selectedBlockId === id ? null : state.selectedBlockId,
+          layers: state.layers.filter((l) => l.id !== id),
+          selectedLayerId:
+            state.selectedLayerId === id ? null : state.selectedLayerId,
         }));
       },
 
-      selectBlock: (id: string | null) => {
-        set({ selectedBlockId: id });
-      },
+      selectLayer: (id) => set({ selectedLayerId: id }),
 
-      clearCanvas: () => {
-        set({ blocks: [], selectedBlockId: null });
-      },
-
-      shuffleBlock: (id: string) => {
-        const state = useBuilderStore.getState();
-        const block = state.blocks.find((b) => b.id === id);
-        if (!block) return;
-        const variants = blockVariants[block.type];
-        if (!variants || variants.length <= 1) return;
-
-        let attempts = 0;
-        let nextVariant: { type: BlockType; props: Record<string, unknown> } | null = null;
-        while (attempts < 10) {
-          const candidate = variants[Math.floor(Math.random() * variants.length)];
-          if (candidate && (candidate.type !== block.type || JSON.stringify(candidate.props) !== JSON.stringify(block.props))) {
-            nextVariant = candidate;
-            break;
-          }
-          attempts++;
-        }
-        if (!nextVariant) {
-          const fallback = variants[Math.floor(Math.random() * variants.length)];
-          nextVariant = fallback ?? null;
-        }
-
-        set((s) => ({
-          blocks: s.blocks.map((b) =>
-            b.id === id ? { ...b, type: nextVariant!.type, props: { ...nextVariant!.props } } : b
+      moveLayer: (id, x, y) => {
+        set((state) => ({
+          layers: state.layers.map((l) =>
+            l.id === id ? { ...l, x, y } : l
           ),
         }));
       },
 
-      setSearchQuery: (q: string) => set({ searchQuery: q }),
-      setViewMode: (mode: "grid" | "list") => set({ viewMode: mode }),
-      setTheme: (theme) => set((state) => ({ theme: { ...state.theme, ...theme } })),
+      resizeLayer: (id, width, height) => {
+        set((state) => ({
+          layers: state.layers.map((l) =>
+            l.id === id ? { ...l, width, height } : l
+          ),
+        }));
+      },
+
+      bringToFront: (id) => {
+        set((state) => {
+          const maxZ = Math.max(0, ...state.layers.map((l) => l.zIndex));
+          return {
+            layers: state.layers.map((l) =>
+              l.id === id ? { ...l, zIndex: maxZ + 1 } : l
+            ),
+          };
+        });
+      },
+
+      sendToBack: (id) => {
+        set((state) => {
+          const minZ = Math.min(0, ...state.layers.map((l) => l.zIndex));
+          return {
+            layers: state.layers.map((l) =>
+              l.id === id ? { ...l, zIndex: minZ - 1 } : l
+            ),
+          };
+        });
+      },
+
+      clearCanvas: () =>
+        set({ layers: [], selectedLayerId: null, canvasBackground: { color: "#ffffff", image: "" } }),
+
+      setCanvasBackground: (bg) =>
+        set((state) => ({
+          canvasBackground: { ...state.canvasBackground, ...bg },
+        })),
+
+      setSearchQuery: (q) => set({ searchQuery: q }),
+      setViewMode: (mode) => set({ viewMode: mode }),
+      setTheme: (theme) =>
+        set((state) => ({ theme: { ...state.theme, ...theme } })),
       resetTheme: () => set({ theme: { ...defaultTheme } }),
 
-      loadTemplate: (template: BuilderTemplate) => {
+      loadTemplate: (template) => {
         set({
-          blocks: JSON.parse(JSON.stringify(template.blocks)),
-          theme: { ...template.theme },
-          selectedBlockId: null,
+          format: template.format,
+          layers: JSON.parse(JSON.stringify(template.layers)),
+          theme: { ...defaultTheme, ...template.theme },
+          selectedLayerId: null,
         });
       },
     }),
     {
-      name: "hype-social-builder",
+      name: "hype-social-builder-v2",
       partialize: (state) => ({
-        blocks: state.blocks,
+        format: state.format,
+        layers: state.layers,
         theme: state.theme,
+        canvasBackground: state.canvasBackground,
       }),
     }
   )

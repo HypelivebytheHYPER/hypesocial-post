@@ -1,34 +1,58 @@
 "use client";
 
 import { BlockSidebar } from "./block-sidebar";
-import { Canvas } from "./canvas";
-import { LayersPanel } from "./layers-panel";
 import { PropertiesPanel } from "./properties-sheet";
 import { ExportDialog } from "./export-dialog";
 import { FigmaPanel } from "./figma-panel";
 import { PenpotPanel } from "./penpot-panel";
 import { CanvaPanel, CanvaIcon } from "./canva-panel";
 import { ThemePanel } from "./theme-panel";
+import { LayersPanel } from "./layers-panel";
 import { useBuilderStore } from "./store";
 import { hexToHsl } from "./lib/theme";
 import { Button } from "@/components/ui/button";
-import { Code, Trash2, Eye, Plus, Figma, Palette, Save, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { Code, Trash2, Eye, Figma, Palette, Save, ExternalLink } from "lucide-react";
+import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { SaveTemplateDialog } from "./save-template-dialog";
-import { BuilderDndProvider } from "./dnd-provider";
+import { SocialCanvas } from "./social-canvas";
+import { SocialDndProvider } from "./social-dnd-provider";
+import { FormatSelector } from "./format-selector";
+import { toPng } from "html-to-image";
+import { toast } from "sonner";
 
 export function BuilderShell() {
-  const { blocks, clearCanvas, theme, selectedBlockId } = useBuilderStore();
+  const { layers, clearCanvas, theme, selectedLayerId, format, setFormat, canvasBackground } = useBuilderStore();
   const [exportOpen, setExportOpen] = useState(false);
   const [figmaOpen, setFigmaOpen] = useState(false);
   const [penpotOpen, setPenpotOpen] = useState(false);
   const [canvaOpen, setCanvaOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const [activePage, setActivePage] = useState("Page 1");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const artboardRef = useRef<HTMLDivElement>(null);
 
-  const pages = ["Page 1"];
+  async function handleExportPng() {
+    const node = document.getElementById("social-artboard");
+    if (!node) {
+      toast.error("Canvas not found");
+      return;
+    }
+    try {
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: canvasBackground.color || theme.backgroundColor,
+      });
+      const link = document.createElement("a");
+      link.download = `hype-social-design-${format}-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success("PNG exported successfully");
+    } catch (err) {
+      toast.error("Failed to export PNG");
+    }
+  }
 
   return (
     <div
@@ -45,31 +69,14 @@ export function BuilderShell() {
       {/* Top Toolbar */}
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
         <div className="flex items-center gap-4">
-          {/* Page Tabs */}
-          <div className="flex items-center gap-1">
-            {pages.map((page) => (
-              <button
-                key={page}
-                onClick={() => setActivePage(page)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  activePage === page
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                {page}
-              </button>
-            ))}
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Add page">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <FormatSelector value={format} onChange={setFormat} />
 
           <div className="h-4 w-px bg-border" />
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{blocks.length} block{blocks.length !== 1 ? "s" : ""}</span>
+            <span>
+              {layers.length} layer{layers.length !== 1 ? "s" : ""}
+            </span>
           </div>
         </div>
 
@@ -142,7 +149,7 @@ export function BuilderShell() {
             variant="outline"
             size="sm"
             onClick={() => setSaveTemplateOpen(true)}
-            disabled={blocks.length === 0}
+            disabled={layers.length === 0}
             className="gap-1.5"
           >
             <Save className="h-3.5 w-3.5" />
@@ -152,7 +159,7 @@ export function BuilderShell() {
             variant="outline"
             size="sm"
             onClick={clearCanvas}
-            disabled={blocks.length === 0}
+            disabled={layers.length === 0}
             className="gap-1.5"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -162,7 +169,8 @@ export function BuilderShell() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            disabled={blocks.length === 0}
+            disabled={layers.length === 0}
+            onClick={() => setPreviewOpen(true)}
           >
             <Eye className="h-3.5 w-3.5" />
             Preview
@@ -171,21 +179,21 @@ export function BuilderShell() {
             variant="default"
             size="sm"
             className="gap-1.5"
-            onClick={() => setExportOpen(true)}
-            disabled={blocks.length === 0}
+            onClick={handleExportPng}
+            disabled={layers.length === 0}
           >
             <Code className="h-3.5 w-3.5" />
-            Export Code
+            Export PNG
           </Button>
         </div>
       </div>
 
       {/* Main Workspace */}
-      <BuilderDndProvider>
+      <SocialDndProvider>
         <div className="flex flex-1 overflow-hidden">
           <BlockSidebar />
           <div className="min-w-0 flex-1">
-            <Canvas />
+            <SocialCanvas />
           </div>
           {figmaOpen ? (
             <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
@@ -195,16 +203,41 @@ export function BuilderShell() {
             <CanvaPanel open={canvaOpen} onClose={() => setCanvaOpen(false)} />
           ) : themeOpen ? (
             <ThemePanel open={themeOpen} onClose={() => setThemeOpen(false)} />
-          ) : selectedBlockId ? (
+          ) : selectedLayerId ? (
             <PropertiesPanel />
           ) : (
             <LayersPanel />
           )}
         </div>
-      </BuilderDndProvider>
+      </SocialDndProvider>
 
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
       <SaveTemplateDialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen} />
+
+      {/* Preview Modal */}
+      {previewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div className="relative max-h-full max-w-full overflow-auto rounded-lg bg-background p-2 shadow-2xl">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-2 top-2 z-10"
+              onClick={() => setPreviewOpen(false)}
+            >
+              Close
+            </Button>
+            <div
+              className="overflow-hidden rounded"
+              dangerouslySetInnerHTML={{
+                __html: document.getElementById("social-artboard")?.outerHTML || "",
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

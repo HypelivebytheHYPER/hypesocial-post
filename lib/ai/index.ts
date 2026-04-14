@@ -2,7 +2,7 @@ import type { UIMessage, ModelMessage } from "@tanstack/ai";
 import { type MCPTool } from "@/lib/mcp";
 
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
-const CF_API_TOKEN = process.env.CLOUDFARE_API_TOKEN;
+const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 const PRIMARY_MODEL = "@cf/meta/llama-3.1-70b-instruct";
 const FALLBACK_MODEL = "@cf/moonshotai/kimi-k2.5";
 

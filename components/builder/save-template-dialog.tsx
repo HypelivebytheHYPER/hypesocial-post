@@ -20,15 +20,17 @@ export function SaveTemplateDialog({
   open: boolean;
   onOpenChange: (val: boolean) => void;
 }) {
-  const { blocks, theme } = useBuilderStore();
+  const { layers, theme, format, canvasBackground } = useBuilderStore();
   const [name, setName] = useState("");
   const saveMutation = useSaveTemplate();
 
   async function handleSave() {
     await saveMutation.mutateAsync({
       name: name.trim() || "Untitled Template",
-      blocks: JSON.parse(JSON.stringify(blocks)),
+      format,
+      layers: JSON.parse(JSON.stringify(layers)),
       theme: { ...theme },
+      canvasBackground: { ...canvasBackground },
     });
     setName("");
     onOpenChange(false);
@@ -39,7 +41,7 @@ export function SaveTemplateDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Save as Template</DialogTitle>
-          <DialogDescription>Save your current canvas and theme for reuse later.</DialogDescription>
+          <DialogDescription>Save your current design, format, and theme for reuse later.</DialogDescription>
         </DialogHeader>
         <div className="mt-2 space-y-4">
           <Input
@@ -54,7 +56,7 @@ export function SaveTemplateDialog({
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={blocks.length === 0 || saveMutation.isPending}>
+            <Button size="sm" onClick={handleSave} disabled={layers.length === 0 || saveMutation.isPending}>
               {saveMutation.isPending ? "Saving..." : "Save Template"}
             </Button>
           </div>
