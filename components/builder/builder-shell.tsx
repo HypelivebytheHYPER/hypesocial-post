@@ -163,7 +163,9 @@ export function BuilderShell() {
       <BuilderDndProvider>
         <div className="flex flex-1 overflow-hidden">
           <BlockSidebar />
-          <Canvas />
+          <div className="min-w-0 flex-1">
+            <Canvas />
+          </div>
           {figmaOpen ? (
             <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
           ) : penpotOpen ? (

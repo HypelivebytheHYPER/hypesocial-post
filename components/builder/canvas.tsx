@@ -13,7 +13,7 @@ import type { BuilderBlock } from "./blocks/types";
 
 function EmptyState() {
   return (
-    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+    <div className="flex h-full min-w-0 flex-col items-center justify-center px-6 text-center text-muted-foreground">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
         <LayoutTemplate className="h-8 w-8" />
       </div>
