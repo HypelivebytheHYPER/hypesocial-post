@@ -28,11 +28,9 @@ import {
   listProducts,
   listPages,
   createCampaign,
-  createPage,
   updatePage,
   deletePage,
   type Campaign,
-  type Product,
   type Page,
 } from "./canva-catalog-lark";
 import { callChatAgentJSON } from "@/lib/ai";

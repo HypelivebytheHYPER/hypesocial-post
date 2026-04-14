@@ -17,7 +17,7 @@ export function parseToolCalls(
           arguments: toolCall.arguments || {},
         });
       }
-    } catch (e) {
+    } catch (_e) {
       console.error("[MCP] Failed to parse tool call:", match[1]);
     }
   }
