@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { z } from "zod";
 import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import { useStore } from "@tanstack/react-form";
+
 import { useCreateSocialAccount } from "@/lib/hooks";
+import { useAppForm } from "@/lib/hooks/use-app-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const platforms = [
   { value: "facebook", label: "Facebook" },
@@ -19,48 +21,72 @@ const platforms = [
   { value: "linkedin", label: "LinkedIn" },
   { value: "bluesky", label: "Bluesky" },
   { value: "threads", label: "Threads" },
+] as const;
+
+const platformValues = platforms.map((p) => p.value) as [
+  (typeof platforms)[number]["value"],
+  ...(typeof platforms)[number]["value"][],
 ];
+
+const ManualAccountFormSchema = z.object({
+  platform: z.enum(platformValues, {
+    errorMap: () => ({ message: "Select a platform" }),
+  }),
+  user_id: z.string().min(1, "User ID is required"),
+  access_token: z.string().min(1, "Access token is required"),
+  access_token_expires_at: z.string().optional(),
+  username: z.string().optional(),
+  external_id: z.string().optional(),
+});
+
+type ManualAccountFormValues = z.infer<typeof ManualAccountFormSchema>;
+
+const defaultValues: ManualAccountFormValues = {
+  platform: "" as ManualAccountFormValues["platform"],
+  user_id: "",
+  access_token: "",
+  access_token_expires_at: "",
+  username: "",
+  external_id: "",
+};
 
 export default function ManualAccountPage() {
   const createAccount = useCreateSocialAccount();
-  const [formData, setFormData] = useState({
-    platform: "",
-    user_id: "",
-    access_token: "",
-    access_token_expires_at: "",
-    external_id: "",
-    username: "",
+
+  const form = useAppForm({
+    defaultValues,
+    validators: {
+      onBlur: ManualAccountFormSchema,
+      onSubmit: ManualAccountFormSchema,
+    },
+    onSubmit: async ({ value, formApi }) => {
+      const expiresAt =
+        value.access_token_expires_at ||
+        new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+
+      await new Promise<void>((resolve, reject) => {
+        createAccount.mutate(
+          {
+            platform: value.platform,
+            user_id: value.user_id,
+            access_token: value.access_token,
+            access_token_expires_at: expiresAt,
+            external_id: value.external_id || undefined,
+            username: value.username || undefined,
+          },
+          {
+            onSuccess: () => {
+              formApi.reset();
+              resolve();
+            },
+            onError: (error) => reject(error),
+          }
+        );
+      });
+    },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.platform || !formData.access_token || !formData.user_id) return;
-    
-    // Default expiration to 60 days from now if not provided
-    const expiresAt = formData.access_token_expires_at || 
-      new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
-    
-    createAccount.mutate({
-      platform: formData.platform,
-      user_id: formData.user_id,
-      access_token: formData.access_token,
-      access_token_expires_at: expiresAt,
-      external_id: formData.external_id || undefined,
-      username: formData.username || undefined,
-    }, {
-      onSuccess: () => {
-        // Reset form on success
-        setFormData({
-          platform: "",
-          user_id: "",
-          access_token: "",
-          access_token_expires_at: "",
-          external_id: "",
-          username: "",
-        });
-      },
-    });
-  };
+  const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
   return (
     <div className="mx-auto max-w-xl space-y-6 p-4">
@@ -87,98 +113,135 @@ export default function ManualAccountPage() {
       <div className="divider-soft" />
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="card-premium p-6 space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="platform">Platform *</Label>
-          <select
-            id="platform"
-            value={formData.platform}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, platform: e.target.value }))
-            }
-            className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="">Select platform</option>
-            {platforms.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void form.handleSubmit();
+        }}
+        className="card-premium p-6 space-y-5"
+        noValidate
+      >
+        <form.AppField name="platform">
+          {(field) => (
+            <field.FormItem>
+              <field.FormLabel>Platform *</field.FormLabel>
+              <field.FormControl>
+                <select
+                  value={field.state.value}
+                  onChange={(e) =>
+                    field.handleChange(
+                      e.target.value as ManualAccountFormValues["platform"]
+                    )
+                  }
+                  onBlur={field.handleBlur}
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select platform</option>
+                  {platforms.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </field.FormControl>
+              <field.FormMessage />
+            </field.FormItem>
+          )}
+        </form.AppField>
 
-        <div className="space-y-2">
-          <Label htmlFor="user_id">User ID *</Label>
-          <Input
-            id="user_id"
-            placeholder="Your internal user ID"
-            value={formData.user_id}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, user_id: e.target.value }))
-            }
-            required
-          />
-          <p className="text-xs text-slate-400">
-            Your system&apos;s user identifier
-          </p>
-        </div>
+        <form.AppField name="user_id">
+          {(field) => (
+            <field.FormItem>
+              <field.FormLabel>User ID *</field.FormLabel>
+              <field.FormControl>
+                <Input
+                  placeholder="Your internal user ID"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                />
+              </field.FormControl>
+              <field.FormDescription>
+                Your system&apos;s user identifier
+              </field.FormDescription>
+              <field.FormMessage />
+            </field.FormItem>
+          )}
+        </form.AppField>
 
-        <div className="space-y-2">
-          <Label htmlFor="access_token">Access Token *</Label>
-          <Input
-            id="access_token"
-            type="password"
-            placeholder="Paste access token here"
-            value={formData.access_token}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, access_token: e.target.value }))
-            }
-            required
-          />
-        </div>
+        <form.AppField name="access_token">
+          {(field) => (
+            <field.FormItem>
+              <field.FormLabel>Access Token *</field.FormLabel>
+              <field.FormControl>
+                <Input
+                  type="password"
+                  placeholder="Paste access token here"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                />
+              </field.FormControl>
+              <field.FormMessage />
+            </field.FormItem>
+          )}
+        </form.AppField>
 
-        <div className="space-y-2">
-          <Label htmlFor="expires_at">Token Expires At</Label>
-          <Input
-            id="expires_at"
-            type="datetime-local"
-            value={formData.access_token_expires_at}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                access_token_expires_at: e.target.value,
-              }))
-            }
-          />
-          <p className="text-xs text-slate-400">
-            Defaults to 60 days from now if not set
-          </p>
-        </div>
+        <form.AppField name="access_token_expires_at">
+          {(field) => (
+            <field.FormItem>
+              <field.FormLabel>Token Expires At</field.FormLabel>
+              <field.FormControl>
+                <Input
+                  type="datetime-local"
+                  value={field.state.value ?? ""}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                />
+              </field.FormControl>
+              <field.FormDescription>
+                Defaults to 60 days from now if not set
+              </field.FormDescription>
+              <field.FormMessage />
+            </field.FormItem>
+          )}
+        </form.AppField>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              placeholder="@handle"
-              value={formData.username}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, username: e.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="external_id">External ID</Label>
-            <Input
-              id="external_id"
-              placeholder="Platform user ID"
-              value={formData.external_id}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, external_id: e.target.value }))
-              }
-            />
-          </div>
+          <form.AppField name="username">
+            {(field) => (
+              <field.FormItem>
+                <field.FormLabel>Username</field.FormLabel>
+                <field.FormControl>
+                  <Input
+                    placeholder="@handle"
+                    value={field.state.value ?? ""}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                  />
+                </field.FormControl>
+                <field.FormMessage />
+              </field.FormItem>
+            )}
+          </form.AppField>
+
+          <form.AppField name="external_id">
+            {(field) => (
+              <field.FormItem>
+                <field.FormLabel>External ID</field.FormLabel>
+                <field.FormControl>
+                  <Input
+                    placeholder="Platform user ID"
+                    value={field.state.value ?? ""}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                  />
+                </field.FormControl>
+                <field.FormMessage />
+              </field.FormItem>
+            )}
+          </form.AppField>
         </div>
 
         <div className="pt-2">
@@ -186,9 +249,9 @@ export default function ManualAccountPage() {
             type="submit"
             variant="premium"
             className="w-full"
-            disabled={createAccount.isPending}
+            disabled={isSubmitting || createAccount.isPending}
           >
-            {createAccount.isPending ? (
+            {isSubmitting || createAccount.isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Creating...
