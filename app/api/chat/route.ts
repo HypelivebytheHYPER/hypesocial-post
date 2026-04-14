@@ -7,6 +7,8 @@ import {
   listLocalMCPTools,
   callLocalMCPTool,
   parseToolCalls,
+  RemoteMCPClient,
+  LocalMCPClient,
 } from "@/lib/mcp";
 import { storeHistory, getHistory, clearHistory } from "@/lib/chat";
 
@@ -50,15 +52,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Collect available MCP tools
+    // 1. Collect available MCP tools (reuse one session per request)
+    const remoteClient = new RemoteMCPClient();
+    const localClient = new LocalMCPClient();
     let mcpTools = [] as Awaited<ReturnType<typeof listMCPTools>>;
     try {
       const [remote, local] = await Promise.all([
-        listMCPTools().catch((e) => {
+        listMCPTools(remoteClient).catch((e) => {
           console.error("[Chat] Remote MCP unavailable:", e);
           return [] as typeof mcpTools;
         }),
-        listLocalMCPTools().catch((e) => {
+        listLocalMCPTools(localClient).catch((e) => {
           console.error("[Chat] Local MCP unavailable:", e);
           return [] as typeof mcpTools;
         }),
@@ -113,8 +117,8 @@ export async function POST(request: NextRequest) {
         toolCall.name.startsWith("figma_") ||
         toolCall.name.startsWith("media_");
       const result = isLocal
-        ? await callLocalMCPTool(toolCall.name, toolCall.arguments)
-        : await callMCPTool(toolCall.name, toolCall.arguments);
+        ? await callLocalMCPTool(toolCall.name, toolCall.arguments, localClient)
+        : await callMCPTool(toolCall.name, toolCall.arguments, remoteClient);
       toolResults[toolCall.name] = result;
     }
 

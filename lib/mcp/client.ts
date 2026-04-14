@@ -114,16 +114,40 @@ export class BaseMCPClient {
     });
 
     if (result && Array.isArray(result.content)) {
-      const textContent = result.content
+      const textItems = result.content
         .filter((c: any) => c.type === "text")
-        .map((c: any) => c.text)
-        .join("");
+        .map((c: any) => c.text);
 
-      try {
-        return JSON.parse(textContent);
-      } catch {
-        return { result: textContent };
+      // If the server flagged this as an error, return an error object
+      if (result.isError) {
+        let structuredError: any = null;
+        for (const text of textItems) {
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed.errorData) {
+              structuredError = parsed.errorData;
+              break;
+            }
+          } catch {
+            // not JSON, skip
+          }
+        }
+        return {
+          error: textItems[0] || "Tool execution failed",
+          errorData: structuredError,
+        };
       }
+
+      // Try to parse the first JSON content item; fall back to concatenated text
+      for (const text of textItems) {
+        try {
+          return JSON.parse(text);
+        } catch {
+          // try next item
+        }
+      }
+
+      return { result: textItems.join("\n") };
     }
 
     return result;

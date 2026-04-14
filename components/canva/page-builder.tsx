@@ -510,79 +510,87 @@ export function PageBuilder({
     await downloadComposedImage(baseUrl, layers, `${page["Page Name"] || "export"}.png`);
   };
 
-  useHotkeys([
-    { hotkey: "V", callback: () => setActiveTool("select"), options: { ignoreInputs: true } },
-    { hotkey: "T", callback: () => setActiveTool("text"), options: { ignoreInputs: true } },
-    { hotkey: "I", callback: () => setActiveTool("image"), options: { ignoreInputs: true } },
-    { hotkey: "B", callback: () => setActiveTool("badge"), options: { ignoreInputs: true } },
-    {
-      hotkey: "Delete",
-      callback: () => {
-        if (selectedLayerId) deleteLayer(selectedLayerId);
+  useHotkeys(
+    [
+      { hotkey: "V", callback: () => setActiveTool("select"), options: { enabled: !showPublishDrawer } },
+      { hotkey: "T", callback: () => setActiveTool("text"), options: { enabled: !showPublishDrawer } },
+      { hotkey: "I", callback: () => setActiveTool("image"), options: { enabled: !showPublishDrawer } },
+      { hotkey: "B", callback: () => setActiveTool("badge"), options: { enabled: !showPublishDrawer } },
+      {
+        hotkey: "Delete",
+        callback: () => {
+          if (selectedLayerId) deleteLayer(selectedLayerId);
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    {
-      hotkey: "Backspace",
-      callback: () => {
-        if (selectedLayerId) deleteLayer(selectedLayerId);
+      {
+        hotkey: "Backspace",
+        callback: () => {
+          if (selectedLayerId) deleteLayer(selectedLayerId);
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    {
-      hotkey: "ArrowUp",
-      callback: (e) => {
-        if (!selectedLayerId) return;
-        const l = layers.find((layer) => layer.id === selectedLayerId);
-        if (!l) return;
-        updateLayer(selectedLayerId, { y: Math.max(0, l.y - (e.shiftKey ? 10 : 1)) });
+      {
+        hotkey: "ArrowUp",
+        callback: (e) => {
+          if (!selectedLayerId) return;
+          const delta = e.shiftKey ? 10 : 1;
+          commitLayers((prev) =>
+            prev.map((l) => (l.id === selectedLayerId ? { ...l, y: Math.max(0, l.y - delta) } : l))
+          );
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    {
-      hotkey: "ArrowDown",
-      callback: (e) => {
-        if (!selectedLayerId) return;
-        const l = layers.find((layer) => layer.id === selectedLayerId);
-        if (!l) return;
-        updateLayer(selectedLayerId, { y: Math.min(100, l.y + (e.shiftKey ? 10 : 1)) });
+      {
+        hotkey: "ArrowDown",
+        callback: (e) => {
+          if (!selectedLayerId) return;
+          const delta = e.shiftKey ? 10 : 1;
+          commitLayers((prev) =>
+            prev.map((l) => (l.id === selectedLayerId ? { ...l, y: Math.min(100, l.y + delta) } : l))
+          );
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    {
-      hotkey: "ArrowLeft",
-      callback: (e) => {
-        if (!selectedLayerId) return;
-        const l = layers.find((layer) => layer.id === selectedLayerId);
-        if (!l) return;
-        updateLayer(selectedLayerId, { x: Math.max(0, l.x - (e.shiftKey ? 10 : 1)) });
+      {
+        hotkey: "ArrowLeft",
+        callback: (e) => {
+          if (!selectedLayerId) return;
+          const delta = e.shiftKey ? 10 : 1;
+          commitLayers((prev) =>
+            prev.map((l) => (l.id === selectedLayerId ? { ...l, x: Math.max(0, l.x - delta) } : l))
+          );
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    {
-      hotkey: "ArrowRight",
-      callback: (e) => {
-        if (!selectedLayerId) return;
-        const l = layers.find((layer) => layer.id === selectedLayerId);
-        if (!l) return;
-        updateLayer(selectedLayerId, { x: Math.min(100, l.x + (e.shiftKey ? 10 : 1)) });
+      {
+        hotkey: "ArrowRight",
+        callback: (e) => {
+          if (!selectedLayerId) return;
+          const delta = e.shiftKey ? 10 : 1;
+          commitLayers((prev) =>
+            prev.map((l) => (l.id === selectedLayerId ? { ...l, x: Math.min(100, l.x + delta) } : l))
+          );
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    { hotkey: "Mod+=", callback: () => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2))), options: { ignoreInputs: true } },
-    { hotkey: "Mod+-", callback: () => setZoom((z) => Math.max(0.25, +(z - 0.1).toFixed(2))), options: { ignoreInputs: true } },
-    { hotkey: "Mod+0", callback: () => setZoom(1), options: { ignoreInputs: true } },
-    {
-      hotkey: "Mod+D",
-      callback: () => {
-        if (selectedLayerId) duplicateLayer(selectedLayerId);
+      { hotkey: "Mod+=", callback: () => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2))), options: { enabled: !showPublishDrawer } },
+      { hotkey: "Mod+-", callback: () => setZoom((z) => Math.max(0.25, +(z - 0.1).toFixed(2))), options: { enabled: !showPublishDrawer } },
+      { hotkey: "Mod+0", callback: () => setZoom(1), options: { enabled: !showPublishDrawer } },
+      {
+        hotkey: "Mod+D",
+        callback: () => {
+          if (selectedLayerId) duplicateLayer(selectedLayerId);
+        },
+        options: { enabled: !showPublishDrawer },
       },
-      options: { ignoreInputs: true },
-    },
-    { hotkey: "Mod+Z", callback: () => undo(), options: { ignoreInputs: true } },
-    { hotkey: "Mod+Shift+Z", callback: () => redo(), options: { ignoreInputs: true } },
-    { hotkey: "Mod+Y", callback: () => redo(), options: { ignoreInputs: true } },
-  ]);
+      { hotkey: "Mod+Z", callback: () => undo(), options: { requireReset: true, enabled: !showPublishDrawer } },
+      { hotkey: "Mod+Shift+Z", callback: () => redo(), options: { requireReset: true, enabled: !showPublishDrawer } },
+      { hotkey: "Mod+Y", callback: () => redo(), options: { requireReset: true, enabled: !showPublishDrawer } },
+      { hotkey: "Escape", callback: () => setShowPublishDrawer(false), options: { enabled: showPublishDrawer } },
+    ],
+    { ignoreInputs: true }
+  );
 
   useEffect(() => {
     if (activeTool === "text") addLayer("text");

@@ -9,6 +9,10 @@ const FALLBACK_MODEL = "@cf/moonshotai/kimi-k2.5";
 export const RESPONSE_PROMPT = `You are a friendly, concise, helpful assistant. Avoid long paragraphs. You are a SMM(Social Media Manager) assistant helping with social media tasks.
 Respond naturally, like a friendly human assistant would.`;
 
+const ACCOUNT_ID_HINT = `IMPORTANT: Some tools require a specific social account ID (like 'spc_xxx').
+Before calling 'create_post', 'get_posting_stats', or any tool that needs an account ID, you MUST first call 'list_social_accounts' to get the correct ID.
+If the user mentions a platform like "Instagram", find the account with that platform in the list and use its 'id'.`;
+
 function buildToolPrompt(tools: MCPTool[]): string {
   if (!tools || tools.length === 0) return RESPONSE_PROMPT;
 
@@ -20,6 +24,8 @@ function buildToolPrompt(tools: MCPTool[]): string {
     .join("\n\n");
 
   return `${RESPONSE_PROMPT}
+
+${ACCOUNT_ID_HINT}
 
 You have access to the following tools. Use them when appropriate. When you decide to use a tool, include it exactly like this in your response:
 <tool_call>{"name": "tool_name", "arguments": {"key": "value"}}</tool_call>

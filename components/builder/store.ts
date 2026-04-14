@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { temporal } from "zundo";
+import { shallow } from "zustand/shallow";
 import type { CanvasFormat, Layer, BuilderTemplateV2 } from "./types";
 
 interface ThemeState {
@@ -26,6 +28,9 @@ interface BuilderState {
   viewMode: "grid" | "list";
   theme: ThemeState;
 
+  // Snap guides (transient UI)
+  snapGuides: { x: number | null; y: number | null };
+
   // Actions
   setFormat: (format: CanvasFormat) => void;
   addLayer: (layer: Omit<Layer, "id">) => void;
@@ -44,6 +49,14 @@ interface BuilderState {
   setTheme: (theme: Partial<ThemeState>) => void;
   resetTheme: () => void;
   loadTemplate: (template: BuilderTemplateV2) => void;
+
+  // Alignment
+  alignLayer: (id: string, align: "left" | "center" | "right" | "top" | "middle" | "bottom") => void;
+  distributeLayers: (direction: "horizontal" | "vertical") => void;
+
+  // Snap guides
+  setSnapGuides: (guides: { x: number | null; y: number | null }) => void;
+  clearSnapGuides: () => void;
 }
 
 function generateId() {
@@ -57,110 +70,155 @@ const defaultTheme: ThemeState = {
   backgroundColor: "#ffffff",
 };
 
+// Core state factory for undoable + persisted store
+const builderStore = (set: any, get: any): BuilderState => ({
+  format: "ig-post",
+  layers: [],
+  selectedLayerId: null,
+  canvasBackground: {
+    color: "#ffffff",
+    image: "",
+  },
+  searchQuery: "",
+  viewMode: "grid",
+  theme: { ...defaultTheme },
+  snapGuides: { x: null, y: null },
+
+  setFormat: (format) => set({ format }),
+
+  addLayer: (layer) => {
+    const newLayer: Layer = {
+      ...layer,
+      id: generateId(),
+    };
+    set((state: BuilderState) => ({
+      layers: [...state.layers, newLayer],
+      selectedLayerId: newLayer.id,
+    }));
+  },
+
+  updateLayer: (id, updates) => {
+    set((state: BuilderState) => ({
+      layers: state.layers.map((l) =>
+        l.id === id ? { ...l, ...updates } : l
+      ),
+    }));
+  },
+
+  removeLayer: (id) => {
+    set((state: BuilderState) => ({
+      layers: state.layers.filter((l) => l.id !== id),
+      selectedLayerId:
+        state.selectedLayerId === id ? null : state.selectedLayerId,
+    }));
+  },
+
+  selectLayer: (id) => set({ selectedLayerId: id }),
+
+  moveLayer: (id, x, y) => {
+    set((state: BuilderState) => ({
+      layers: state.layers.map((l) =>
+        l.id === id ? { ...l, x, y } : l
+      ),
+    }));
+  },
+
+  resizeLayer: (id, width, height) => {
+    set((state: BuilderState) => ({
+      layers: state.layers.map((l) =>
+        l.id === id ? { ...l, width, height } : l
+      ),
+    }));
+  },
+
+  bringToFront: (id) => {
+    set((state: BuilderState) => {
+      const maxZ = Math.max(0, ...state.layers.map((l) => l.zIndex));
+      return {
+        layers: state.layers.map((l) =>
+          l.id === id ? { ...l, zIndex: maxZ + 1 } : l
+        ),
+      };
+    });
+  },
+
+  sendToBack: (id) => {
+    set((state: BuilderState) => {
+      const minZ = Math.min(0, ...state.layers.map((l) => l.zIndex));
+      return {
+        layers: state.layers.map((l) =>
+          l.id === id ? { ...l, zIndex: minZ - 1 } : l
+        ),
+      };
+    });
+  },
+
+  clearCanvas: () =>
+    set({ layers: [], selectedLayerId: null, canvasBackground: { color: "#ffffff", image: "" } }),
+
+  setCanvasBackground: (bg) =>
+    set((state: BuilderState) => ({
+      canvasBackground: { ...state.canvasBackground, ...bg },
+    })),
+
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  setViewMode: (mode) => set({ viewMode: mode }),
+  setTheme: (theme) =>
+    set((state: BuilderState) => ({ theme: { ...state.theme, ...theme } })),
+  resetTheme: () => set({ theme: { ...defaultTheme } }),
+
+  loadTemplate: (template) => {
+    set({
+      format: template.format,
+      layers: JSON.parse(JSON.stringify(template.layers)),
+      theme: { ...defaultTheme, ...template.theme },
+      selectedLayerId: null,
+    });
+  },
+
+  alignLayer: (id, align) => {
+    const state = get() as BuilderState;
+    const layer = state.layers.find((l) => l.id === id);
+    if (!layer) return;
+
+    let x = layer.x;
+    let y = layer.y;
+
+    if (align === "left") x = 0;
+    if (align === "center") x = 50 - layer.width / 2;
+    if (align === "right") x = 100 - layer.width;
+    if (align === "top") y = 0;
+    if (align === "middle") y = 50 - layer.height / 2;
+    if (align === "bottom") y = 100 - layer.height;
+
+    set((s: BuilderState) => ({
+      layers: s.layers.map((l) => (l.id === id ? { ...l, x, y } : l)),
+    }));
+  },
+
+  distributeLayers: (direction) => {
+    const selected = get().selectedLayerId;
+    if (!selected) return;
+    // Simplistic: align all selected concept not yet multi-select; skip for now
+  },
+
+  setSnapGuides: (guides) => set({ snapGuides: guides }),
+  clearSnapGuides: () => set({ snapGuides: { x: null, y: null } }),
+});
+
 export const useBuilderStore = create<BuilderState>()(
   persist(
-    (set) => ({
-      format: "ig-post",
-      layers: [],
-      selectedLayerId: null,
-      canvasBackground: {
-        color: "#ffffff",
-        image: "",
-      },
-      searchQuery: "",
-      viewMode: "grid",
-      theme: { ...defaultTheme },
-
-      setFormat: (format) => set({ format }),
-
-      addLayer: (layer) => {
-        const newLayer: Layer = {
-          ...layer,
-          id: generateId(),
-        };
-        set((state) => ({
-          layers: [...state.layers, newLayer],
-          selectedLayerId: newLayer.id,
-        }));
-      },
-
-      updateLayer: (id, updates) => {
-        set((state) => ({
-          layers: state.layers.map((l) =>
-            l.id === id ? { ...l, ...updates } : l
-          ),
-        }));
-      },
-
-      removeLayer: (id) => {
-        set((state) => ({
-          layers: state.layers.filter((l) => l.id !== id),
-          selectedLayerId:
-            state.selectedLayerId === id ? null : state.selectedLayerId,
-        }));
-      },
-
-      selectLayer: (id) => set({ selectedLayerId: id }),
-
-      moveLayer: (id, x, y) => {
-        set((state) => ({
-          layers: state.layers.map((l) =>
-            l.id === id ? { ...l, x, y } : l
-          ),
-        }));
-      },
-
-      resizeLayer: (id, width, height) => {
-        set((state) => ({
-          layers: state.layers.map((l) =>
-            l.id === id ? { ...l, width, height } : l
-          ),
-        }));
-      },
-
-      bringToFront: (id) => {
-        set((state) => {
-          const maxZ = Math.max(0, ...state.layers.map((l) => l.zIndex));
-          return {
-            layers: state.layers.map((l) =>
-              l.id === id ? { ...l, zIndex: maxZ + 1 } : l
-            ),
-          };
-        });
-      },
-
-      sendToBack: (id) => {
-        set((state) => {
-          const minZ = Math.min(0, ...state.layers.map((l) => l.zIndex));
-          return {
-            layers: state.layers.map((l) =>
-              l.id === id ? { ...l, zIndex: minZ - 1 } : l
-            ),
-          };
-        });
-      },
-
-      clearCanvas: () =>
-        set({ layers: [], selectedLayerId: null, canvasBackground: { color: "#ffffff", image: "" } }),
-
-      setCanvasBackground: (bg) =>
-        set((state) => ({
-          canvasBackground: { ...state.canvasBackground, ...bg },
-        })),
-
-      setSearchQuery: (q) => set({ searchQuery: q }),
-      setViewMode: (mode) => set({ viewMode: mode }),
-      setTheme: (theme) =>
-        set((state) => ({ theme: { ...state.theme, ...theme } })),
-      resetTheme: () => set({ theme: { ...defaultTheme } }),
-
-      loadTemplate: (template) => {
-        set({
-          format: template.format,
-          layers: JSON.parse(JSON.stringify(template.layers)),
-          theme: { ...defaultTheme, ...template.theme },
-          selectedLayerId: null,
-        });
+    temporal(builderStore, {
+      partialize: (state) => ({
+        format: state.format,
+        layers: state.layers,
+        theme: state.theme,
+        canvasBackground: state.canvasBackground,
+      }),
+      equality: shallow,
+      limit: 50,
+      onSave: (state) => {
+        // Only save when meaningful canvas state changes
       },
     }),
     {
@@ -174,3 +232,8 @@ export const useBuilderStore = create<BuilderState>()(
     }
   )
 );
+
+// Re-export temporal hooks for convenience
+export function useTemporalStore() {
+  return useBuilderStore.temporal.getState();
+}

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useBuilderStore } from "./store";
 import { useTemplates, useDeleteTemplate, useRenameTemplate } from "./queries";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, List, Search, LayoutTemplate, Trash2, Clock, MoreHorizontal, Loader2, Plus, Type, Image as ImageIcon, Square, MousePointer2 } from "lucide-react";
+import { LayoutGrid, List, Search, LayoutTemplate, Trash2, MoreHorizontal, Loader2, Type, Image as ImageIcon, Square, MousePointer2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { socialTemplates } from "./social-templates";
-import type { CanvasFormat, Layer } from "./types";
+import type { CanvasFormat } from "./types";
 import { FORMATS } from "./types";
 
 function getFormatBadge(format: CanvasFormat) {
@@ -72,7 +72,7 @@ function PrimitiveCard({
 }
 
 export function BlockSidebar() {
-  const { searchQuery, viewMode, setSearchQuery, setViewMode, loadTemplate, addLayer, format, setFormat } = useBuilderStore();
+  const { searchQuery, viewMode, setSearchQuery, setViewMode, loadTemplate, addLayer } = useBuilderStore();
   const [activeTab, setActiveTab] = useState<"templates" | "elements" | "saved">("templates");
   const { data: savedTemplates = [], isLoading: templatesLoading, isError, error } = useTemplates();
   const deleteMutation = useDeleteTemplate();

@@ -13,8 +13,8 @@ import { useBuilderStore } from "./store";
 import { hexToHsl } from "./lib/theme";
 import { Button } from "@/components/ui/button";
 import { Code, Trash2, Eye, Figma, Palette, Save, ExternalLink } from "lucide-react";
-import { useState, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+
 import { SaveTemplateDialog } from "./save-template-dialog";
 import { SocialCanvas } from "./social-canvas";
 import { SocialDndProvider } from "./social-dnd-provider";
@@ -31,7 +31,34 @@ export function BuilderShell() {
   const [themeOpen, setThemeOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const artboardRef = useRef<HTMLDivElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  async function openPreview() {
+    const node = document.getElementById("social-artboard");
+    if (!node) {
+      toast.error("Canvas not found");
+      return;
+    }
+    const previousSelection = selectedLayerId;
+    // Deselect to hide selection rings before capturing
+    selectLayer(null);
+    // Allow React to render deselected state
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: canvasBackground.color || theme.backgroundColor,
+      });
+      setPreviewUrl(dataUrl);
+      setPreviewOpen(true);
+    } catch {
+      toast.error("Failed to generate preview");
+    } finally {
+      // Restore selection after a short delay so the PNG is already set
+      setTimeout(() => selectLayer(previousSelection), 100);
+    }
+  }
 
   // Hotkeys
   useHotkey("Delete", () => {
@@ -52,6 +79,7 @@ export function BuilderShell() {
       selectLayer(null);
     } else if (previewOpen) {
       setPreviewOpen(false);
+      setPreviewUrl(null);
     }
   });
 
@@ -83,6 +111,18 @@ export function BuilderShell() {
     }
   }, { enabled: !!selectedLayerId });
 
+  useHotkey("Mod+Z", () => {
+    useBuilderStore.temporal.getState().undo();
+  }, { preventDefault: true });
+
+  useHotkey("Mod+Shift+Z", () => {
+    useBuilderStore.temporal.getState().redo();
+  }, { preventDefault: true });
+
+  useHotkey("Mod+Y", () => {
+    useBuilderStore.temporal.getState().redo();
+  }, { preventDefault: true });
+
   useHotkey("Mod+E", () => {
     if (layers.length > 0) handleExportPng();
   }, { enabled: layers.length > 0 });
@@ -101,6 +141,9 @@ export function BuilderShell() {
       toast.error("Canvas not found");
       return;
     }
+    const previousSelection = selectedLayerId;
+    selectLayer(null);
+    await new Promise((resolve) => setTimeout(resolve, 300));
     try {
       const dataUrl = await toPng(node, {
         pixelRatio: 2,
@@ -112,8 +155,10 @@ export function BuilderShell() {
       link.href = dataUrl;
       link.click();
       toast.success("PNG exported successfully");
-    } catch (err) {
+    } catch {
       toast.error("Failed to export PNG");
+    } finally {
+      setTimeout(() => selectLayer(previousSelection), 100);
     }
   }
 
@@ -233,7 +278,7 @@ export function BuilderShell() {
             size="sm"
             className="gap-1.5"
             disabled={layers.length === 0}
-            onClick={() => setPreviewOpen(true)}
+            onClick={openPreview}
           >
             <Eye className="h-3.5 w-3.5" />
             Preview
@@ -280,7 +325,7 @@ export function BuilderShell() {
       {previewOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setPreviewOpen(false)}
+          onClick={() => { setPreviewOpen(false); setPreviewUrl(null); }}
         >
           <div className="relative max-h-full max-w-full overflow-auto rounded-lg bg-background p-2 shadow-2xl">
             <Button
@@ -291,12 +336,13 @@ export function BuilderShell() {
             >
               Close
             </Button>
-            <div
-              className="overflow-hidden rounded"
-              dangerouslySetInnerHTML={{
-                __html: document.getElementById("social-artboard")?.outerHTML || "",
-              }}
-            />
+            {previewUrl ? (
+              <img src={previewUrl} alt="Preview" className="max-h-[80vh] max-w-[80vw] rounded object-contain" />
+            ) : (
+              <div className="flex h-40 w-40 items-center justify-center text-muted-foreground">
+                Generating preview...
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -10,15 +10,16 @@ export class RemoteMCPClient extends BaseMCPClient {
   }
 }
 
-export async function listMCPTools() {
-  const client = new RemoteMCPClient();
-  return client.listTools();
+export async function listMCPTools(client?: RemoteMCPClient) {
+  const c = client || new RemoteMCPClient();
+  return c.listTools();
 }
 
 export async function callMCPTool(
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  client?: RemoteMCPClient
 ) {
-  const client = new RemoteMCPClient();
-  return client.callTool(toolName, args);
+  const c = client || new RemoteMCPClient();
+  return c.callTool(toolName, args);
 }

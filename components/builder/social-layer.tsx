@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
+
 import { useBuilderStore } from "./store";
 import type { Layer } from "./types";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 interface SocialLayerProps {
   layer: Layer;
@@ -17,8 +16,8 @@ interface SocialLayerProps {
 }
 
 export function SocialLayer({ layer, scale, artboardWidth, artboardHeight, isSelected }: SocialLayerProps) {
-  const { selectLayer, moveLayer, updateLayer, theme } = useBuilderStore();
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { selectLayer, updateLayer, theme } = useBuilderStore();
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: layer.id,
     data: { layer },
     disabled: layer.type === "background",

@@ -4,10 +4,9 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useBuilderStore } from "./store";
 import { FORMATS } from "./types";
 import { SocialLayer } from "./social-layer";
-import { cn } from "@/lib/utils";
 
 export function SocialCanvas() {
-  const { format, layers, selectedLayerId, selectLayer, canvasBackground, theme } = useBuilderStore();
+  const { format, layers, selectedLayerId, selectLayer, canvasBackground, theme, snapGuides } = useBuilderStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const formatSpec = FORMATS.find((f) => f.id === format)!;
@@ -18,11 +17,9 @@ export function SocialCanvas() {
     if (!container) return;
 
     function computeScale() {
-      const el = containerRef.current;
-      if (!el) return;
       const padding = 48;
-      const availableWidth = el.clientWidth - padding * 2;
-      const availableHeight = el.clientHeight - padding * 2;
+      const availableWidth = container.clientWidth - padding * 2;
+      const availableHeight = container.clientHeight - padding * 2;
       const scaleX = availableWidth / formatSpec.width;
       const scaleY = availableHeight / formatSpec.height;
       const newScale = Math.max(0.1, Math.min(scaleX, scaleY, 1));
@@ -84,6 +81,20 @@ export function SocialCanvas() {
             backgroundSize: `${20 * scale}px ${20 * scale}px`,
           }}
         />
+
+        {/* Snap guides */}
+        {snapGuides.x !== null && (
+          <div
+            className="pointer-events-none absolute top-0 bottom-0 w-px bg-primary/70"
+            style={{ left: (snapGuides.x / 100) * artboardWidth }}
+          />
+        )}
+        {snapGuides.y !== null && (
+          <div
+            className="pointer-events-none absolute left-0 right-0 h-px bg-primary/70"
+            style={{ top: (snapGuides.y / 100) * artboardHeight }}
+          />
+        )}
 
         {/* Layers */}
         {layers
