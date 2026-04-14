@@ -95,6 +95,7 @@ They are server-side only, read directly inside route handlers.
 | `LARK_API_KEY` | Optional bearer for the worker (if `API_KEY` secret enabled) | `lib/lark.ts` |
 | `LARK_EVENTS_TABLE_ID` | **EVENTS table — unified webhook event bus (REQUIRED for SSE realtime).** See "Lark EVENTS table" below for schema. | `lib/lark-events.ts`, `/api/events/stream`, both webhook receivers |
 | `LARK_USERS_TABLE_ID` | NextAuth credentials provider lookup | `lib/auth.ts` |
+| `LARK_BUILDER_TEMPLATES_TABLE_ID` | Builder templates table — stores saved canvas templates for the `/builder` route. Fields: `Name` (Text), `Blocks JSON` (Text multi-line), `Theme JSON` (Text multi-line), `Created At` (DateTime ms epoch), `Updated At` (DateTime ms epoch). | `app/api/builder/templates/**` |
 
 ### Lark EVENTS table
 
