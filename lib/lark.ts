@@ -196,16 +196,40 @@ export async function larkCreateRecords(
   const { appToken } = getConfig();
 
   const res = (await callLarkEndpoint(
-    "/records/batch-create",
+    "/records/batch_create",
     {
       app_token: appToken,
       table_id: tableId,
       records: records.map((fields) => ({ fields })),
     },
     traceHeaders,
-  )) as { record_ids: string[]; data?: { record_ids: string[] } };
+  )) as {
+    // Worker actually returns: { data: [{ record_id, fields }], total }
+    // Keep legacy shape fallbacks in case the worker response evolves.
+    data?:
+      | Array<{ record_id?: string; id?: string }>
+      | { record_ids?: string[] };
+    record_ids?: string[];
+  };
 
-  return { record_ids: res.record_ids ?? res.data?.record_ids ?? [] };
+  return { record_ids: extractRecordIds(res) };
+}
+
+function extractRecordIds(res: {
+  data?:
+    | Array<{ record_id?: string; id?: string }>
+    | { record_ids?: string[] };
+  record_ids?: string[];
+}): string[] {
+  if (Array.isArray(res.data)) {
+    return res.data
+      .map((r) => r.record_id ?? r.id ?? "")
+      .filter((id): id is string => Boolean(id));
+  }
+  if (res.data && !Array.isArray(res.data) && res.data.record_ids) {
+    return res.data.record_ids;
+  }
+  return res.record_ids ?? [];
 }
 
 /**
@@ -223,16 +247,21 @@ export async function larkUpdateRecords(
   const { appToken } = getConfig();
 
   const res = (await callLarkEndpoint(
-    "/records/batch-update",
+    "/records/batch_update",
     {
       app_token: appToken,
       table_id: tableId,
       records,
     },
     traceHeaders,
-  )) as { record_ids: string[]; data?: { record_ids: string[] } };
+  )) as {
+    data?:
+      | Array<{ record_id?: string; id?: string }>
+      | { record_ids?: string[] };
+    record_ids?: string[];
+  };
 
-  return { record_ids: res.record_ids ?? res.data?.record_ids ?? [] };
+  return { record_ids: extractRecordIds(res) };
 }
 
 /**
@@ -249,12 +278,14 @@ export async function larkDeleteRecords(
 ): Promise<void> {
   const { appToken } = getConfig();
 
+  // Worker contract: { app_token, table_id, records: string[] }
+  // (NOT `record_ids` — that's the shape for batch_update entries.)
   await callLarkEndpoint(
-    "/records/batch-delete",
+    "/records/batch_delete",
     {
       app_token: appToken,
       table_id: tableId,
-      record_ids: recordIds,
+      records: recordIds,
     },
     traceHeaders,
   );
@@ -262,12 +293,36 @@ export async function larkDeleteRecords(
 
 // ==================== Field Value Helpers ====================
 
-/** Extract text value from Lark field */
+/**
+ * Extract text value from a Lark field.
+ *
+ * Lark Base text fields come back in three shapes depending on read path:
+ *   1. plain string:            "hello"
+ *   2. single segment object:   { text: "hello", type: "text" }
+ *   3. array of segments:       [{ text: "hel", type: "text" }, { text: "lo", ... }]
+ * Rich-text fields may split across multiple segments; we concatenate.
+ */
 export function larkText(field: unknown): string | undefined {
+  if (field === null || field === undefined) return undefined;
   if (typeof field === "string") return field;
-  if (field && typeof field === "object" && "text" in field) {
+
+  if (Array.isArray(field)) {
+    const joined = field
+      .map((seg) => {
+        if (typeof seg === "string") return seg;
+        if (seg && typeof seg === "object" && "text" in seg) {
+          return String((seg as { text?: unknown }).text ?? "");
+        }
+        return "";
+      })
+      .join("");
+    return joined || undefined;
+  }
+
+  if (typeof field === "object" && "text" in field) {
     return String((field as { text?: unknown }).text ?? "");
   }
+
   return undefined;
 }
 
