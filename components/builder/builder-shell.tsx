@@ -164,10 +164,17 @@ export function BuilderShell() {
         <div className="flex flex-1 overflow-hidden">
           <BlockSidebar />
           <Canvas />
-          {selectedBlockId ? <PropertiesPanel /> : <LayersPanel />}
-          <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
-          <PenpotPanel open={penpotOpen} onClose={() => setPenpotOpen(false)} />
-          <ThemePanel open={themeOpen} onClose={() => setThemeOpen(false)} />
+          {figmaOpen ? (
+            <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
+          ) : penpotOpen ? (
+            <PenpotPanel open={penpotOpen} onClose={() => setPenpotOpen(false)} />
+          ) : themeOpen ? (
+            <ThemePanel open={themeOpen} onClose={() => setThemeOpen(false)} />
+          ) : selectedBlockId ? (
+            <PropertiesPanel />
+          ) : (
+            <LayersPanel />
+          )}
         </div>
       </BuilderDndProvider>
 
