@@ -11,7 +11,7 @@ import { useBuilderStore, type BuilderTemplate } from "./store";
 import { useTemplates, useDeleteTemplate, useRenameTemplate } from "./queries";
 import type { BlockType } from "./blocks/types";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, List, Search, LayoutTemplate, Trash2, Clock, MoreHorizontal, Loader2 } from "lucide-react";
+import { LayoutGrid, List, Search, LayoutTemplate, Trash2, Clock, MoreHorizontal, Loader2, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,6 @@ function SidebarBlockItem({ type, viewMode, onAdd }: { type: BlockType; viewMode
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      onClick={onAdd}
       className={cn(
         "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-50"
@@ -42,10 +41,25 @@ function SidebarBlockItem({ type, viewMode, onAdd }: { type: BlockType; viewMode
     >
       <Card
         className={cn(
-          "group overflow-hidden border-border/60 bg-card transition-all hover:border-primary/40 hover:shadow-sm",
+          "group relative overflow-hidden border-border/60 bg-card transition-all hover:border-primary/40 hover:shadow-sm",
           isGrid ? "p-0" : "flex items-center gap-3 p-3"
         )}
       >
+        {/* Add button */}
+        <Button
+          variant="secondary"
+          size="icon"
+          className="absolute right-1 top-1 z-10 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAdd();
+          }}
+          title="Add block"
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
+
         {/* Thumbnail / Icon area */}
         <div
           className={cn(
