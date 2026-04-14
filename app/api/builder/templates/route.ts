@@ -8,6 +8,7 @@ import {
   larkNumber,
 } from "@/lib/lark";
 import { PAGINATION } from "@/lib/constants";
+import { BUILDER_TEMPLATE_FIELD } from "@/lib/validations/builder-templates";
 import type { BuilderTemplateV2, Page } from "@/components/builder/types";
 
 const CACHE_TAG = "builder-templates";
@@ -28,19 +29,19 @@ function getTableId(): string {
 }
 
 interface LarkTemplateFields {
-  Text?: unknown;
-  Name?: unknown;
-  "Blocks JSON"?: unknown;
-  "Theme JSON"?: unknown;
-  "Created At"?: unknown;
-  "Updated At"?: unknown;
+  [BUILDER_TEMPLATE_FIELD.TEXT_LEGACY]?: unknown;
+  [BUILDER_TEMPLATE_FIELD.NAME]?: unknown;
+  [BUILDER_TEMPLATE_FIELD.BLOCKS_JSON]?: unknown;
+  [BUILDER_TEMPLATE_FIELD.THEME_JSON]?: unknown;
+  [BUILDER_TEMPLATE_FIELD.CREATED_AT]?: unknown;
+  [BUILDER_TEMPLATE_FIELD.UPDATED_AT]?: unknown;
 }
 
 function mapRecordToTemplate(
   record_id: string,
   fields: LarkTemplateFields,
 ): BuilderTemplateV2 {
-  const blocksText = larkText(fields["Blocks JSON"]);
+  const blocksText = larkText(fields[BUILDER_TEMPLATE_FIELD.BLOCKS_JSON]);
   const blocksRaw = blocksText ? safeJsonParse(blocksText) : null;
 
   // Backward compatibility:
@@ -84,7 +85,7 @@ function mapRecordToTemplate(
     }
   }
 
-  const themeText = larkText(fields["Theme JSON"]);
+  const themeText = larkText(fields[BUILDER_TEMPLATE_FIELD.THEME_JSON]);
   const theme = themeText
     ? (safeJsonParse(themeText) as BuilderTemplateV2["theme"]) ??
       defaultTheme()
@@ -92,12 +93,15 @@ function mapRecordToTemplate(
 
   return {
     id: record_id,
-    name: larkText(fields.Name) ?? larkText(fields.Text) ?? "Untitled",
+    name:
+      larkText(fields[BUILDER_TEMPLATE_FIELD.NAME]) ??
+      larkText(fields[BUILDER_TEMPLATE_FIELD.TEXT_LEGACY]) ??
+      "Untitled",
     format,
     pages,
     theme,
-    createdAt: larkNumber(fields["Created At"]),
-    updatedAt: larkNumber(fields["Updated At"]),
+    createdAt: larkNumber(fields[BUILDER_TEMPLATE_FIELD.CREATED_AT]),
+    updatedAt: larkNumber(fields[BUILDER_TEMPLATE_FIELD.UPDATED_AT]),
   };
 }
 
@@ -170,11 +174,14 @@ export async function POST(request: NextRequest) {
     const pages: Page[] = body.pages ?? [fallbackPage];
 
     const fields = {
-      Name: body.name,
-      "Blocks JSON": JSON.stringify({ format: body.format, pages }),
-      "Theme JSON": JSON.stringify(body.theme),
-      "Created At": body.createdAt,
-      "Updated At": body.updatedAt,
+      [BUILDER_TEMPLATE_FIELD.NAME]: body.name,
+      [BUILDER_TEMPLATE_FIELD.BLOCKS_JSON]: JSON.stringify({
+        format: body.format,
+        pages,
+      }),
+      [BUILDER_TEMPLATE_FIELD.THEME_JSON]: JSON.stringify(body.theme),
+      [BUILDER_TEMPLATE_FIELD.CREATED_AT]: body.createdAt,
+      [BUILDER_TEMPLATE_FIELD.UPDATED_AT]: body.updatedAt,
     };
 
     const tableId = getTableId();

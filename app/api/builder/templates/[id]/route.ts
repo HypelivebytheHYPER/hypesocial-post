@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 
 import { larkUpdateRecords, larkDeleteRecords } from "@/lib/lark";
+import { BUILDER_TEMPLATE_FIELD } from "@/lib/validations/builder-templates";
 import type { BuilderTemplateV2, Page } from "@/components/builder/types";
 
 const CACHE_TAG = "builder-templates";
@@ -40,14 +41,18 @@ export async function PATCH(
     }>;
 
     const fields: Record<string, unknown> = {};
-    if (body.name !== undefined) fields.Name = body.name;
+    if (body.name !== undefined) {
+      fields[BUILDER_TEMPLATE_FIELD.NAME] = body.name;
+    }
     if (body.blocks !== undefined) {
-      fields["Blocks JSON"] = JSON.stringify(body.blocks);
+      fields[BUILDER_TEMPLATE_FIELD.BLOCKS_JSON] = JSON.stringify(body.blocks);
     }
     if (body.theme !== undefined) {
-      fields["Theme JSON"] = JSON.stringify(body.theme);
+      fields[BUILDER_TEMPLATE_FIELD.THEME_JSON] = JSON.stringify(body.theme);
     }
-    if (body.updatedAt !== undefined) fields["Updated At"] = body.updatedAt;
+    if (body.updatedAt !== undefined) {
+      fields[BUILDER_TEMPLATE_FIELD.UPDATED_AT] = body.updatedAt;
+    }
 
     if (Object.keys(fields).length === 0) {
       return NextResponse.json(

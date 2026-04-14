@@ -15,11 +15,26 @@ import {
 
 // ==================== Config ====================
 
+/**
+ * Reads Canva catalog table IDs from env.
+ *
+ * Naming-migration note (Phase A 2026-04-14): the canonical convention is
+ * `LARK_<DOMAIN>_TABLE_ID`. The older `LARK_TABLE_ID_<DOMAIN>` names are
+ * still accepted as a fallback so Vercel env can be migrated in a later
+ * phase without breaking this module. Remove the fallbacks once the new
+ * names are set in all environments.
+ */
 function getTableIds() {
   return {
-    campaigns: process.env.LARK_TABLE_ID_CANVA_CAMPAIGNS!,
-    products: process.env.LARK_TABLE_ID_CANVA_PRODUCTS!,
-    pages: process.env.LARK_TABLE_ID_CANVA_PAGES!,
+    campaigns:
+      process.env.LARK_CANVA_CAMPAIGNS_TABLE_ID ??
+      process.env.LARK_TABLE_ID_CANVA_CAMPAIGNS!,
+    products:
+      process.env.LARK_CANVA_PRODUCTS_TABLE_ID ??
+      process.env.LARK_TABLE_ID_CANVA_PRODUCTS!,
+    pages:
+      process.env.LARK_CANVA_PAGES_TABLE_ID ??
+      process.env.LARK_TABLE_ID_CANVA_PAGES!,
   };
 }
 

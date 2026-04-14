@@ -2,9 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { pfmKeys } from "@/lib/hooks/keys";
 import type { BuilderTemplateV2, Page } from "./types";
-
-const TEMPLATES_KEY = ["builder", "templates"] as const;
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
@@ -16,7 +15,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function useTemplates() {
   return useQuery<BuilderTemplateV2[]>({
-    queryKey: TEMPLATES_KEY,
+    queryKey: pfmKeys.builderTemplates(),
     queryFn: () => apiFetch<BuilderTemplateV2[]>("/api/builder/templates"),
     staleTime: 5 * 60 * 1000,
   });
@@ -49,7 +48,7 @@ export function useSaveTemplate() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      queryClient.invalidateQueries({ queryKey: pfmKeys.builderTemplates() });
       toast.success("Template saved");
     },
     onError: (err) => {
@@ -63,7 +62,7 @@ export function useDeleteTemplate() {
   return useMutation<void, Error, string>({
     mutationFn: (id) => apiFetch(`/api/builder/templates/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      queryClient.invalidateQueries({ queryKey: pfmKeys.builderTemplates() });
       toast.success("Template deleted");
     },
     onError: (err) => {
@@ -81,7 +80,7 @@ export function useRenameTemplate() {
         body: JSON.stringify({ name: name.trim(), updatedAt: Date.now() }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TEMPLATES_KEY });
+      queryClient.invalidateQueries({ queryKey: pfmKeys.builderTemplates() });
       toast.success("Template renamed");
     },
     onError: (err) => {
