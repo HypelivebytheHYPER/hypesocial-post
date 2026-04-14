@@ -12,8 +12,9 @@ import { LayersPanel } from "./layers-panel";
 import { useBuilderStore } from "./store";
 import { hexToHsl } from "./lib/theme";
 import { Button } from "@/components/ui/button";
-import { Code, Trash2, Eye, Figma, Palette, Save, ExternalLink } from "lucide-react";
+import { Code, Trash2, Eye, Figma, Palette, Save, ExternalLink, Undo2, Redo2 } from "lucide-react";
 import { useState } from "react";
+import { useStore } from "zustand";
 
 import { SaveTemplateDialog } from "./save-template-dialog";
 import { SocialCanvas } from "./social-canvas";
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 
 export function BuilderShell() {
   const { layers, clearCanvas, theme, selectedLayerId, format, setFormat, canvasBackground, removeLayer, selectLayer, moveLayer } = useBuilderStore();
+  const temporal = useStore(useBuilderStore.temporal);
 
   const [figmaOpen, setFigmaOpen] = useState(false);
   const [penpotOpen, setPenpotOpen] = useState(false);
@@ -178,6 +180,31 @@ export function BuilderShell() {
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
         <div className="flex items-center gap-4">
           <FormatSelector value={format} onChange={setFormat} />
+
+          <div className="h-4 w-px bg-border" />
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => temporal.undo()}
+              disabled={temporal.pastStates.length === 0}
+              title="Undo (Cmd+Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => temporal.redo()}
+              disabled={temporal.futureStates.length === 0}
+              title="Redo (Cmd+Shift+Z)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
 
           <div className="h-4 w-px bg-border" />
 

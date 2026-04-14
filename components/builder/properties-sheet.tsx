@@ -13,9 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useState } from "react";
+import { AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd } from "lucide-react";
 
 export function PropertiesPanel() {
-  const { selectedLayerId, layers, updateLayer, selectLayer, removeLayer } = useBuilderStore();
+  const { selectedLayerId, layers, updateLayer, selectLayer, removeLayer, alignLayer } = useBuilderStore();
   const layer = layers.find((l) => l.id === selectedLayerId);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
 
@@ -57,6 +58,33 @@ export function PropertiesPanel() {
                   value={layer.height}
                   onChange={(v) => updateLayer(layer.id, { height: v })}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Alignment */}
+          {layer.type !== "background" && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Align</Label>
+              <div className="grid grid-cols-3 gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "left")} title="Align left">
+                  <AlignLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "center")} title="Align center">
+                  <AlignCenter className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "right")} title="Align right">
+                  <AlignRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "top")} title="Align top">
+                  <AlignVerticalJustifyStart className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "middle")} title="Align middle">
+                  <AlignVerticalJustifyCenter className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="h-8 w-full" onClick={() => alignLayer(layer.id, "bottom")} title="Align bottom">
+                  <AlignVerticalJustifyEnd className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           )}

@@ -18,8 +18,8 @@ export function SocialCanvas() {
 
     function computeScale() {
       const padding = 48;
-      const availableWidth = container.clientWidth - padding * 2;
-      const availableHeight = container.clientHeight - padding * 2;
+      const availableWidth = container!.clientWidth - padding * 2;
+      const availableHeight = container!.clientHeight - padding * 2;
       const scaleX = availableWidth / formatSpec.width;
       const scaleY = availableHeight / formatSpec.height;
       const newScale = Math.max(0.1, Math.min(scaleX, scaleY, 1));
