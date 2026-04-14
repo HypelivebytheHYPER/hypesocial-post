@@ -259,6 +259,13 @@ export function BuilderShell() {
     { enabled: layers.length > 0 }
   );
 
+  // Zoom hotkeys — parity with shadcn/designer + Figma/Canva
+  // Mod+= fires on the physical "=" key with Cmd/Ctrl held (the user types
+  // Cmd+Shift+= on US keyboards, which is how every editor spells "zoom in").
+  useHotkey("Mod+=", () => zoomIn(), { preventDefault: true });
+  useHotkey("Mod+-", () => zoomOut(), { preventDefault: true });
+  useHotkey("Mod+0", () => resetViewport(), { preventDefault: true });
+
   const rightPanel = figmaOpen ? (
     <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
   ) : penpotOpen ? (
@@ -559,16 +566,16 @@ export function BuilderShell() {
                 )}
 
                 <div className="flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5">
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomOut} title="Zoom out">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomOut} title="Zoom out (Cmd+-)">
                     <ZoomOut className="h-3.5 w-3.5" />
                   </Button>
                   <span className="min-w-[3ch] px-1 text-center text-[10px] text-muted-foreground">
                     {Math.round(viewport.zoom * 100)}%
                   </span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomIn} title="Zoom in">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={zoomIn} title="Zoom in (Cmd+=)">
                     <ZoomIn className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetViewport} title="Reset view">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetViewport} title="Reset view (Cmd+0)">
                     <Maximize className="h-3.5 w-3.5" />
                   </Button>
                 </div>
