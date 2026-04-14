@@ -17,6 +17,11 @@
       "name": "Penpot",
       "transport": "http",
       "url": "https://design.penpot.app/mcp/stream?userToken=${env:PENPOT_MCP_TOKEN}"
+    },
+    "canva": {
+      "name": "Canva",
+      "transport": "http",
+      "url": "https://mcp.canva.com/mcp"
     }
   }
 }
