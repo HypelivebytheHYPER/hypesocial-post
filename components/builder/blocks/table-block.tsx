@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -52,11 +52,15 @@ export function TableBlock({ props }: { props: TableBlockProps }) {
     maxHeight = 400,
   } = props;
 
-  const tableColumns: ColumnDef<Record<string, string>>[] = columns.map((col) => ({
-    accessorKey: col.key,
-    header: col.label,
-    enableSorting: sortable,
-  }));
+  const tableColumns = useMemo<ColumnDef<Record<string, string>>[]>(
+    () =>
+      columns.map((col) => ({
+        accessorKey: col.key,
+        header: col.label,
+        enableSorting: sortable,
+      })),
+    [columns, sortable]
+  );
 
   const table = useReactTable({
     data: rows,
@@ -73,7 +77,7 @@ export function TableBlock({ props }: { props: TableBlockProps }) {
     count: rowModel.rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
-    enabled: virtualEnabled,
+    overscan: 5,
   });
 
   const vItems = virtualizer.getVirtualItems();
@@ -90,96 +94,95 @@ export function TableBlock({ props }: { props: TableBlockProps }) {
           </div>
         )}
         <div className="overflow-hidden rounded-[var(--radius)] border border-border shadow-sm">
-          <div className={virtualEnabled ? "overflow-x-auto" : "overflow-x-auto"}>
+          <div
+            ref={parentRef}
+            className={virtualEnabled ? "overflow-auto" : "overflow-x-auto"}
+            style={virtualEnabled ? { maxHeight } : undefined}
+          >
             <table className="w-full text-left text-sm">
               {caption && <caption className="p-4 text-muted-foreground">{caption}</caption>}
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="sticky top-0 z-10 bg-muted/50 text-muted-foreground">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-3 font-medium cursor-pointer select-none"
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {sortable && (
-                          <span className="ml-1 inline-block w-4 text-xs">
-                            {{
-                              asc: "↑",
-                              desc: "↓",
-                            }[header.column.getIsSorted() as string] ?? ""}
-                          </span>
-                        )}
-                      </th>
-                    ))}
+                    {headerGroup.headers.map((header) => {
+                      const sorted = header.column.getIsSorted();
+                      return (
+                        <th
+                          key={header.id}
+                          className="px-4 py-3 font-medium select-none"
+                          onClick={sortable ? header.column.getToggleSortingHandler() : undefined}
+                          style={{ cursor: sortable ? "pointer" : "default" }}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {sortable && sorted && (
+                            <span className="ml-1 inline-block w-4 text-xs">
+                              {sorted === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 ))}
               </thead>
-            </table>
-            <div
-              ref={parentRef}
-              className={virtualEnabled ? "overflow-auto" : undefined}
-              style={virtualEnabled ? { maxHeight } : undefined}
-            >
-              <table className="w-full text-left text-sm">
-                <tbody
-                  className="divide-y divide-border bg-card"
-                  style={
-                    virtualEnabled
-                      ? {
-                          height: `${virtualizer.getTotalSize()}px`,
-                          position: "relative",
-                          display: "block",
-                        }
-                      : undefined
-                  }
-                >
-                  {virtualEnabled
-                    ? vItems.map((virtualRow) => {
+              <tbody className="divide-y divide-border bg-card">
+                {virtualEnabled
+                  ? (
+                    <>
+                      {(() => {
+                        const first = vItems[0];
+                        return first ? (
+                          <tr>
+                            <td
+                              colSpan={columns.length}
+                              style={{ height: `${first.start}px` }}
+                            />
+                          </tr>
+                        ) : null;
+                      })()}
+                      {vItems.map((virtualRow) => {
                         const row = rowModel.rows[virtualRow.index];
                         if (!row) return null;
                         return (
                           <tr
                             key={row.id}
                             className={striped && virtualRow.index % 2 === 1 ? "bg-muted/30" : ""}
-                            style={{
-                              height: `${virtualRow.size}px`,
-                              transform: `translateY(${virtualRow.start}px)`,
-                              position: "absolute",
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              display: "flex",
-                            }}
                           >
                             {row.getVisibleCells().map((cell) => (
-                              <td
-                                key={cell.id}
-                                className="px-4 py-3 text-foreground flex-1"
-                                style={{ minWidth: `${100 / columns.length}%` }}
-                              >
+                              <td key={cell.id} className="px-4 py-3 text-foreground">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </td>
                             ))}
                           </tr>
                         );
-                      })
-                    : rowModel.rows.map((row, idx) => (
-                        <tr
-                          key={row.id}
-                          className={striped && idx % 2 === 1 ? "bg-muted/30" : ""}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="px-4 py-3 text-foreground">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
+                      })}
+                      {(() => {
+                        const last = vItems[vItems.length - 1];
+                        return last ? (
+                          <tr>
+                            <td
+                              colSpan={columns.length}
+                              style={{ height: `${virtualizer.getTotalSize() - last.end}px` }}
+                            />
+                          </tr>
+                        ) : null;
+                      })()}
+                    </>
+                  )
+                  : rowModel.rows.map((row, idx) => (
+                    <tr
+                      key={row.id}
+                      className={striped && idx % 2 === 1 ? "bg-muted/30" : ""}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-3 text-foreground">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
                       ))}
-                </tbody>
-              </table>
-            </div>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
