@@ -1,5 +1,6 @@
 "use client";
 
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { BlockSidebar } from "./block-sidebar";
 import { PropertiesPanel } from "./properties-sheet";
 
@@ -22,7 +23,7 @@ import { toPng } from "html-to-image";
 import { toast } from "sonner";
 
 export function BuilderShell() {
-  const { layers, clearCanvas, theme, selectedLayerId, format, setFormat, canvasBackground } = useBuilderStore();
+  const { layers, clearCanvas, theme, selectedLayerId, format, setFormat, canvasBackground, removeLayer, selectLayer, moveLayer } = useBuilderStore();
 
   const [figmaOpen, setFigmaOpen] = useState(false);
   const [penpotOpen, setPenpotOpen] = useState(false);
@@ -31,6 +32,68 @@ export function BuilderShell() {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const artboardRef = useRef<HTMLDivElement>(null);
+
+  // Hotkeys
+  useHotkey("Delete", () => {
+    if (selectedLayerId) removeLayer(selectedLayerId);
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("Backspace", () => {
+    if (selectedLayerId) removeLayer(selectedLayerId);
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("Escape", () => {
+    if (figmaOpen || penpotOpen || canvaOpen || themeOpen) {
+      setFigmaOpen(false);
+      setPenpotOpen(false);
+      setCanvaOpen(false);
+      setThemeOpen(false);
+    } else if (selectedLayerId) {
+      selectLayer(null);
+    } else if (previewOpen) {
+      setPreviewOpen(false);
+    }
+  });
+
+  useHotkey("ArrowUp", () => {
+    if (selectedLayerId) {
+      const layer = layers.find((l) => l.id === selectedLayerId);
+      if (layer) moveLayer(selectedLayerId, layer.x, layer.y - 0.5);
+    }
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("ArrowDown", () => {
+    if (selectedLayerId) {
+      const layer = layers.find((l) => l.id === selectedLayerId);
+      if (layer) moveLayer(selectedLayerId, layer.x, layer.y + 0.5);
+    }
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("ArrowLeft", () => {
+    if (selectedLayerId) {
+      const layer = layers.find((l) => l.id === selectedLayerId);
+      if (layer) moveLayer(selectedLayerId, layer.x - 0.5, layer.y);
+    }
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("ArrowRight", () => {
+    if (selectedLayerId) {
+      const layer = layers.find((l) => l.id === selectedLayerId);
+      if (layer) moveLayer(selectedLayerId, layer.x + 0.5, layer.y);
+    }
+  }, { enabled: !!selectedLayerId });
+
+  useHotkey("Mod+E", () => {
+    if (layers.length > 0) handleExportPng();
+  }, { enabled: layers.length > 0 });
+
+  useHotkey("Mod+S", () => {
+    if (layers.length > 0) setSaveTemplateOpen(true);
+  }, { enabled: layers.length > 0, preventDefault: true });
+
+  useHotkey("Mod+Shift+C", () => {
+    if (layers.length > 0) clearCanvas();
+  }, { enabled: layers.length > 0 });
 
   async function handleExportPng() {
     const node = document.getElementById("social-artboard");
@@ -192,7 +255,7 @@ export function BuilderShell() {
       <SocialDndProvider>
         <div className="flex flex-1 overflow-hidden">
           <BlockSidebar />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 flex flex-col">
             <SocialCanvas />
           </div>
           {figmaOpen ? (

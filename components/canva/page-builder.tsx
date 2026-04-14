@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -509,65 +510,79 @@ export function PageBuilder({
     await downloadComposedImage(baseUrl, layers, `${page["Page Name"] || "export"}.png`);
   };
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      switch (e.key.toLowerCase()) {
-        case "v": setActiveTool("select"); break;
-        case "t": setActiveTool("text"); break;
-        case "i": setActiveTool("image"); break;
-        case "b": setActiveTool("badge"); break;
-        case "delete":
-        case "backspace":
-          if (selectedLayerId) deleteLayer(selectedLayerId);
-          break;
-        case "arrowup":
-          if (selectedLayerId) updateLayer(selectedLayerId, { y: Math.max(0, layers.find((l) => l.id === selectedLayerId)!.y - (e.shiftKey ? 10 : 1)) });
-          break;
-        case "arrowdown":
-          if (selectedLayerId) updateLayer(selectedLayerId, { y: Math.min(100, layers.find((l) => l.id === selectedLayerId)!.y + (e.shiftKey ? 10 : 1)) });
-          break;
-        case "arrowleft":
-          if (selectedLayerId) updateLayer(selectedLayerId, { x: Math.max(0, layers.find((l) => l.id === selectedLayerId)!.x - (e.shiftKey ? 10 : 1)) });
-          break;
-        case "arrowright":
-          if (selectedLayerId) updateLayer(selectedLayerId, { x: Math.min(100, layers.find((l) => l.id === selectedLayerId)!.x + (e.shiftKey ? 10 : 1)) });
-          break;
-        case "=":
-        case "+":
-          if (e.metaKey || e.ctrlKey) { e.preventDefault(); setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2))); }
-          break;
-        case "-":
-        case "_":
-          if (e.metaKey || e.ctrlKey) { e.preventDefault(); setZoom((z) => Math.max(0.25, +(z - 0.1).toFixed(2))); }
-          break;
-        case "0":
-          if (e.metaKey || e.ctrlKey) { e.preventDefault(); setZoom(1); }
-          break;
-        case "d":
-          if ((e.metaKey || e.ctrlKey) && selectedLayerId) {
-            e.preventDefault();
-            duplicateLayer(selectedLayerId);
-          }
-          break;
-        case "z":
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            if (e.shiftKey) redo();
-            else undo();
-          }
-          break;
-        case "y":
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            redo();
-          }
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedLayerId, layers, duplicateLayer, undo, redo]);
+  useHotkeys([
+    { hotkey: "V", callback: () => setActiveTool("select"), options: { ignoreInputs: true } },
+    { hotkey: "T", callback: () => setActiveTool("text"), options: { ignoreInputs: true } },
+    { hotkey: "I", callback: () => setActiveTool("image"), options: { ignoreInputs: true } },
+    { hotkey: "B", callback: () => setActiveTool("badge"), options: { ignoreInputs: true } },
+    {
+      hotkey: "Delete",
+      callback: () => {
+        if (selectedLayerId) deleteLayer(selectedLayerId);
+      },
+      options: { ignoreInputs: true },
+    },
+    {
+      hotkey: "Backspace",
+      callback: () => {
+        if (selectedLayerId) deleteLayer(selectedLayerId);
+      },
+      options: { ignoreInputs: true },
+    },
+    {
+      hotkey: "ArrowUp",
+      callback: (e) => {
+        if (!selectedLayerId) return;
+        const l = layers.find((layer) => layer.id === selectedLayerId);
+        if (!l) return;
+        updateLayer(selectedLayerId, { y: Math.max(0, l.y - (e.shiftKey ? 10 : 1)) });
+      },
+      options: { ignoreInputs: true },
+    },
+    {
+      hotkey: "ArrowDown",
+      callback: (e) => {
+        if (!selectedLayerId) return;
+        const l = layers.find((layer) => layer.id === selectedLayerId);
+        if (!l) return;
+        updateLayer(selectedLayerId, { y: Math.min(100, l.y + (e.shiftKey ? 10 : 1)) });
+      },
+      options: { ignoreInputs: true },
+    },
+    {
+      hotkey: "ArrowLeft",
+      callback: (e) => {
+        if (!selectedLayerId) return;
+        const l = layers.find((layer) => layer.id === selectedLayerId);
+        if (!l) return;
+        updateLayer(selectedLayerId, { x: Math.max(0, l.x - (e.shiftKey ? 10 : 1)) });
+      },
+      options: { ignoreInputs: true },
+    },
+    {
+      hotkey: "ArrowRight",
+      callback: (e) => {
+        if (!selectedLayerId) return;
+        const l = layers.find((layer) => layer.id === selectedLayerId);
+        if (!l) return;
+        updateLayer(selectedLayerId, { x: Math.min(100, l.x + (e.shiftKey ? 10 : 1)) });
+      },
+      options: { ignoreInputs: true },
+    },
+    { hotkey: "Mod+=", callback: () => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2))), options: { ignoreInputs: true } },
+    { hotkey: "Mod+-", callback: () => setZoom((z) => Math.max(0.25, +(z - 0.1).toFixed(2))), options: { ignoreInputs: true } },
+    { hotkey: "Mod+0", callback: () => setZoom(1), options: { ignoreInputs: true } },
+    {
+      hotkey: "Mod+D",
+      callback: () => {
+        if (selectedLayerId) duplicateLayer(selectedLayerId);
+      },
+      options: { ignoreInputs: true },
+    },
+    { hotkey: "Mod+Z", callback: () => undo(), options: { ignoreInputs: true } },
+    { hotkey: "Mod+Shift+Z", callback: () => redo(), options: { ignoreInputs: true } },
+    { hotkey: "Mod+Y", callback: () => redo(), options: { ignoreInputs: true } },
+  ]);
 
   useEffect(() => {
     if (activeTool === "text") addLayer("text");

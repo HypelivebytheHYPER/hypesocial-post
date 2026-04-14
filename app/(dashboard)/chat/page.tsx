@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Send, Bot, User, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,10 +45,32 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const userId = useRef(getUserId());
   const clientRef = useRef<ChatClient | null>(null);
   const toolsUsedRef = useRef<string[]>([]);
   const modelRef = useRef<string>("");
+
+  // Hotkeys
+  useHotkey("Mod+K", () => {
+    inputRef.current?.focus();
+  });
+
+  useHotkey("Escape", () => {
+    if (isLoading) {
+      // Best-effort stop: clear will reset the client state
+      clientRef.current?.clear();
+      setIsLoading(false);
+    } else if (messages.length > 1) {
+      clearChat();
+    } else if (error) {
+      setError(null);
+    }
+  });
+
+  useHotkey("Mod+Shift+C", () => {
+    clearChat();
+  });
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -288,6 +311,7 @@ export default function ChatPage() {
       <div className="border-t p-4 bg-card">
         <div className="max-w-3xl mx-auto flex gap-2">
           <Input
+            ref={inputRef}
             placeholder="Ask about posts, accounts, analytics..."
             value={input}
             onChange={(e) => setInput(e.target.value)}

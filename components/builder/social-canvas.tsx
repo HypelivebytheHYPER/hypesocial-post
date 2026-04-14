@@ -12,25 +12,30 @@ export function SocialCanvas() {
   const [scale, setScale] = useState(1);
   const formatSpec = FORMATS.find((f) => f.id === format)!;
 
-  // Compute scale to fit artboard inside container with padding
+  // Compute scale using ResizeObserver for accurate container dimensions
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
     function computeScale() {
-      const container = containerRef.current;
-      if (!container) return;
+      const el = containerRef.current;
+      if (!el) return;
       const padding = 48;
-      const availableWidth = container.clientWidth - padding * 2;
-      const availableHeight = container.clientHeight - padding * 2;
-      const artboardRatio = formatSpec.ratio;
-      const containerRatio = availableWidth / availableHeight;
-      const newScale =
-        artboardRatio > containerRatio
-          ? availableWidth / formatSpec.width
-          : availableHeight / formatSpec.height;
-      setScale(Math.min(newScale, 1));
+      const availableWidth = el.clientWidth - padding * 2;
+      const availableHeight = el.clientHeight - padding * 2;
+      const scaleX = availableWidth / formatSpec.width;
+      const scaleY = availableHeight / formatSpec.height;
+      const newScale = Math.max(0.1, Math.min(scaleX, scaleY, 1));
+      setScale(newScale);
     }
+
     computeScale();
-    window.addEventListener("resize", computeScale);
-    return () => window.removeEventListener("resize", computeScale);
+
+    const ro = new ResizeObserver(() => {
+      computeScale();
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
   }, [formatSpec]);
 
   const handleBackgroundClick = useCallback(
