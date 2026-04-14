@@ -7,6 +7,7 @@ import { PropertiesPanel } from "./properties-sheet";
 import { ExportDialog } from "./export-dialog";
 import { FigmaPanel } from "./figma-panel";
 import { PenpotPanel } from "./penpot-panel";
+import { CanvaPanel, CanvaIcon } from "./canva-panel";
 import { ThemePanel } from "./theme-panel";
 import { useBuilderStore } from "./store";
 import { hexToHsl } from "./lib/theme";
@@ -22,6 +23,7 @@ export function BuilderShell() {
   const [exportOpen, setExportOpen] = useState(false);
   const [figmaOpen, setFigmaOpen] = useState(false);
   const [penpotOpen, setPenpotOpen] = useState(false);
+  const [canvaOpen, setCanvaOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [activePage, setActivePage] = useState("Page 1");
@@ -80,6 +82,7 @@ export function BuilderShell() {
               if (!figmaOpen) {
                 setThemeOpen(false);
                 setPenpotOpen(false);
+                setCanvaOpen(false);
               }
             }}
             className="gap-1.5"
@@ -95,12 +98,29 @@ export function BuilderShell() {
               if (!penpotOpen) {
                 setFigmaOpen(false);
                 setThemeOpen(false);
+                setCanvaOpen(false);
               }
             }}
             className="gap-1.5"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Penpot
+          </Button>
+          <Button
+            variant={canvaOpen ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => {
+              setCanvaOpen(!canvaOpen);
+              if (!canvaOpen) {
+                setFigmaOpen(false);
+                setPenpotOpen(false);
+                setThemeOpen(false);
+              }
+            }}
+            className="gap-1.5"
+          >
+            <CanvaIcon className="h-3.5 w-3.5 text-[#00C4CC]" />
+            Canva
           </Button>
           <Button
             variant={themeOpen ? "secondary" : "outline"}
@@ -110,6 +130,7 @@ export function BuilderShell() {
               if (!themeOpen) {
                 setFigmaOpen(false);
                 setPenpotOpen(false);
+                setCanvaOpen(false);
               }
             }}
             className="gap-1.5"
@@ -170,6 +191,8 @@ export function BuilderShell() {
             <FigmaPanel open={figmaOpen} onClose={() => setFigmaOpen(false)} />
           ) : penpotOpen ? (
             <PenpotPanel open={penpotOpen} onClose={() => setPenpotOpen(false)} />
+          ) : canvaOpen ? (
+            <CanvaPanel open={canvaOpen} onClose={() => setCanvaOpen(false)} />
           ) : themeOpen ? (
             <ThemePanel open={themeOpen} onClose={() => setThemeOpen(false)} />
           ) : selectedBlockId ? (
