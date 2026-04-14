@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { BuilderTemplate } from "./store";
+import type { BuilderTemplateV2 } from "./types";
 
 const TEMPLATES_KEY = ["builder", "templates"] as const;
 
@@ -15,25 +15,37 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function useTemplates() {
-  return useQuery<BuilderTemplate[]>({
+  return useQuery<BuilderTemplateV2[]>({
     queryKey: TEMPLATES_KEY,
-    queryFn: () => apiFetch<BuilderTemplate[]>("/api/builder/templates"),
+    queryFn: () => apiFetch<BuilderTemplateV2[]>("/api/builder/templates"),
     staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useSaveTemplate() {
   const queryClient = useQueryClient();
-  return useMutation<BuilderTemplate, Error, { name: string; blocks: unknown[]; theme: Record<string, unknown> }>({
-    mutationFn: async ({ name, blocks, theme }) => {
+  return useMutation<
+    BuilderTemplateV2,
+    Error,
+    {
+      name: string;
+      format: string;
+      layers: unknown[];
+      theme: Record<string, unknown>;
+      canvasBackground: Record<string, string>;
+    }
+  >({
+    mutationFn: async ({ name, format, layers, theme, canvasBackground }) => {
       const payload = {
         name,
-        blocks,
+        format,
+        layers,
         theme,
+        canvasBackground,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      return apiFetch<BuilderTemplate>("/api/builder/templates", {
+      return apiFetch<BuilderTemplateV2>("/api/builder/templates", {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -64,9 +76,9 @@ export function useDeleteTemplate() {
 
 export function useRenameTemplate() {
   const queryClient = useQueryClient();
-  return useMutation<BuilderTemplate, Error, { id: string; name: string }>({
+  return useMutation<BuilderTemplateV2, Error, { id: string; name: string }>({
     mutationFn: ({ id, name }) =>
-      apiFetch<BuilderTemplate>(`/api/builder/templates/${id}`, {
+      apiFetch<BuilderTemplateV2>(`/api/builder/templates/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name: name.trim(), updatedAt: Date.now() }),
       }),

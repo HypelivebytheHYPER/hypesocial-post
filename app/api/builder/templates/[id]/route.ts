@@ -23,13 +23,29 @@ interface LarkRecord {
 
 function mapRecordToTemplate(record: LarkRecord) {
   const f = record.fields;
+  const blocksRaw = f["Blocks JSON"] ? JSON.parse(f["Blocks JSON"]) : null;
+
+  let format = "ig-post";
+  let layers: unknown[] = [];
+  let canvasBackground = { color: "#ffffff", image: "" };
+
+  if (Array.isArray(blocksRaw)) {
+    layers = blocksRaw;
+  } else if (blocksRaw && typeof blocksRaw === "object") {
+    format = blocksRaw.format || "ig-post";
+    layers = blocksRaw.layers || [];
+    canvasBackground = blocksRaw.canvasBackground || { color: "#ffffff", image: "" };
+  }
+
   return {
     id: record.record_id,
     name: f.Name || f.Text || "Untitled",
-    blocks: f["Blocks JSON"] ? JSON.parse(f["Blocks JSON"]) : [],
+    format,
+    layers,
     theme: f["Theme JSON"]
       ? JSON.parse(f["Theme JSON"])
-      : { primaryColor: "#2563eb", borderRadius: 8, fontFamily: "Inter" },
+      : { primaryColor: "#2563eb", borderRadius: 8, fontFamily: "Inter", backgroundColor: "#ffffff" },
+    canvasBackground,
     createdAt: f["Created At"] || 0,
     updatedAt: f["Updated At"] || 0,
   };
@@ -41,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const body = (await request.json()) as Partial<{
       name: string;
-      blocks: unknown[];
+      blocks: unknown[] | { format?: string; layers?: unknown[]; canvasBackground?: Record<string, string> };
       theme: Record<string, unknown>;
       updatedAt: number;
     }>;

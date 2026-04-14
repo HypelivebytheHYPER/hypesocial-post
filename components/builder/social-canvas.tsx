@@ -22,12 +22,10 @@ export function SocialCanvas() {
       const availableHeight = container.clientHeight - padding * 2;
       const artboardRatio = formatSpec.ratio;
       const containerRatio = availableWidth / availableHeight;
-      let newScale = 1;
-      if (artboardRatio > containerRatio) {
-        newScale = availableWidth / formatSpec.width;
-      } else {
-        newScale = availableHeight / formatSpec.height;
-      }
+      const newScale =
+        artboardRatio > containerRatio
+          ? availableWidth / formatSpec.width
+          : availableHeight / formatSpec.height;
       setScale(Math.min(newScale, 1));
     }
     computeScale();

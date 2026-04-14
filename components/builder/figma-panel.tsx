@@ -88,7 +88,7 @@ export function FigmaPanel({ open, onClose }: { open: boolean; onClose: () => vo
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileData, setFileData] = useState<any>(null);
-  const { addBlock } = useBuilderStore();
+  const { addLayer } = useBuilderStore();
 
   async function fetchFigma() {
     const parsed = parseFigmaUrl(url);
@@ -217,9 +217,27 @@ export function FigmaPanel({ open, onClose }: { open: boolean; onClose: () => vo
                               size="sm"
                               variant="ghost"
                               className="mt-1 h-6 text-[10px] text-primary"
-                              onClick={() => addBlock(suggestion as any)}
+                              onClick={() =>
+                                addLayer({
+                                  type: "text",
+                                  name: frame.name,
+                                  x: 10,
+                                  y: 40,
+                                  width: 80,
+                                  height: 12,
+                                  rotation: 0,
+                                  zIndex: 10,
+                                  props: {
+                                    text: frame.name,
+                                    fontSize: 18,
+                                    fontWeight: 600,
+                                    color: "#0f172a",
+                                    align: "center",
+                                  },
+                                })
+                              }
                             >
-                              + Add {suggestion.replace("-", " ")} block
+                              + Add {suggestion.replace("-", " ")} label
                             </Button>
                           )}
                         </Card>

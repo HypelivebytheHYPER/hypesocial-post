@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     const toolCalls = parseToolCalls(initialRes.text);
     const cleanContent = initialRes.text
-      .replace(/<tool_call>.*?<\/tool_call>/gs, "")
+      .replace(/<tool_call>.*?<\/?tool_call>/gs, "")
       .trim();
 
     // 3. No tools needed — return immediately

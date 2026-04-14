@@ -74,7 +74,7 @@ export function SocialLayer({ layer, scale, artboardWidth, artboardHeight, isSel
             fontSize: (props.fontSize as number) * scale,
             fontWeight: props.fontWeight as number,
             color: props.color as string,
-            textAlign: (props.align as string) || "left",
+            textAlign: (props.align as React.CSSProperties["textAlign"]) || "left",
             fontFamily: theme.fontFamily,
             display: "flex",
             alignItems: "center",
@@ -117,9 +117,9 @@ export function SocialLayer({ layer, scale, artboardWidth, artboardHeight, isSel
         <div
           className={cn(
             "relative h-full w-full overflow-hidden bg-muted/30",
-            props.rounded && "rounded-lg"
+            !!props.rounded && "rounded-lg"
           )}
-          style={{ objectFit: (props.objectFit as string) || "cover" }}
+          style={{ objectFit: (props.objectFit as React.CSSProperties["objectFit"]) || "cover" }}
         >
           {src ? (
             <img src={src} alt="" className="h-full w-full object-cover" />

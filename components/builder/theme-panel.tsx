@@ -28,7 +28,7 @@ const presetColors = [
 ];
 
 export function ThemePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { theme, setTheme, resetTheme } = useBuilderStore();
+  const { theme, setTheme, resetTheme, canvasBackground, setCanvasBackground } = useBuilderStore();
 
   if (!open) return null;
 
@@ -51,6 +51,24 @@ export function ThemePanel({ open, onClose }: { open: boolean; onClose: () => vo
 
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-6">
+          {/* Canvas Background */}
+          <div className="space-y-2">
+            <Label className="text-xs">Canvas Background</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={canvasBackground.color}
+                onChange={(e) => setCanvasBackground({ color: e.target.value })}
+                className="h-8 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+              />
+              <Input
+                value={canvasBackground.color}
+                onChange={(e) => setCanvasBackground({ color: e.target.value })}
+                className="h-8 flex-1 text-xs font-mono uppercase"
+              />
+            </div>
+          </div>
+
           {/* Primary Color */}
           <div className="space-y-2">
             <Label className="text-xs">Primary Color</Label>

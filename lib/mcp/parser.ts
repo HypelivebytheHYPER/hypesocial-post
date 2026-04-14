@@ -3,7 +3,7 @@ export function parseToolCalls(
 ): Array<{ name: string; arguments: Record<string, unknown> }> | undefined {
   const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> =
     [];
-  const regex = /<tool_call>(.*?)<\/tool_call>/gs;
+  const regex = /<tool_call>(.*?)<\/?tool_call>/gs;
   let match;
 
   while ((match = regex.exec(content)) !== null) {

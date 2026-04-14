@@ -2,7 +2,7 @@
 
 import { BlockSidebar } from "./block-sidebar";
 import { PropertiesPanel } from "./properties-sheet";
-import { ExportDialog } from "./export-dialog";
+
 import { FigmaPanel } from "./figma-panel";
 import { PenpotPanel } from "./penpot-panel";
 import { CanvaPanel, CanvaIcon } from "./canva-panel";
@@ -23,7 +23,7 @@ import { toast } from "sonner";
 
 export function BuilderShell() {
   const { layers, clearCanvas, theme, selectedLayerId, format, setFormat, canvasBackground } = useBuilderStore();
-  const [exportOpen, setExportOpen] = useState(false);
+
   const [figmaOpen, setFigmaOpen] = useState(false);
   const [penpotOpen, setPenpotOpen] = useState(false);
   const [canvaOpen, setCanvaOpen] = useState(false);
@@ -211,7 +211,6 @@ export function BuilderShell() {
         </div>
       </SocialDndProvider>
 
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} />
       <SaveTemplateDialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen} />
 
       {/* Preview Modal */}
