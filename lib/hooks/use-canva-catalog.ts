@@ -6,6 +6,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import type {
+  CanvaCampaign,
+  CanvaProduct,
+  CanvaPage,
+} from "@/lib/validations/canva-catalog";
 
 // ==================== Query Keys ====================
 
@@ -18,39 +23,14 @@ export const canvaCatalogKeys = {
 };
 
 // ==================== Types ====================
+//
+// Re-exported from `lib/validations/canva-catalog.ts` (SSOT). The legacy
+// names `Campaign`/`Product`/`Page` are kept for UI components that import
+// from this module.
 
-export interface Campaign {
-  record_id: string;
-  Name: string;
-  "Date Start"?: string;
-  "Date End"?: string;
-  Status?: string;
-}
-
-export interface Product {
-  record_id: string;
-  "Campaign ID": string;
-  SKU?: string;
-  Name: string;
-  Price: string;
-  Promo?: string;
-  "Image URL": string;
-  Category?: string;
-  "Sort Order"?: number;
-}
-
-export interface Page {
-  record_id: string;
-  "Campaign ID": string;
-  "Page Name": string;
-  "Template ID": string;
-  "Mappings JSON": string;
-  "Design ID"?: string;
-  "Resize Jobs JSON"?: string;
-  "Export Jobs JSON"?: string;
-  "Layers JSON"?: string;
-  "Sort Order"?: number;
-}
+export type Campaign = CanvaCampaign;
+export type Product = CanvaProduct;
+export type Page = CanvaPage;
 
 // ==================== Campaigns ====================
 

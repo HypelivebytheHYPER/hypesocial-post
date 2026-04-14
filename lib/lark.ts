@@ -293,8 +293,7 @@ export async function larkDeleteRecords(
 
 // ==================== Field Value Helpers ====================
 
-/**
- * Extract text value from a Lark field.
+/** Extract text value from a Lark field.
  *
  * Lark Base text fields come back in three shapes depending on read path:
  *   1. plain string:            "hello"
@@ -343,14 +342,48 @@ export function larkArray<T>(field: unknown): T[] {
 
 /** Convert Lark date field (ms timestamp) to ISO string */
 export function larkDateToISO(field: unknown): string | undefined {
-  if (typeof field === "number") {
-    return new Date(field).toISOString();
-  }
+  const ms = larkDateMs(field);
+  return ms === undefined ? undefined : new Date(ms).toISOString();
+}
+
+/** Extract Lark DateTime field as ms since epoch (the format Lark stores). */
+export function larkDateMs(field: unknown): number | undefined {
+  if (typeof field === "number" && field > 0) return field;
   if (field && typeof field === "object" && "value" in field) {
     const val = (field as { value?: number }).value;
-    if (typeof val === "number") {
-      return new Date(val).toISOString();
-    }
+    if (typeof val === "number" && val > 0) return val;
   }
   return undefined;
+}
+
+/**
+ * Read a Lark URL-type field as a plain string.
+ *
+ * Lark URL fields always come back as `{ text, link }` objects; rare legacy
+ * reads may return a bare string. We return the link (hyperlink target),
+ * not the text (display label) — code callers want the URL.
+ */
+export function larkUrl(field: unknown): string | undefined {
+  if (field === null || field === undefined) return undefined;
+  if (typeof field === "string") return field || undefined;
+  if (typeof field === "object" && "link" in field) {
+    const link = (field as { link?: unknown }).link;
+    return typeof link === "string" && link ? link : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Serialize a URL string for writing to a Lark URL-type field.
+ *
+ * Lark requires `{ text, link }` on write; passing a plain string causes
+ * the worker's Zod schema to reject with 422. Use `text === link` so the
+ * Lark UI displays the URL itself (no friendly label). Returns `undefined`
+ * for empty/missing input so callers can conditionally include the field.
+ */
+export function toLarkUrl(
+  url: string | null | undefined,
+): { text: string; link: string } | undefined {
+  if (!url) return undefined;
+  return { text: url, link: url };
 }

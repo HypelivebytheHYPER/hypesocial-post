@@ -7,10 +7,24 @@ import {
   sendErrorResponse,
 } from "@/lib/api-errors";
 
+/** See `route.ts` — ISO string or ms-epoch number in, ms number out. */
+const DateTimeMs = z.preprocess(
+  (v) => {
+    if (v === undefined || v === null || v === "") return undefined;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const ms = Date.parse(v);
+      return Number.isNaN(ms) ? v : ms;
+    }
+    return v;
+  },
+  z.number().int().nonnegative().optional(),
+);
+
 const UpdateCampaignSchema = z.object({
   Name: z.string().min(1).optional(),
-  "Date Start": z.string().optional(),
-  "Date End": z.string().optional(),
+  "Date Start": DateTimeMs,
+  "Date End": DateTimeMs,
   Status: z.enum(["draft", "generating", "ready", "archived"]).optional(),
 });
 
