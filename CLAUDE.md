@@ -366,6 +366,50 @@ claude mcp use post-for-me
 
 ---
 
+## Admin operations — `lark-cli`
+
+Lark Base is the project's database. Runtime traffic goes through
+`lib/lark.ts` → `lark-http-hype` worker. For **admin** operations
+(inspecting schemas, seeding rows, one-off migrations, backups) the right
+tool is the official `@larksuite/cli`.
+
+Do **not** add shell-outs to `lark-cli` in route handlers or hot paths — the
+CLI is a Go binary with interactive OAuth auth and is not suitable for
+request-time calls.
+
+### One-time setup
+
+```bash
+npm install -g @larksuite/cli
+npx skills add larksuite/cli -g -y   # installs Lark Agent Skills for Claude Code
+lark-cli config init                 # paste app_id / app_secret
+lark-cli auth login --recommend      # browser OAuth, grants recommended scopes
+lark-cli doctor                      # sanity check
+```
+
+### Project admin scripts
+
+Scripts live under `scripts/lark/`. They read `LARK_APP_TOKEN` and the
+table-id env vars from your shell, so source `.env.local` first:
+
+```bash
+set -a && source .env.local && set +a
+./scripts/lark/inspect-builder-templates.sh
+```
+
+See `scripts/lark/README.md` for the full list.
+
+### When to add a new admin script vs. a Next.js API route
+
+| Need | Use |
+|---|---|
+| User-facing CRUD served from the app | Next.js API route → `lib/lark.ts` |
+| Webhook receiver writing to EVENTS | `/api/webhooks/**` → `lib/lark-events.ts` |
+| One-off seed / backup / schema change | `scripts/lark/*.sh` calling `lark-cli` |
+| Cross-session realtime fan-out | EVENTS table + `/api/events/stream` (SSE) |
+
+---
+
 ## Troubleshooting
 
 ### Type Errors
