@@ -13,7 +13,7 @@ function getChatwootConfig() {
     inboxId: process.env.CHATWOOT_INBOX_ID || "",
     accountId: process.env.CHATWOOT_ACCOUNT_ID || "",
     apiToken: process.env.CHATWOOT_API_TOKEN || "",
-    webhookUrl: process.env.CHATWOOT_WEBHOOK_URL || "https://hypesocial-post.vercel.app/api/chatwoot/webhook",
+
     chatwootUrl: process.env.CHATWOOT_URL || "https://app.chatwoot.com",
   };
 }

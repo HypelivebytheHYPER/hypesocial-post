@@ -37,7 +37,7 @@ export function HeroBlock({ props }: { props: HeroBlockProps }) {
     <section className="relative w-full overflow-hidden bg-background py-16 lg:py-24">
       {backgroundImage && (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img
             src={backgroundImage}
             alt=""

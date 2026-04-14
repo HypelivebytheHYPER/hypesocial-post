@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { ImageIcon, X, Upload, Search, Wand2, Loader2, Expand, Paintbrush } from "lucide-react";
+import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 
 interface ImagePickerProps {
@@ -63,7 +64,7 @@ function MaskEditor({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const img = new Image();
+    const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const maxWidth = 600;
@@ -112,7 +113,7 @@ function MaskEditor({
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    const img = new Image();
+    const img = new window.Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -342,7 +343,7 @@ export function ImagePicker({ value, onChange }: ImagePickerProps) {
       };
       const targetRatio = ratioMap[targetRatioName] || 16 / 9;
 
-      const img = new Image();
+      const img = new window.Image();
       img.crossOrigin = "anonymous";
       img.onload = async () => {
         const { width, height } = getAspectDimensions(img.naturalWidth, img.naturalHeight, targetRatio);
@@ -481,8 +482,7 @@ export function ImagePicker({ value, onChange }: ImagePickerProps) {
 
   const preview = value ? (
     <div className="relative overflow-hidden rounded-md border border-border">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={value} alt="Preview" className="h-32 w-full object-cover" />
+      <NextImage src={value} alt="Preview" unoptimized width={200} height={128} className="h-32 w-full object-cover" />
       <Button
         variant="destructive"
         size="icon"
@@ -654,8 +654,7 @@ export function ImagePicker({ value, onChange }: ImagePickerProps) {
 
           {generatedUrl && (
             <div className="relative overflow-hidden rounded-md border border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={generatedUrl} alt="Generated" className="h-24 w-full object-cover" />
+              <NextImage src={generatedUrl} alt="Generated" unoptimized width={200} height={96} className="h-24 w-full object-cover" />
               <Button
                 variant="secondary"
                 size="sm"

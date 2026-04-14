@@ -30,6 +30,28 @@ export function VideoThumbnailPicker({
   const [isExtracting, setIsExtracting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Update preview when currentTime changes
+  const updatePreview = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas size to match video (max 720px width for performance)
+    const scale = Math.min(1, 720 / video.videoWidth);
+    canvas.width = video.videoWidth * scale;
+    canvas.height = video.videoHeight * scale;
+
+    // Draw current frame
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Update preview URL
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    setPreviewUrl(dataUrl);
+  }, []);
+
   // Initialize video and get duration
   useEffect(() => {
     const video = videoRef.current;
@@ -54,29 +76,7 @@ export function VideoThumbnailPicker({
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("timeupdate", handleTimeUpdate);
     };
-  }, [initialTimestampMs]);
-
-  // Update preview when currentTime changes
-  const updatePreview = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set canvas size to match video (max 720px width for performance)
-    const scale = Math.min(1, 720 / video.videoWidth);
-    canvas.width = video.videoWidth * scale;
-    canvas.height = video.videoHeight * scale;
-
-    // Draw current frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Update preview URL
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    setPreviewUrl(dataUrl);
-  }, []);
+  }, [initialTimestampMs, updatePreview]);
 
   // Handle slider change
   const handleSliderChange = useCallback((value: number[]) => {

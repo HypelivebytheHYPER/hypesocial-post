@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   BoxSelect,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -681,7 +682,7 @@ export function PageBuilder({
                     <div className="space-y-3">
                       <div className="group relative overflow-hidden rounded-lg border border-slate-700">
                         {templateThumb ? (
-                          <img src={templateThumb} alt="" className="aspect-[4/3] w-full object-cover" />
+                          <Image src={templateThumb} alt="" unoptimized width={400} height={300} className="aspect-[4/3] w-full object-cover" />
                         ) : (
                           <div className="flex aspect-[4/3] w-full items-center justify-center bg-slate-800">
                             <LayoutTemplate className="h-6 w-6 text-slate-500" />
@@ -737,7 +738,7 @@ export function PageBuilder({
                     <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">AI Background</p>
                     {customBgUrl && (
                       <div className="group relative overflow-hidden rounded-lg border border-slate-700">
-                        <img src={customBgUrl} alt="Generated background" className="aspect-[4/3] w-full object-cover" />
+                        <Image src={customBgUrl} alt="Generated background" unoptimized width={400} height={300} className="aspect-[4/3] w-full object-cover" />
                         <button
                           onClick={() => setCustomBgUrl("")}
                           className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
@@ -810,7 +811,7 @@ export function PageBuilder({
                       key={p.record_id}
                       className="group relative overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
                     >
-                      <img src={p["Image URL"]} alt={p.Name} className="aspect-square w-full object-cover" />
+                      <Image src={p["Image URL"]} alt={p.Name} unoptimized width={200} height={200} className="aspect-square w-full object-cover" />
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
                         <p className="truncate text-[10px] font-medium text-white">{p.Name}</p>
                         <p className="text-[10px] text-white/80">{p.Promo || p.Price}</p>

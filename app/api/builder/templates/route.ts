@@ -32,7 +32,7 @@ function mapRecordToTemplate(record: LarkRecord): BuilderTemplateV2 {
   // - v3 stores { format, pages }
   let format: BuilderTemplateV2["format"] = "ig-post";
   let pages: Page[] = [];
-  let canvasBackground = { color: "#ffffff", image: "" };
+
 
   if (Array.isArray(blocksRaw)) {
     pages = [{

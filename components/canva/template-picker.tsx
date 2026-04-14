@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Loader2, LayoutTemplate } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export function TemplateCard({
       className="w-full overflow-hidden rounded-lg border border-slate-700 text-left transition-all hover:border-blue-500/50"
     >
       {template.thumbnail?.url ? (
-        <img src={template.thumbnail.url} alt={template.name} className="aspect-[4/3] w-full object-cover" />
+        <Image src={template.thumbnail.url} alt={template.name || ""} unoptimized width={400} height={300} className="aspect-[4/3] w-full object-cover" />
       ) : (
         <div className="flex aspect-[4/3] w-full items-center justify-center bg-slate-800">
           <LayoutTemplate className="h-6 w-6 text-slate-400" />

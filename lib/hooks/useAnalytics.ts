@@ -7,14 +7,6 @@ import type { SocialAccount, SocialAccountFeedItem } from "@/types/post-for-me-t
 import type { NormalizedMetrics, ExtendedTikTokMetrics } from "@/lib/metrics";
 
 // Types for analytics data
-interface AccountMetrics {
-  account: SocialAccount;
-  metrics: NormalizedMetrics;
-  postCount: number;
-  error?: Error;
-  isLoading: boolean;
-}
-
 interface PlatformBreakdown {
   platform: string;
   metrics: NormalizedMetrics;
@@ -33,13 +25,6 @@ interface TikTokInsights {
   genderData: Array<{ gender: string; percentage: number }>;
   countryData: Array<{ country: string; percentage: number }>;
   impressionData: Array<{ source: string; percentage: number }>;
-}
-
-interface AnalyticsData {
-  totals: NormalizedMetrics;
-  perAccount: AccountMetrics[];
-  platformBreakdown: PlatformBreakdown[];
-  tiktokInsights: TikTokInsights | null;
 }
 
 // Import these from metrics.ts

@@ -12,7 +12,6 @@ import {
 } from "@/lib/request-context";
 import {
   extractErrorDetails,
-  isRateLimitError,
   getRetryAfter,
 } from "@/lib/pfm-errors";
 

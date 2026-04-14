@@ -32,7 +32,7 @@ interface UseDiagnosticsOptions {
   postsData?: { data?: unknown[] } | null;
   accountsError?: Error | null;
   postsError?: Error | null;
-  resultsError?: Error | null;
+  _resultsError?: Error | null;
   webhooksError?: Error | null;
   webhooks?: unknown[];
 }
@@ -42,7 +42,7 @@ export function useDiagnostics({
   postsData,
   accountsError,
   postsError,
-  resultsError,
+  _resultsError,
   webhooksError,
   webhooks,
 }: UseDiagnosticsOptions) {

@@ -10,7 +10,7 @@ export interface ChatwootConfig {
   inboxId: string;
   accountId: string;
   apiToken: string;
-  webhookUrl: string;
+  webhookUrl?: string;
   chatwootUrl: string;
 }
 

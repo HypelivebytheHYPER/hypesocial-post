@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { filename, content_type, size } = parseResult.data;
+    const { content_type, size } = parseResult.data;
 
     // Validate file type
     const isImage = UPLOAD.ALLOWED_IMAGE_TYPES.includes(content_type as typeof UPLOAD.ALLOWED_IMAGE_TYPES[number]);

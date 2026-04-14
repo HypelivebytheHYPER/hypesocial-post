@@ -60,6 +60,10 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "no-undef": "off",
+      // This app is a media-heavy design builder; dynamic external URLs,
+      // base64 assets, and percentage-based canvas layers make next/image
+      // impractical for most image usage sites.
+      "@next/next/no-img-element": "off",
     },
     settings: {
       react: {

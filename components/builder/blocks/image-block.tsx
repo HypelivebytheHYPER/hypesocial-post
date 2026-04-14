@@ -42,7 +42,7 @@ export function ImageBlock({ props }: { props: ImageBlockProps }) {
       <div className="mx-auto max-w-5xl px-4">
         <div className={`overflow-hidden ${rounded ? "rounded-xl" : ""} ${shadowClass} bg-muted ${aspectClass}`}>
           {src ? (
-            // eslint-disable-next-line @next/next/no-img-element
+             
             <img
               src={src}
               alt={alt}

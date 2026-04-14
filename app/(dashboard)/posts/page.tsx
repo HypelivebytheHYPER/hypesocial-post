@@ -497,8 +497,8 @@ export default function PostsPage(): React.ReactElement {
     { placeholderData: (previous) => previous }
   );
   const { data: accountsData } = useSocialAccounts();
-  const posts = postsData?.data ?? [];
-  const accounts = accountsData?.data ?? [];
+  const posts = useMemo(() => postsData?.data ?? [], [postsData]);
+  const accounts = useMemo(() => accountsData?.data ?? [], [accountsData]);
 
   const accountsMap = useMemo(() => {
     const map = new Map<string, { platform: string; username: string | null }>();

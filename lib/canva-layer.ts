@@ -113,7 +113,7 @@ export async function downloadComposedImage(
       ctx.textBaseline = "middle";
 
       const padX = (layer.paddingX ?? 0) * (canvas.width / 100);
-      const padY = (layer.paddingY ?? 0) * (canvas.height / 100);
+
       let tx = x + w / 2;
       if (layer.textAlign === "left") tx = x + padX;
       if (layer.textAlign === "right") tx = x + w - padX;

@@ -3,7 +3,7 @@ import { pfm } from "@/lib/post-for-me-client";
 import { parseBody, validateId } from "@/lib/validations";
 import { UpdatePostSchema } from "@/lib/validations/posts";
 import { handleApiError, sendErrorResponse, buildValidationError } from "@/lib/api-errors";
-import type { PostForMeError } from "@/types/post-for-me-types";
+
 
 /**
  * GET /api/posts/[id]

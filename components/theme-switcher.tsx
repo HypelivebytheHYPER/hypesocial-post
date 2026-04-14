@@ -147,7 +147,7 @@ export function ThemeSwitcher() {
         <DropdownMenuLabel>Themes</DropdownMenuLabel>
         <DropdownMenuGroup>
           {themes.map((t) => {
-            const _colors = getThemePreviewColors(t.name);
+
             const meta = themeMeta[t.name];
             const isActive = currentTweakCN === t.name;
 

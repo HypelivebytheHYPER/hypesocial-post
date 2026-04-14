@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syntheticEventId } from "@/lib/lark-events";
-import { enqueueWebhookEvent, flushWebhookEvents } from "@/lib/webhook-queue";
+import { enqueueWebhookEvent } from "@/lib/webhook-queue";
 import {
   LarkBitableRecordChangedPayloadSchema,
   normalizeLarkRecordAction,

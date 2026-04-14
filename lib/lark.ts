@@ -8,15 +8,6 @@ import { PAGINATION } from "@/lib/constants";
 
 // ==================== Types ====================
 
-interface LarkField {
-  [key: string]: unknown;
-}
-
-interface LarkRecord {
-  record_id: string;
-  fields: LarkField;
-}
-
 export interface LarkFilterCondition {
   field_name: string;
   operator: string;

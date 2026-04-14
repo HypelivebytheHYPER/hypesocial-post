@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import {
   Eye,
   EyeOff,
@@ -388,7 +389,7 @@ export function LayerOverlayPreview({
       onClick={() => onSelectLayer(null)}
     >
       {previewImage ? (
-        <img src={previewImage} alt="Preview" className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+        <Image src={previewImage} alt="Preview" unoptimized fill className="pointer-events-none object-cover" />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-slate-500">
           <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

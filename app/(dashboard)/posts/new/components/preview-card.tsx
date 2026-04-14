@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { getPlatformIcon } from "@/lib/social-platforms";
 import type { SocialPostPreview } from "@/types/post-for-me-types";
 
@@ -98,7 +98,7 @@ export function PreviewCard({
                       />
                     ) : (
                       <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        { }
                         <img
                           src={mediaItem.url}
                           alt=""

@@ -105,7 +105,7 @@ export function PromoCatalogBlock({ props }: { props: PromoCatalogBlockProps }) 
               {/* Image area */}
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted/40">
                 {p.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+                   
                   <img
                     src={p.image}
                     alt={p.name}

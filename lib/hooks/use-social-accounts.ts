@@ -3,7 +3,7 @@
  * @module lib/hooks/use-social-accounts
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { pfmKeys } from "./keys";
@@ -568,10 +568,10 @@ export function usePausedSocialAccounts(): PausedAccountsResult {
   );
   const [selectedPausedIds, setSelectedPausedIds] = useState<Set<string>>(new Set());
 
-  const pausedAccounts = data?.data ?? [];
+  const pausedAccounts = useMemo(() => data?.data ?? [], [data]);
 
   const isPaused = useCallback((accountId: string): boolean => {
-    return pausedAccounts.some((account) => account.id === accountId);
+    return pausedAccounts.some((account: { id: string }) => account.id === accountId);
   }, [pausedAccounts]);
 
   const isReady = useCallback((accountId: string): boolean => {

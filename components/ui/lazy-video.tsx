@@ -206,7 +206,7 @@ export function LazyVideo({
       {/* Placeholder before load */}
       {!isInView && proxiedPoster && (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img
             src={proxiedPoster}
             alt="Video thumbnail"

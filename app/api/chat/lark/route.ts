@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
           // Fallback to rule-based (no API costs)
           aiResponse = getFallbackResponse(message);
         }
-      } catch (err) {
+      } catch {
         console.log("[Chat] AI failed, using fallback");
         aiResponse = getFallbackResponse(message);
       }

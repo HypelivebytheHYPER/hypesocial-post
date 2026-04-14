@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Copy, Check, ExternalLink, Settings, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,8 +12,6 @@ export default function ChatwootConfigPage() {
   const [copied, setCopied] = useState<string | null>(null);
 
   
-  const webhookUrl = "https://hypesocial-post.vercel.app/api/chatwoot/webhook";
-
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
@@ -40,53 +37,7 @@ export default function ChatwootConfigPage() {
         </AlertDescription>
       </Alert>
 
-      {/* Step 1: Webhook URL */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-              1
-            </span>
-            Configure Webhook URL
-          </CardTitle>
-          <CardDescription>
-            Copy this webhook URL and paste it in your Chatwoot API Channel settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={webhookUrl}
-              readOnly
-              className="font-mono text-sm"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => handleCopy(webhookUrl, "webhook")}
-            >
-              {copied === "webhook" ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-          
-          <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-2">
-            <p className="text-sm font-medium">In Chatwoot:</p>
-            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Go to Settings → Inboxes → Add Inbox</li>
-              <li>Select &quot;API Channel&quot;</li>
-              <li>Enter Channel Name (e.g., &quot;HypeSocial Support&quot;)</li>
-              <li>Paste the Webhook URL above</li>
-              <li>Click &quot;Create API Channel&quot;</li>
-            </ol>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Step 2: Environment Variables */}
+      {/* Step 1: Environment Variables */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -137,29 +88,20 @@ export default function ChatwootConfigPage() {
         </CardContent>
       </Card>
 
-      {/* Step 3: Test */}
+      {/* Step 2: Test */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-              3
+              2
             </span>
             Test Connection
           </CardTitle>
           <CardDescription>
-            Verify your webhook endpoint is working
+            Open the chat interface to verify everything works
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => window.open("/api/chatwoot/webhook", "_blank")}
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Test Webhook Endpoint
-          </Button>
-
           <Button 
             variant="default" 
             className="w-full"

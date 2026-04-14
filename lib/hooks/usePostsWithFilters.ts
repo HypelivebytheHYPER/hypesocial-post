@@ -8,12 +8,6 @@ import { TIME, PAGINATION } from "@/lib/constants";
 import type { SocialPost, SocialPostListResponse } from "@/types/post-for-me-types";
 import type { StatusFilter, ViewMode } from "@/app/(dashboard)/posts/config";
 
-type PostsFilterState = {
-  searchQuery: string;
-  statusFilter: StatusFilter;
-  viewMode: ViewMode;
-};
-
 interface UsePostsWithFiltersResult {
   // Filter state
   searchQuery: string;

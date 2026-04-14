@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { 
-  ChevronDown, Plus, FileEdit, ChevronRight, Play, Check
+  ChevronDown, FileEdit, ChevronRight, Play, Check
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -306,7 +306,7 @@ export function AccountContentCustomization({
                                       : "border-slate-200 opacity-40 grayscale",
                                   )}
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  { }
                                   <img
                                     src={media.preview}
                                     alt={media.file.name}

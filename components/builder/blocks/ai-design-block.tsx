@@ -31,7 +31,7 @@ export function AiDesignBlock({ props }: { props: AiDesignBlockProps }) {
       <div className="relative mx-auto flex min-h-[360px] max-w-5xl flex-col justify-center px-6 py-16 lg:py-24">
         {src ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img
               src={src}
               alt={headline}
@@ -173,7 +173,7 @@ export function AiDesignPropertyEditor({
 
       {value.src && (
         <div className="relative overflow-hidden rounded-md border border-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img src={value.src} alt="Generated background" className="h-24 w-full object-cover" />
         </div>
       )}

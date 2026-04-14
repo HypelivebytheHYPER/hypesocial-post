@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pfm } from "@/lib/post-for-me-client";
-import { APIError } from "post-for-me";
+
 import { parseBody, validateId } from "@/lib/validations";
 import { UpdateAccountSchema } from "@/lib/validations/accounts";
 import { handleApiError } from "@/lib/api-errors";

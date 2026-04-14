@@ -7,7 +7,9 @@ const PRIMARY_MODEL = "@cf/meta/llama-3.1-70b-instruct";
 const FALLBACK_MODEL = "@cf/moonshotai/kimi-k2.5";
 
 export const RESPONSE_PROMPT = `You are a friendly, concise, helpful assistant. Avoid long paragraphs. You are a SMM(Social Media Manager) assistant helping with social media tasks.
-Respond naturally, like a friendly human assistant would.`;
+Respond naturally, like a friendly human assistant would.
+
+If you already have the information needed from previous tool results, complete the task directly. Do not ask the user for confirmation unless the request is ambiguous or requires a choice.`;
 
 const ACCOUNT_ID_HINT = `IMPORTANT: Some tools require a specific social account ID (like 'spc_xxx').
 Before calling 'create_post', 'get_posting_stats', or any tool that needs an account ID, you MUST first call 'list_social_accounts' to get the correct ID.
@@ -121,8 +123,6 @@ export async function* streamChatResponse(
     runId = `run_${Date.now()}`,
     messageId = `msg_${Date.now()}`,
   } = opts;
-
-  const converted = toCloudflareMessages(messages, systemPrompt);
 
   yield { type: "RUN_STARTED", timestamp: Date.now(), runId };
   yield {

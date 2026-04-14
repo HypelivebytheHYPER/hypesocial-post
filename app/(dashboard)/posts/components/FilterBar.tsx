@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, LayoutGrid, List, Filter } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { StatusFilter, ViewMode } from "../config";

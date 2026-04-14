@@ -5,6 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 
 import { useBuilderStore } from "./store";
 import type { Layer } from "./types";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface SocialLayerProps {
@@ -121,7 +122,7 @@ export function SocialLayer({ layer, scale, artboardWidth, artboardHeight, isSel
           style={{ objectFit: (props.objectFit as React.CSSProperties["objectFit"]) || "cover" }}
         >
           {src ? (
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <Image src={src} alt="" unoptimized fill className="object-cover" />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground">
               <svg className="mb-1 h-6 w-6 opacity-50" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
