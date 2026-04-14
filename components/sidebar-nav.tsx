@@ -17,7 +17,12 @@ import {
   BarChart3,
   Layers,
   Users,
+  Palette,
+  MessageSquare,
+  Paintbrush,
+  Image as ImageIcon,
 } from "lucide-react";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import {
   Sidebar,
   SidebarHeader,
@@ -32,8 +37,12 @@ const navItems = [
   { name: "Dashboard", href: "/", icon: Home, prefetch: false },
   { name: "Posts", href: "/posts", icon: FileText, prefetch: true },
   { name: "People", href: "/people", icon: Users, prefetch: true },
+  { name: "Chat", href: "/chat", icon: MessageSquare, prefetch: true },
   { name: "Analytics", href: "/analytics", icon: BarChart3, prefetch: true },
   { name: "Accounts", href: "/accounts", icon: Layers, prefetch: true },
+  { name: "Builder", href: "/builder", icon: Paintbrush, prefetch: false },
+  { name: "Canva", href: "/canva/editor", icon: Palette, prefetch: false },
+  { name: "Studio", href: "/studio", icon: ImageIcon, prefetch: false },
 ];
 
 export function SidebarNavigation() {
@@ -146,6 +155,9 @@ export function SidebarNavigation() {
               <div className="w-5 h-5 animate-pulse bg-muted rounded-sm" />
             )}
           </button>
+
+          {/* Theme Switcher */}
+          <ThemeSwitcher />
 
           {/* Settings */}
           <Link

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { UploadedFile } from "@/components/ui/file-upload";
 import { ImageCropper, AspectRatioKey } from "@/components/ui/image-cropper";
+import { UPLOAD, PLATFORM_LIMITS } from "@/lib/constants";
 
 interface MediaUploadEnhancedProps {
   files: UploadedFile[];
@@ -40,8 +41,8 @@ export function MediaUploadEnhanced({
   files,
   onFilesChange,
   onUpload,
-  maxFiles = 10,
-  maxSize = 100 * 1024 * 1024,
+  maxFiles = PLATFORM_LIMITS.MAX_MEDIA_PER_POST,
+  maxSize = UPLOAD.MAX_FILE_SIZE,
   enableCropping = true,
   cropAspectRatios = [
     "square",
@@ -187,33 +188,36 @@ export function MediaUploadEnhanced({
   const videoCount = files.filter((f) => f.file.type.startsWith("video/")).length;
 
   return (
-    <div className="space-y-4">
-      {/* Header Stats */}
-      {files.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {imageCount > 0 && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <ImageIcon className="w-3.5 h-3.5" />
-                <span>{imageCount} photos</span>
-              </div>
-            )}
-            {videoCount > 0 && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Film className="w-3.5 h-3.5" />
-                <span>{videoCount} videos</span>
-              </div>
-            )}
-          </div>
-          <span className="text-xs text-slate-400">
+    <div className="space-y-3">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-slate-600">
+            Media
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 rounded-full text-slate-500">
             {files.length}/{maxFiles}
           </span>
         </div>
-      )}
+        {files.length > 0 && (
+          <div className="flex items-center gap-2">
+            {imageCount > 0 && (
+              <span className="text-[10px] text-slate-400">
+                {imageCount} img
+              </span>
+            )}
+            {videoCount > 0 && (
+              <span className="text-[10px] text-slate-400">
+                {videoCount} vid
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Media Grid */}
       {files.length > 0 ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-1.5">
           {files.map((file, index) => (
             <MediaThumbnail
               key={file.id}
@@ -224,72 +228,37 @@ export function MediaUploadEnhanced({
             />
           ))}
 
-          {/* Add More Button */}
+          {/* Add More Button - Compact */}
           {files.length < maxFiles && (
             <div
               {...getRootProps()}
               className={cn(
-                "aspect-square rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50",
-                "flex flex-col items-center justify-center gap-2 cursor-pointer",
-                "hover:border-blue-300 hover:bg-slate-50 transition-all"
+                "aspect-square rounded-lg border border-dashed border-slate-300 bg-slate-50/50",
+                "flex items-center justify-center cursor-pointer",
+                "hover:border-blue-300 hover:bg-slate-100 transition-all"
               )}
             >
               <input {...getInputProps()} />
-              <Plus className="w-6 h-6 text-slate-400" />
-              <span className="text-[10px] text-slate-400">Add</span>
+              <Plus className="w-4 h-4 text-slate-400" />
             </div>
           )}
         </div>
       ) : (
-        /* Empty Drop Zone - Modern Soft Design */
+        /* Minimal Empty State */
         <div
           {...getRootProps()}
           className={cn(
-            "relative rounded-[1.5rem] border-2 border-dashed border-slate-200 transition-all duration-300 cursor-pointer",
+            "rounded-lg border border-dashed border-slate-300 transition-all cursor-pointer",
             "bg-slate-50/50 hover:bg-slate-50 hover:border-blue-300",
-            dropzoneActive && "border-blue-400 bg-blue-50/50 scale-[1.02]",
-            "p-8 text-center"
+            dropzoneActive && "border-blue-400 bg-blue-50/30",
+            "py-4 px-3 flex items-center justify-center gap-2"
           )}
         >
           <input {...getInputProps()} />
-
-          <motion.div
-            initial={false}
-            animate={dropzoneActive ? { y: -4 } : { y: 0 }}
-            className="flex flex-col items-center gap-3"
-          >
-            <div
-              className={cn(
-                "w-16 h-16 rounded-2xl flex items-center justify-center transition-colors shadow-sm",
-                dropzoneActive
-                  ? "bg-blue-500 text-white shadow-blue-500/30"
-                  : "bg-white text-slate-400 shadow-slate-200"
-              )}
-            >
-              <Upload className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-slate-700">
-                {dropzoneActive ? "Drop files here" : "Drop files or click to upload"}
-              </p>
-              <p className="text-xs text-slate-400">
-                Photos & videos up to 100MB
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-white text-slate-500 shadow-sm">
-                JPG
-              </span>
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-white text-slate-500 shadow-sm">
-                PNG
-              </span>
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-white text-slate-500 shadow-sm">
-                MP4
-              </span>
-            </div>
-          </motion.div>
+          <ImageIcon className="w-4 h-4 text-slate-400" />
+          <span className="text-xs text-slate-500">
+            {dropzoneActive ? "Drop here" : "Add media"}
+          </span>
         </div>
       )}
 
@@ -343,7 +312,6 @@ function MediaThumbnail({
   const isImage = file.file.type.startsWith("image/");
   const isVideo = file.file.type.startsWith("video/");
   const isUploading = file.status === "uploading";
-  const isSuccess = file.status === "success";
   const isError = file.status === "error";
 
   return (
@@ -352,7 +320,7 @@ function MediaThumbnail({
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
-      className="group relative aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800"
+      className="group relative aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800"
     >
       {/* Preview */}
       {file.preview && (isImage || isVideo) ? (
@@ -374,11 +342,11 @@ function MediaThumbnail({
             />
           )}
 
-          {/* Video Play Icon */}
+          {/* Video Indicator */}
           {isVideo && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
-                <div className="w-0 h-0 border-l-[8px] border-l-slate-900 border-y-[5px] border-y-transparent ml-0.5" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+              <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center">
+                <div className="w-0 h-0 border-l-[5px] border-l-slate-900 border-y-[3px] border-y-transparent ml-0.5" />
               </div>
             </div>
           )}
@@ -386,73 +354,49 @@ function MediaThumbnail({
       ) : (
         <div className="w-full h-full flex items-center justify-center">
           {isImage ? (
-            <ImageIcon className="w-8 h-8 text-slate-400" />
+            <ImageIcon className="w-5 h-5 text-slate-400" />
           ) : (
-            <Film className="w-8 h-8 text-slate-400" />
+            <Film className="w-5 h-5 text-slate-400" />
           )}
         </div>
       )}
 
       {/* Status Overlay */}
       {isUploading && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-white animate-spin" />
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <Loader2 className="w-4 h-4 text-white animate-spin" />
         </div>
       )}
 
       {isError && (
         <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center">
-          <AlertCircle className="w-6 h-6 text-white" />
+          <AlertCircle className="w-4 h-4 text-white" />
         </div>
       )}
 
-      {isSuccess && (
-        <div className="absolute top-1.5 right-1.5">
-          <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
-            <CheckCircle2 className="w-3 h-3 text-white" />
-          </div>
-        </div>
-      )}
-
-      {/* Hover Actions */}
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+      {/* Hover Actions - Minimal */}
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
         {onCrop && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onCrop();
             }}
-            className="p-2 rounded-full bg-white/90 hover:bg-white transition-colors"
-            title="Crop image"
+            className="p-1 rounded bg-white/90 hover:bg-white transition-colors"
+            title="Crop"
           >
-            <Crop className="w-4 h-4 text-slate-700" />
+            <Crop className="w-3 h-3 text-slate-700" />
           </button>
         )}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            // View functionality
-          }}
-          className="p-2 rounded-full bg-white/90 hover:bg-white transition-colors"
-        >
-          <Eye className="w-4 h-4 text-slate-700" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
             onRemove();
           }}
-          className="p-2 rounded-full bg-red-500/90 hover:bg-red-500 transition-colors"
+          className="p-1 rounded bg-red-500/90 hover:bg-red-500 transition-colors"
         >
-          <Trash2 className="w-4 h-4 text-white" />
+          <Trash2 className="w-3 h-3 text-white" />
         </button>
-      </div>
-
-      {/* File Type Badge */}
-      <div className="absolute bottom-1.5 left-1.5">
-        <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white backdrop-blur-sm">
-          {isVideo ? "VIDEO" : "IMG"}
-        </span>
       </div>
     </motion.div>
   );

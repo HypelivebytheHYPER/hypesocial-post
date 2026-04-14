@@ -10,6 +10,39 @@
 | `POST_FOR_ME_BASE_URL`       | URL          | `https://api.postforme.dev` | Production, Preview, Local               |
 | `POST_FOR_ME_WEBHOOK_SECRET` | string       | `whsec_xxxxxxxx`            | Production, Preview (optional for local) |
 
+## Cloudflare AI Agent Configuration
+
+| Variable         | Format | Example                                         | Required In |
+| ---------------- | ------ | ----------------------------------------------- | ----------- |
+| `CHAT_AGENT_URL` | URL    | `https://chat-agent.hypelive.workers.dev` | Optional    |
+
+**Purpose**: Configures the Cloudflare AI Agent endpoint for the chat.
+
+**Behavior**:
+- If `CHAT_AGENT_URL` is set, the chat calls the Cloudflare Worker that handles AI + MCP tools
+- If not set or connection fails, it falls back to simple rule-based responses
+- Default: `https://chat-agent.hypelive.workers.dev`
+
+**Cloudflare AI Agent Setup**:
+
+1. Deploy the agent worker:
+   ```bash
+   cd agents/chat-agent
+   npm install
+   wrangler deploy
+   ```
+
+2. **No secrets needed!** The agent uses Cloudflare's native AI models:
+   - Model: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
+   - No OpenAI API key required
+   - No AI Gateway token needed
+   - Runs on Cloudflare's edge infrastructure
+
+3. The agent will:
+   - Use Cloudflare Native AI (Llama 3.3) for natural conversations
+   - Call MCP tools via HTTP to fetch posts, accounts, analytics
+   - Decide which tools to use based on user intent
+
 ### Deprecated Variables (REMOVED)
 
 These variables have been **completely removed** from the codebase and Vercel:

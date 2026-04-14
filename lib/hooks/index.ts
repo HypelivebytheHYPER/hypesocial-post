@@ -52,9 +52,48 @@ export {
   useCreateSocialAccount,
   useUpdateSocialAccount,
   useAccountFeed,
+  useAccountFeedPagination,
   useAllAccountFeeds,
   usePausedSocialAccounts,
 } from "./use-social-accounts";
+
+// Canva
+export {
+  useCanvaToken,
+  useConnectCanva,
+  useDisconnectCanva,
+  useCanvaDesigns,
+  useCanvaBrandTemplates,
+  useCanvaTemplateDataset,
+  useCreateAutofillJob,
+  useAutofillJob,
+  useCreateExportJob,
+  useExportJob,
+  useCreateResizeJob,
+  useResizeJob,
+  useCreateAssetUploadJob,
+  useAssetUploadJob,
+  canvaKeys,
+} from "./use-canva";
+
+export {
+  useCanvaCampaigns,
+  useCreateCanvaCampaign,
+  useUpdateCanvaCampaign,
+  useDeleteCanvaCampaign,
+  useCanvaProducts,
+  useCreateCanvaProducts,
+  useUpdateCanvaProducts,
+  useDeleteCanvaProducts,
+  useCanvaPages,
+  useCreateCanvaPage,
+  useUpdateCanvaPage,
+  useDeleteCanvaPage,
+  canvaCatalogKeys,
+  type Campaign,
+  type Product,
+  type Page,
+} from "./use-canva-catalog";
 
 // Post Preview
 export {

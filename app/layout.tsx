@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { getBaseUrl } from "@/lib/config";
+import { ChatwootWidget } from "@/components/chatwoot-widget";
 
 // Primary image CDN domains - preconnect for faster LCP
 const IMAGE_CDNS = [
@@ -84,10 +85,21 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Get Chatwoot website token from env (only available server-side)
+  const chatwootToken = process.env.NEXT_PUBLIC_CHATWOOT_WEBSITE_TOKEN;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          {chatwootToken && (
+            <ChatwootWidget 
+              websiteToken={chatwootToken}
+              baseUrl={process.env.NEXT_PUBLIC_CHATWOOT_URL || "https://app.chatwoot.com"}
+            />
+          )}
+        </Providers>
       </body>
     </html>
   );

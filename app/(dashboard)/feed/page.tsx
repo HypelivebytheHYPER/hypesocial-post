@@ -1,7 +1,8 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   Heart,
   MessageCircle,
@@ -16,12 +17,11 @@ import {
   BarChart3,
   ArrowRight,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useSocialAccounts, useAccountFeed, pfmKeys } from "@/lib/hooks";
+import { useSocialAccounts, useAccountFeedPagination } from "@/lib/hooks";
 import {
   extractMetrics,
   formatNumber,
@@ -31,32 +31,52 @@ import {
 import { platformIconsMap } from "@/lib/social-platforms";
 import { cn, proxyMediaUrl } from "@/lib/utils";
 import type { SocialAccountFeedItem } from "@/types/post-for-me-types";
+import { UI } from "@/lib/constants";
+
+// Time constants in milliseconds
+const MS_PER_MINUTE = 60000;
+const MS_PER_HOUR = 3600000;
+const MS_PER_DAY = 86400000;
+const DAYS_PER_WEEK = 7;
 
 // Format time helper
-function formatTime(dateString?: string) {
+function formatTime(dateString?: string): string {
   if (!dateString) return "";
   const date = new Date(dateString);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
+  const minutes = Math.floor(diff / MS_PER_MINUTE);
+  const hours = Math.floor(diff / MS_PER_HOUR);
+  const days = Math.floor(diff / MS_PER_DAY);
 
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
+  if (days < DAYS_PER_WEEK) return `${days}d ago`;
   return date.toLocaleDateString();
 }
 
+interface MediaInfo {
+  url: string;
+  type: "video" | "image";
+}
+
 // Simplified media extraction
-function getFirstMedia(media: SocialAccountFeedItem["media"]) {
+function getFirstMedia(media: SocialAccountFeedItem["media"]): MediaInfo | null {
   if (!media?.length) return null;
   const first = media[0];
   const url = first?.url;
   if (!url) return null;
   const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
-  return { url, type: isVideo ? ("video" as const) : ("image" as const) };
+  return { url, type: isVideo ? "video" : "image" };
+}
+
+interface StatCardProps { 
+  label: string; 
+  value: string | number; 
+  icon: React.ElementType; 
+  color: string;
+  bgColor: string;
 }
 
 // Stats Card Component - Arco Style
@@ -66,13 +86,7 @@ function StatCard({
   icon: Icon, 
   color,
   bgColor 
-}: { 
-  label: string; 
-  value: string | number; 
-  icon: React.ElementType; 
-  color: string;
-  bgColor: string;
-}) {
+}: StatCardProps): React.ReactElement {
   return (
     <div className="arco-stat">
       <div className="flex items-center gap-3">
@@ -88,23 +102,28 @@ function StatCard({
   );
 }
 
-// Feed Item Component - Arco Style
-function FeedItem({ 
-  item, 
-  accountPlatform, 
-  accountUsername,
-  index 
-}: { 
-  item: SocialAccountFeedItem; 
+interface FeedItemProps { 
+  feedItem: SocialAccountFeedItem; 
   accountPlatform: string; 
   accountUsername: string;
   index: number;
-}) {
+}
+
+// Feed Item Component - Arco Style
+function FeedItem({ 
+  feedItem, 
+  accountPlatform, 
+  accountUsername,
+  index 
+}: FeedItemProps): React.ReactElement {
   const PlatformIcon = platformIconsMap[accountPlatform.toLowerCase()];
-  const metrics = extractMetrics(item.metrics);
-  const available = getMetricAvailabilityForAccount(accountPlatform, item.metrics);
-  const media = getFirstMedia(item.media);
-  const isLinkedInPersonal = isLinkedInPersonalProfile(accountPlatform, item.metrics);
+  const metrics = extractMetrics(feedItem.metrics);
+  const available = getMetricAvailabilityForAccount(accountPlatform, feedItem.metrics);
+  const media = getFirstMedia(feedItem.media);
+  const isLinkedInPersonal = isLinkedInPersonalProfile(accountPlatform, feedItem.metrics);
+
+  const displayName = accountUsername || accountPlatform;
+  const initialChar = displayName[0]?.toUpperCase() ?? "?";
 
   return (
     <motion.article
@@ -118,15 +137,15 @@ function FeedItem({
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10 border-2 border-[var(--color-bg-secondary)]">
             <AvatarFallback className="bg-gradient-to-br from-[var(--arco-blue-6)] to-[var(--arco-blue-4)] text-white text-sm font-medium">
-              {(accountUsername || accountPlatform)[0]?.toUpperCase()}
+              {initialChar}
             </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="text-[var(--color-text)] font-semibold text-sm">
-              {accountUsername || accountPlatform}
+              {displayName}
             </h3>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(item.posted_at)}</span>
+              <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(feedItem.posted_at)}</span>
               {PlatformIcon && (
                 <span className="arco-tag arco-tag-blue">
                   <PlatformIcon className="w-3 h-3 mr-1" />
@@ -137,9 +156,9 @@ function FeedItem({
           </div>
         </div>
         
-        {item.platform_url && (
+        {feedItem.platform_url && (
           <a
-            href={item.platform_url}
+            href={feedItem.platform_url}
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
@@ -152,7 +171,7 @@ function FeedItem({
       {/* Post Content */}
       <div className="p-4">
         <p className="text-[var(--color-text-secondary)] text-sm leading-relaxed whitespace-pre-wrap">
-          {item.caption}
+          {feedItem.caption}
         </p>
       </div>
 
@@ -171,8 +190,8 @@ function FeedItem({
                 src={proxyMediaUrl(media.url)}
                 alt=""
                 className="w-full h-auto object-cover max-h-[400px]"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
+                onError={(event) => {
+                  (event.target as HTMLImageElement).style.display = "none";
                 }}
               />
             )}
@@ -183,42 +202,27 @@ function FeedItem({
       {/* Post Stats */}
       <div className="px-4 py-3 border-t border-[var(--color-border-light)] flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <span className={cn(
-            "flex items-center gap-2",
-            available.likes ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
-          )}>
-            <Heart className={cn("w-4 h-4", available.likes && "fill-[var(--arco-red-6)] text-[var(--arco-red-6)]")} />
-            <span className="text-sm font-medium">
-              {available.likes ? formatNumber(metrics.likes) : "—"}
-            </span>
-          </span>
-          <span className={cn(
-            "flex items-center gap-2",
-            available.comments ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
-          )}>
-            <MessageCircle className="w-4 h-4" />
-            <span className="text-sm font-medium">
-              {available.comments ? formatNumber(metrics.comments) : "—"}
-            </span>
-          </span>
-          <span className={cn(
-            "flex items-center gap-2",
-            available.shares ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
-          )}>
-            <Share2 className="w-4 h-4" />
-            <span className="text-sm font-medium">
-              {available.shares ? formatNumber(metrics.shares) : "—"}
-            </span>
-          </span>
-          <span className={cn(
-            "flex items-center gap-2",
-            available.views ? "text-[var(--color-text-secondary)]" : "text-[var(--color-text-tertiary)]"
-          )}>
-            <Eye className="w-4 h-4" />
-            <span className="text-sm font-medium">
-              {available.views ? formatNumber(metrics.views) : "—"}
-            </span>
-          </span>
+          <MetricDisplay 
+            icon={Heart} 
+            value={metrics.likes} 
+            isAvailable={available.likes} 
+            filled
+          />
+          <MetricDisplay 
+            icon={MessageCircle} 
+            value={metrics.comments} 
+            isAvailable={available.comments} 
+          />
+          <MetricDisplay 
+            icon={Share2} 
+            value={metrics.shares} 
+            isAvailable={available.shares} 
+          />
+          <MetricDisplay 
+            icon={Eye} 
+            value={metrics.views} 
+            isAvailable={available.views} 
+          />
         </div>
       </div>
 
@@ -234,9 +238,36 @@ function FeedItem({
   );
 }
 
+interface MetricDisplayProps {
+  icon: React.ElementType;
+  value: number;
+  isAvailable: boolean;
+  filled?: boolean;
+}
+
+function MetricDisplay({ icon: Icon, value, isAvailable, filled }: MetricDisplayProps): React.ReactElement {
+  const textClass = isAvailable 
+    ? "text-[var(--color-text-secondary)]" 
+    : "text-[var(--color-text-tertiary)]";
+
+  return (
+    <span className={cn("flex items-center gap-2", textClass)}>
+      <Icon className={cn("w-4 h-4", filled && isAvailable && "fill-[var(--arco-red-6)] text-[var(--arco-red-6)]")} />
+      <span className="text-sm font-medium">
+        {isAvailable ? formatNumber(value) : "—"}
+      </span>
+    </span>
+  );
+}
+
+interface WarningConfig {
+  title: string;
+  items: string[];
+}
+
 // Platform Warning Component
-function PlatformWarning({ platform }: { platform: string }) {
-  const warnings: Record<string, { title: string; items: string[] }> = {
+function PlatformWarning({ platform }: { platform: string }): React.ReactElement | null {
+  const warnings: Record<string, WarningConfig> = {
     instagram: {
       title: "Instagram Feed Limitations",
       items: [
@@ -272,8 +303,8 @@ function PlatformWarning({ platform }: { platform: string }) {
             {warning.title}
           </h3>
           <ul className="text-xs text-[var(--color-text-secondary)] space-y-0.5">
-            {warning.items.map((item, i) => (
-              <li key={i}>• {item}</li>
+            {warning.items.map((warningItem, index) => (
+              <li key={index}>• {warningItem}</li>
             ))}
           </ul>
         </div>
@@ -282,62 +313,39 @@ function PlatformWarning({ platform }: { platform: string }) {
   );
 }
 
-export default function FeedPage() {
-  const queryClient = useQueryClient();
+const FEED_LIMIT = 20;
+
+export default function FeedPage(): React.ReactElement {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [cursors, setCursors] = useState<string[]>([]);
-  const [accumulatedItems, setAccumulatedItems] = useState<SocialAccountFeedItem[]>([]);
 
   // Get accounts
   const { data: accountsData, isLoading: accountsLoading } = useSocialAccounts();
-  const accounts = accountsData?.data || [];
-  const connectedAccounts = accounts.filter((a) => a.status === "connected");
+  const accounts = accountsData?.data ?? [];
+  const connectedAccounts = accounts.filter((account) => account.status === "connected");
 
   // Derived effective account
   const effectiveAccountId = selectedAccountId || connectedAccounts[0]?.id || "";
 
-  // Get feed
-  const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
+  // Use pagination hook
   const {
-    data: feedData,
+    items: allFeedItems,
+    hasMore,
+    loadMore: handleLoadMore,
+    reset: handleRefresh,
     isLoading: feedLoading,
     error: feedError,
-  } = useAccountFeed(effectiveAccountId, {
-    limit: 20,
-    cursor: currentCursor,
+  } = useAccountFeedPagination(effectiveAccountId, {
+    limit: FEED_LIMIT,
     expand: ["metrics"],
   });
 
-  // Accumulate items
-  useEffect(() => {
-    if (feedData?.data) {
-      if (cursors.length === 0) {
-        setAccumulatedItems(feedData.data);
-      } else {
-        setAccumulatedItems((prev) => {
-          const ids = new Set(prev.map((i) => i.platform_post_id));
-          return [...prev, ...feedData.data.filter((i) => !ids.has(i.platform_post_id))];
-        });
-      }
-    }
-  }, [feedData?.data, cursors.length]);
+  const selectedAccount = connectedAccounts.find((account) => account.id === effectiveAccountId);
 
-  const handleLoadMore = useCallback(() => {
-    const cursor = feedData?.meta?.cursor;
-    if (cursor) {
-      setCursors((prev) => [...prev, cursor]);
-    }
-  }, [feedData?.meta?.cursor]);
-
-  const handleRefresh = useCallback(() => {
-    setCursors([]);
-    setAccumulatedItems([]);
-    queryClient.invalidateQueries({ queryKey: pfmKeys.feeds() });
-  }, [queryClient]);
-
-  const allFeedItems = accumulatedItems;
-  const hasMore = feedData?.meta?.has_more ?? false;
-  const selectedAccount = connectedAccounts.find((a) => a.id === effectiveAccountId);
+  // Handle account change - reset pagination
+  const handleAccountChange = useCallback((accountId: string) => {
+    setSelectedAccountId(accountId);
+    handleRefresh();
+  }, [handleRefresh]);
 
   // Compute aggregate stats
   const totalLikes = allFeedItems.reduce((sum, item) => sum + extractMetrics(item.metrics).likes, 0);
@@ -394,11 +402,7 @@ export default function FeedPage() {
               return (
                 <button
                   key={account.id}
-                  onClick={() => {
-                    setSelectedAccountId(account.id);
-                    setCursors([]);
-                    setAccumulatedItems([]);
-                  }}
+                  onClick={() => handleAccountChange(account.id)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all flex-shrink-0 border",
                     isSelected
@@ -407,7 +411,7 @@ export default function FeedPage() {
                   )}
                 >
                   {PlatformIcon && <PlatformIcon className="w-4 h-4" />}
-                  <span className="font-medium">{account.username || account.platform}</span>
+                  <span className="font-medium">{account.username ?? account.platform}</span>
                 </button>
               );
             })}
@@ -491,7 +495,7 @@ export default function FeedPage() {
                 animate={{ opacity: 1 }}
                 className="arco-card border-l-4 border-l-[var(--arco-red-6)] p-8 text-center"
               >
-                <p className="text-[var(--arco-red-6)] mb-3">{feedError?.message || "Failed to load feed"}</p>
+                <p className="text-[var(--arco-red-6)] mb-3">{feedError?.message ?? "Failed to load feed"}</p>
                 <Button variant="outline" size="sm" onClick={handleRefresh}>
                   Try Again
                 </Button>
@@ -525,12 +529,12 @@ export default function FeedPage() {
                 animate={{ opacity: 1 }}
                 className="space-y-4"
               >
-                {allFeedItems.map((item, index) => (
+                {allFeedItems.map((feedItem, index) => (
                   <FeedItem
-                    key={`${item.platform_post_id}-${index}`}
-                    item={item}
-                    accountPlatform={selectedAccount?.platform || "Unknown"}
-                    accountUsername={selectedAccount?.username || ""}
+                    key={`${feedItem.platform_post_id}-${index}`}
+                    feedItem={feedItem}
+                    accountPlatform={selectedAccount?.platform ?? "Unknown"}
+                    accountUsername={selectedAccount?.username ?? ""}
                     index={index}
                   />
                 ))}

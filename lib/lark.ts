@@ -140,7 +140,7 @@ async function callLarkEndpoint(
       body: JSON.stringify(body),
     });
   } catch (fetchErr) {
-    throw new Error(`Lark fetch error to ${url}: ${fetchErr}`);
+    throw new Error(`Lark fetch error to ${url}: ${fetchErr}`, { cause: fetchErr });
   }
 
   if (!res.ok) {
@@ -158,7 +158,7 @@ async function callLarkEndpoint(
     json = await res.json();
   } catch (parseErr) {
     const raw = await res.text().catch(() => "(unreadable)");
-    throw new Error(`Lark JSON parse error: ${parseErr}, raw: ${raw.substring(0, 200)}`);
+    throw new Error(`Lark JSON parse error: ${parseErr}, raw: ${raw.substring(0, 200)}`, { cause: parseErr });
   }
   
   // Handle both worker format (no code/msg) and standard Lark format (with code/msg)

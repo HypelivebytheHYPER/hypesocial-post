@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendEvent, syntheticEventId } from "@/lib/lark-events";
+import { syntheticEventId } from "@/lib/lark-events";
+import { enqueueWebhookEvent, flushWebhookEvents } from "@/lib/webhook-queue";
 import {
   LarkBitableRecordChangedPayloadSchema,
   normalizeLarkRecordAction,
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
       if (actions.length === 0) {
         // Lark sometimes sends an empty action_list as a heartbeat
         try {
-          const { inserted } = await appendEvent({
+          const { inserted } = await enqueueWebhookEvent({
             event_id: baseEventId,
             source: "lark-base",
             event_type: "lark.record.changed",
@@ -192,6 +193,8 @@ export async function POST(request: NextRequest) {
       try {
         const traceHeaders = { [TRACE_HEADERS.TRACE_ID]: ctx.traceId, [TRACE_HEADERS.REQUEST_ID]: ctx.requestId };
 
+        const pending: Promise<{ event_id: string; event_type: string; action_type: string; record_id: string; inserted: boolean }>[] = [];
+
         for (let i = 0; i < actions.length; i++) {
           const action = actions[i];
           if (!action) continue;
@@ -201,25 +204,29 @@ export async function POST(request: NextRequest) {
             String(i),
             action.record_id,
           ]);
-          const { inserted } = await appendEvent({
-            event_id: perActionId,
-            source: "lark-base",
-            event_type: norm.event_type,
-            resource_id: action.record_id,
-            table_id: tableId,
-            action_type: norm.action_type,
-            payload: { ...payload, __action_index: i, __action: action },
-            trace_id: ctx.traceId,
-            request_id: ctx.requestId,
-          }, traceHeaders);
-          results.push({
-            event_id: perActionId,
-            event_type: norm.event_type,
-            action_type: norm.action_type,
-            record_id: action.record_id,
-            inserted,
-          });
+          pending.push(
+            enqueueWebhookEvent({
+              event_id: perActionId,
+              source: "lark-base",
+              event_type: norm.event_type,
+              resource_id: action.record_id,
+              table_id: tableId,
+              action_type: norm.action_type,
+              payload: { ...payload, __action_index: i, __action: action },
+              trace_id: ctx.traceId,
+              request_id: ctx.requestId,
+            }, traceHeaders).then(({ inserted }) => ({
+              event_id: perActionId,
+              event_type: norm.event_type,
+              action_type: norm.action_type,
+              record_id: action.record_id,
+              inserted,
+            }))
+          );
         }
+
+        const settled = await Promise.all(pending);
+        settled.forEach((r) => results.push(r));
 
         const inserted_count = results.filter((r) => r.inserted).length;
         console.log(JSON.stringify(formatRequestLog(ctx, "POST", "/api/webhooks/lark-base", 200, {
@@ -272,7 +279,7 @@ export async function POST(request: NextRequest) {
     // ── Generic v1.0 / v2.0 / custom-relay handler ────────────────────────────
     let event_id: string;
     let event_type: string;
-    let resource_id: string | null = null;
+    let resource_id: string | null;
 
     if (typeof payload.schema === "string" && payload.schema.startsWith("2.")) {
       // v2.0 envelope
@@ -359,7 +366,7 @@ export async function POST(request: NextRequest) {
     ctx.metadata.resource_id = resource_id;
 
     try {
-      const { inserted } = await appendEvent({
+      const { inserted } = await enqueueWebhookEvent({
         event_id,
         source: "lark-base",
         event_type,

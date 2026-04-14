@@ -38,7 +38,7 @@ export function WebhookTestClient({ webhookUrl }: WebhookTestClientProps) {
   const runTests = async () => {
     setTestResults([]);
     setIsRunning(true);
-    let createdWebhookId: string | null = null;
+    let createdWebhookId: string | null;
 
     try {
       // Test 1: List webhooks

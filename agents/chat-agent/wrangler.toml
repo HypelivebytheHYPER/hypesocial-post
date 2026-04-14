@@ -1,0 +1,13 @@
+name = "chat-agent"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+
+# Cloudflare AI binding
+[ai]
+binding = "AI"
+
+# Environment variables
+[vars]
+MCP_SERVER_URL = "https://mcp-post-for-me.hypelive.workers.dev/mcp"
+
+# No secrets needed - uses Cloudflare Native AI!

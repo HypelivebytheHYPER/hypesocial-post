@@ -22,6 +22,14 @@
       "env": {
         "VERCEL_TOKEN": "${VERCEL_TOKEN}"
       }
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "hypesocial": {
+      "type": "http",
+      "url": "http://localhost:3000/api/mcp"
     }
   }
 }

@@ -14,12 +14,17 @@
  * // With Lark Base logging
  * const upload = useUploadMedia({ logToLark: true, postId: "post_123" });
  * const { url } = await upload.mutateAsync({ file: imageFile });
+ *
+ * // Batch upload
+ * const batchUpload = useBatchUploadMedia();
+ * const results = await batchUpload.mutateAsync({ files: [file1, file2] });
  * ```
  *
  * @see https://www.postforme.dev/resources/posting-media
  */
 
 import { useMutation } from "@tanstack/react-query";
+import { AsyncBatcher } from "@tanstack/pacer";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
@@ -39,8 +44,20 @@ interface UploadResult {
   size: number;
 }
 
+interface BatchUploadResult {
+  results: Array<{
+    filename: string;
+    upload_url: string;
+    media_url: string;
+  }>;
+}
+
 interface UploadOptions {
   file: File;
+}
+
+interface BatchUploadOptions {
+  files: File[];
 }
 
 interface UseUploadMediaOptions {
@@ -48,6 +65,73 @@ interface UseUploadMediaOptions {
   logToLark?: boolean;
   /** Optional post ID to associate with the media */
   postId?: string;
+}
+
+interface LarkLogItem {
+  url: string;
+  file_name: string;
+  content_type: string;
+  size: number;
+  post_id: string | null;
+  source: string;
+  uploaded_at: string;
+}
+
+/**
+ * Singleton AsyncBatcher for Lark Base media logging.
+ * Batches multiple log entries into a single batch_create call,
+ * reducing back-and-forth with the Lark HTTP worker.
+ */
+const mediaLogBatcher = new AsyncBatcher<LarkLogItem>(
+  async (items) => {
+    if (!LARK_HTTP_WORKER || !LARK_APP_TOKEN) {
+      console.debug("[MediaLogBatcher] Lark config missing, skipping", items.length, "logs");
+      return { skipped: true };
+    }
+
+    const response = await fetch(`${LARK_HTTP_WORKER}/records/batch_create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_token: LARK_APP_TOKEN,
+        table_id: MEDIA_LOG_TABLE_ID,
+        records: items.map((fields) => ({ fields })),
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => "Unknown error");
+      console.warn("[MediaLogBatcher] Lark API error:", error);
+      throw new Error(`Lark API error: ${error}`);
+    }
+
+    console.debug("[MediaLogBatcher] Logged", items.length, "records to Lark Base");
+    return { logged: items.length };
+  },
+  {
+    maxSize: 10,
+    wait: 2000,
+    throwOnError: false,
+    onError: (error, batch) => {
+      console.warn("[MediaLogBatcher] Failed to log batch of", batch.length, "items:", error);
+    },
+  }
+);
+
+function queueLarkLog(media: UploadResult, postId?: string): void {
+  if (!LARK_HTTP_WORKER || !LARK_APP_TOKEN) return;
+
+  mediaLogBatcher.addItem({
+    url: media.url,
+    file_name: media.fileName,
+    content_type: media.contentType,
+    size: media.size,
+    post_id: postId || null,
+    source: "post_for_me",
+    uploaded_at: new Date().toISOString(),
+  }).catch(() => {
+    // Errors handled by batcher onError
+  });
 }
 
 /**
@@ -100,15 +184,78 @@ export function useUploadMedia(options: UseUploadMediaOptions = {}) {
 
       // Step 3: Fire-and-forget log to Lark Base (if enabled)
       if (logToLark) {
-        logMediaToLark(result, postId).catch((err) => {
-          console.warn("[MediaLog] Failed to log to Lark Base:", err);
-        });
+        queueLarkLog(result, postId);
       }
 
       return result;
     },
     onError: (error) => {
       toast.error(`Upload failed: ${error.message}`);
+    },
+  });
+}
+
+/**
+ * Batch upload multiple media files to Post For Me CDN
+ *
+ * Uses /api/media/batch to get all presigned URLs in one request,
+ * then uploads files in parallel.
+ */
+export function useBatchUploadMedia(options: UseUploadMediaOptions = {}) {
+  const { logToLark = false, postId } = options;
+
+  return useMutation<UploadResult[], Error, BatchUploadOptions>({
+    mutationFn: async ({ files }) => {
+      // Step 1: Get all presigned upload URLs in one batch request
+      const batchResult = await apiClient<BatchUploadResult>("/api/media/batch", {
+        method: "POST",
+        body: JSON.stringify({
+          files: files.map((file) => ({
+            filename: file.name,
+            content_type: file.type,
+            size: file.size,
+          })),
+        }),
+      });
+
+      // Step 2: Upload all files in parallel
+      const uploadPromises = batchResult.results.map(async (item, index) => {
+        const file = files[index];
+        if (!file) {
+          throw new Error(`Missing file for batch result at index ${index}`);
+        }
+
+        const response = await fetch(item.upload_url, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          throw new Error(
+            `Upload failed for ${file.name}: ${response.status} ${errorText || response.statusText}`,
+          );
+        }
+
+        const result: UploadResult = {
+          url: item.media_url,
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+        };
+
+        if (logToLark) {
+          queueLarkLog(result, postId);
+        }
+
+        return result;
+      });
+
+      return Promise.all(uploadPromises);
+    },
+    onError: (error) => {
+      toast.error(`Batch upload failed: ${error.message}`);
     },
   });
 }
@@ -174,9 +321,7 @@ export function useUploadThumbnail(options: UseUploadMediaOptions = {}) {
 
       // Step 3: Fire-and-forget log to Lark Base (if enabled)
       if (logToLark) {
-        logMediaToLark(result, postId).catch((err) => {
-          console.warn("[MediaLog] Failed to log to Lark Base:", err);
-        });
+        queueLarkLog(result, postId);
       }
 
       return result;
@@ -185,56 +330,4 @@ export function useUploadThumbnail(options: UseUploadMediaOptions = {}) {
       toast.error(`Thumbnail upload failed: ${error.message}`);
     },
   });
-}
-
-/**
- * Background logger to Lark Base - fire and forget
- * Does NOT throw errors - logging is best effort
- */
-async function logMediaToLark(
-  media: UploadResult,
-  postId?: string
-): Promise<void> {
-  // Skip if no Lark config
-  if (!LARK_HTTP_WORKER) {
-    console.debug("[MediaLog] NEXT_PUBLIC_LARK_HTTP_WORKER_URL not set, skipping log");
-    return;
-  }
-  if (!LARK_APP_TOKEN) {
-    console.debug("[MediaLog] LARK_APP_TOKEN not set, skipping log");
-    return;
-  }
-
-  const logData = {
-    url: media.url,
-    file_name: media.fileName,
-    content_type: media.contentType,
-    size: media.size,
-    post_id: postId || null,
-    source: "post_for_me",
-    uploaded_at: new Date().toISOString(),
-  };
-
-  try {
-    const response = await fetch(`${LARK_HTTP_WORKER}/records/batch_create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        app_token: LARK_APP_TOKEN,
-        table_id: MEDIA_LOG_TABLE_ID,
-        records: [{ fields: logData }],
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text().catch(() => "Unknown error");
-      console.warn("[MediaLog] Lark API error:", error);
-      return;
-    }
-
-    console.debug("[MediaLog] Logged to Lark Base:", media.fileName);
-  } catch (error) {
-    // Silent fail - logging is best effort, don't break user flow
-    console.warn("[MediaLog] Network error:", error);
-  }
 }

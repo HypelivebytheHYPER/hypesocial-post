@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
 import {
@@ -39,10 +39,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadedFile } from "@/components/ui/file-upload";
 import { cn } from "@/lib/utils";
 
-// Constants - defined outside component to avoid recreation
-const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
-const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
-
 import { MediaUploadEnhanced } from "./_components/MediaUploadEnhanced";
 import { PlatformSelectorEnhanced } from "./_components/PlatformSelectorEnhanced";
 import { getPlatformIcon } from "@/lib/social-platforms";
@@ -64,12 +60,20 @@ import {
   getMostRestrictiveLimit,
   getWarningThreshold,
 } from "@/types/post-for-me-types";
-import { UPLOAD } from "@/lib/constants";
+import { UPLOAD, TIME, PAGINATION, UI } from "@/lib/constants";
 import { TemplateGallery } from "@/components/template-gallery";
 import type { PostTemplate } from "@/lib/templates/social-templates";
 
-// Auto-save draft key
+
+// Constants - defined outside component to avoid recreation
+const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
+const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+const DEBOUNCE_DELAY_MS = 800;
+const PREVIEW_WIDTH_PX = 380;
 const DRAFT_STORAGE_KEY = "hypesocial_post_draft_v3";
+const CALENDAR_START_HOUR = 6;
+const CALENDAR_END_HOUR = 22;
+const TIME_SLOT_INTERVAL_MINUTES = 30;
 
 interface DraftData {
   content: string;
@@ -79,16 +83,52 @@ interface DraftData {
   timestamp: number;
 }
 
+interface MiniCalendarProps {
+  selectedDate?: Date;
+  onSelectDate: (date: Date) => void;
+  posts: SocialPost[];
+}
+
+function getDayClassNames(
+  isCurrentMonth: boolean,
+  isPastDate: boolean,
+  isSelected: boolean,
+  isTodayDate: boolean
+): string {
+  const baseClasses = "relative aspect-square p-1 flex flex-col items-center justify-center transition-all";
+  
+  if (!isCurrentMonth) {
+    return cn(baseClasses, "opacity-30");
+  }
+  if (isPastDate) {
+    return cn(baseClasses, "opacity-20 cursor-not-allowed");
+  }
+  if (isSelected) {
+    return cn(baseClasses, "bg-blue-500 text-white");
+  }
+  if (isTodayDate) {
+    return cn(baseClasses, "bg-blue-50 dark:bg-blue-500/10 text-blue-600");
+  }
+  return cn(baseClasses, "hover:bg-slate-50 dark:hover:bg-slate-800");
+}
+
+function getDayTextClassNames(isSelected: boolean, isTodayDate: boolean): string {
+  const baseClasses = "text-sm font-medium";
+  if (isSelected) {
+    return cn(baseClasses, "text-white");
+  }
+  if (isTodayDate) {
+    return cn(baseClasses, "text-blue-600");
+  }
+  return cn(baseClasses, "text-slate-700 dark:text-slate-300");
+}
+
 // ==================== MINI CALENDAR COMPONENT ====================
 function MiniCalendar({
   selectedDate,
   onSelectDate,
   posts,
-}: {
-  selectedDate?: Date;
-  onSelectDate: (date: Date) => void;
-  posts: SocialPost[];
-}) {
+}: MiniCalendarProps): React.ReactElement {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const days = useMemo(() => {
@@ -104,14 +144,26 @@ function MiniCalendar({
     });
   }, [posts]);
 
-  // Use constant defined outside component
+  function handlePreviousMonth(): void {
+    setCurrentMonth((previous) => subMonths(previous, 1));
+  }
+
+  function handleNextMonth(): void {
+    setCurrentMonth((previous) => addMonths(previous, 1));
+  }
+
+  function handleSelectDate(day: Date, isPastDate: boolean): void {
+    if (!isPastDate) {
+      onSelectDate(day);
+    }
+  }
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
         <button
-          onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+          onClick={handlePreviousMonth}
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           aria-label="Previous month"
         >
@@ -121,7 +173,7 @@ function MiniCalendar({
           {format(currentMonth, "MMMM yyyy")}
         </span>
         <button
-          onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+          onClick={handleNextMonth}
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           aria-label="Next month"
         >
@@ -153,34 +205,20 @@ function MiniCalendar({
           return (
             <button
               key={day.toISOString()}
-              onClick={() => !isPastDate && onSelectDate(day)}
+              onClick={() => handleSelectDate(day, isPastDate)}
               disabled={isPastDate}
-              aria-label={`${format(day, "MMMM d")}${dayPosts.length > 0 ? `, ${dayPosts.length} posts scheduled` : ''}`}
+              aria-label={`${format(day, "MMMM d")}${dayPosts.length > 0 ? `, ${dayPosts.length} posts scheduled` : ""}`}
               aria-pressed={isSelected}
-              className={cn(
-                "relative aspect-square p-1 flex flex-col items-center justify-center transition-all",
-                !isCurrentMonth && "opacity-30",
-                isPastDate && "opacity-20 cursor-not-allowed",
-                isSelected
-                  ? "bg-blue-500 text-white"
-                  : isTodayDate
-                  ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600"
-                  : "hover:bg-slate-50 dark:hover:bg-slate-800"
-              )}
+              className={getDayClassNames(isCurrentMonth, isPastDate, !!isSelected, isTodayDate)}
             >
-              <span
-                className={cn(
-                  "text-sm font-medium",
-                  isSelected ? "text-white" : isTodayDate ? "text-blue-600" : "text-slate-700 dark:text-slate-300"
-                )}
-              >
+              <span className={getDayTextClassNames(!!isSelected, isTodayDate)}>
                 {format(day, "d")}
               </span>
               {dayPosts.length > 0 && (
                 <div className="flex gap-0.5 mt-0.5">
-                  {dayPosts.slice(0, 3).map((_, i) => (
+                  {dayPosts.slice(0, UI.MAX_MEDIA_PREVIEW).map((_, index) => (
                     <div
-                      key={i}
+                      key={index}
                       className={cn(
                         "w-1 h-1 rounded-full",
                         isSelected ? "bg-white/70" : "bg-blue-500"
@@ -197,23 +235,37 @@ function MiniCalendar({
   );
 }
 
+interface TimeSlotsProps {
+  selectedTime: string;
+  onSelectTime: (time: string) => void;
+  selectedDate?: Date;
+  existingPosts: SocialPost[];
+}
+
+function getTimeSlotClassNames(isSelected: boolean, hasConflict: boolean): string {
+  const baseClasses = "px-2 py-2 rounded-lg text-xs font-medium transition-all border";
+  
+  if (isSelected) {
+    return cn(baseClasses, "bg-blue-500 text-white border-blue-500");
+  }
+  if (hasConflict) {
+    return cn(baseClasses, "bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-300");
+  }
+  return cn(baseClasses, "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300");
+}
+
 // ==================== TIME SLOTS COMPONENT ====================
 function TimeSlots({
   selectedTime,
   onSelectTime,
   selectedDate,
   existingPosts,
-}: {
-  selectedTime: string;
-  onSelectTime: (time: string) => void;
-  selectedDate?: Date;
-  existingPosts: SocialPost[];
-}) {
+}: TimeSlotsProps): React.ReactElement {
   const timeSlots = useMemo(() => {
-    const slots = [];
-    for (let hour = 6; hour <= 22; hour++) {
-      for (let min = 0; min < 60; min += 30) {
-        const time = `${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
+    const slots: string[] = [];
+    for (let hour = CALENDAR_START_HOUR; hour <= CALENDAR_END_HOUR; hour++) {
+      for (let minute = 0; minute < 60; minute += TIME_SLOT_INTERVAL_MINUTES) {
+        const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
         slots.push(time);
       }
     }
@@ -247,15 +299,8 @@ function TimeSlots({
             key={time}
             onClick={() => onSelectTime(time)}
             aria-pressed={isSelected}
-            aria-label={`${time}${hasConflict ? `, ${postsAtTime.length} posts scheduled` : ''}`}
-            className={cn(
-              "px-2 py-2 rounded-lg text-xs font-medium transition-all border",
-              isSelected
-                ? "bg-blue-500 text-white border-blue-500"
-                : hasConflict
-                ? "bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-300"
-                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300"
-            )}
+            aria-label={`${time}${hasConflict ? `, ${postsAtTime.length} posts scheduled` : ""}`}
+            className={getTimeSlotClassNames(isSelected, hasConflict)}
           >
             {time}
             {hasConflict && (
@@ -268,10 +313,14 @@ function TimeSlots({
   );
 }
 
-
+interface PreviewAccount {
+  id: string;
+  platform: string;
+  username: string | undefined;
+}
 
 // ==================== MAIN COMPOSE PANEL ====================
-export default function ComposePanel() {
+export default function ComposePanel(): React.ReactElement {
   const searchParams = useSearchParams();
   const { closeCompose, editingPostId, setEditingPostId } = usePostsLayout();
 
@@ -298,10 +347,10 @@ export default function ComposePanel() {
 
   // Data fetching
   const { data: accountsData } = useSocialAccounts();
-  const { data: existingPost } = usePost(editPostId || "");
+  const { data: existingPost } = usePost(editPostId ?? "");
   const { data: allPosts = [] } = usePosts(
-    { limit: 100 },
-    { select: (r) => r?.data ?? [] }
+    { limit: PAGINATION.DEFAULT_LIMIT },
+    { select: (response) => response?.data ?? [] }
   );
   const createPost = useCreatePost();
   const updatePost = useUpdatePost();
@@ -309,19 +358,22 @@ export default function ComposePanel() {
   const uploadMedia = useUploadMedia();
   const postPreview = usePostPreview();
 
+  const accounts = accountsData?.data ?? [];
+  const connectedAccounts = accounts.filter((account) => account.status === "connected");
+
   // Debounced preview API call
   useEffect(() => {
     if (!showPreview || selectedAccountIds.length === 0) return;
     if (!content.trim() && files.length === 0) return;
 
     const timer = setTimeout(() => {
-      const previewAccounts = selectedAccountIds
-        .map((id) => accounts.find((a) => a.id === id))
-        .filter(Boolean)
-        .map((a) => ({
-          id: a!.id,
-          platform: a!.platform,
-          username: a!.username || undefined,
+      const previewAccounts: PreviewAccount[] = selectedAccountIds
+        .map((id) => accounts.find((account) => account.id === id))
+        .filter((account): account is NonNullable<typeof account> => Boolean(account))
+        .map((account) => ({
+          id: account.id,
+          platform: account.platform,
+          username: account.username ?? undefined,
         }));
 
       if (previewAccounts.length === 0) return;
@@ -330,24 +382,21 @@ export default function ComposePanel() {
         caption: content,
         preview_social_accounts: previewAccounts,
         media: files
-          .filter((f) => f.status === "success" && f.uploadedUrl)
-          .map((f) => ({
-            url: f.uploadedUrl!,
-            skip_processing: f.file.size > 50 * 1024 * 1024,
+          .filter((file) => file.status === "success" && file.uploadedUrl)
+          .map((file) => ({
+            url: file.uploadedUrl!,
+            skip_processing: file.file.size > UPLOAD.SKIP_PROCESSING_THRESHOLD,
           })),
       });
-    }, 800); // Debounce 800ms
+    }, DEBOUNCE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [content, files, selectedAccountIds, showPreview]);
-
-  const accounts = accountsData?.data ?? [];
-  const connectedAccounts = accounts.filter((a) => a.status === "connected");
+  }, [content, files, selectedAccountIds, showPreview, accounts, postPreview]);
 
   // Derived data
   const selectedPlatforms = selectedAccountIds
-    .map((id) => accounts.find((a) => a.id === id)?.platform)
-    .filter(Boolean) as string[];
+    .map((id) => accounts.find((account) => account.id === id)?.platform)
+    .filter((platform): platform is string => Boolean(platform));
 
   const characterLimit = getMostRestrictiveLimit(selectedPlatforms);
   const warningThreshold = getWarningThreshold(characterLimit);
@@ -359,21 +408,21 @@ export default function ComposePanel() {
   useEffect(() => {
     if (!isEditMode || !existingPost) return;
 
-    setContent(existingPost.caption || "");
+    setContent(existingPost.caption ?? "");
     if (existingPost.scheduled_at) {
       const date = new Date(existingPost.scheduled_at);
       setScheduledDate(date);
       setScheduledTime(format(date, "HH:mm"));
     }
     if (existingPost.social_accounts) {
-      setSelectedAccountIds(existingPost.social_accounts.map((a) => a.id));
+      setSelectedAccountIds(existingPost.social_accounts.map((account) => account.id));
     }
     if (existingPost.media) {
-      const loadedFiles: UploadedFile[] = existingPost.media.map((m, index) => ({
+      const loadedFiles: UploadedFile[] = existingPost.media.map((mediaItem, index) => ({
         id: `existing-${index}`,
         file: new File([], `media-${index}`),
-        preview: m.url,
-        uploadedUrl: m.url,
+        preview: mediaItem.url,
+        uploadedUrl: mediaItem.url,
         status: "success" as const,
         progress: 100,
       }));
@@ -388,7 +437,7 @@ export default function ComposePanel() {
 
     const draft: DraftData = {
       content,
-      scheduledDate: scheduledDate?.toISOString() || "",
+      scheduledDate: scheduledDate?.toISOString() ?? "",
       scheduledTime,
       selectedAccountIds,
       timestamp: Date.now(),
@@ -404,7 +453,7 @@ export default function ComposePanel() {
 
     try {
       const draft: DraftData = JSON.parse(saved);
-      if (Date.now() - draft.timestamp > 24 * 60 * 60 * 1000) {
+      if (Date.now() - draft.timestamp > TIME.DAY) {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
         return;
       }
@@ -422,49 +471,60 @@ export default function ComposePanel() {
     return result.url;
   };
 
-  const toggleAccount = (accountId: string) => {
-    setSelectedAccountIds((prev) =>
-      prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId]
+  const toggleAccount = (accountId: string): void => {
+    setSelectedAccountIds((previous) =>
+      previous.includes(accountId) ? previous.filter((id) => id !== accountId) : [...previous, accountId]
     );
   };
 
-  const handleSubmit = async () => {
+  function validateSubmit(): boolean {
     if (!content.trim() && files.length === 0) {
       toast.error("Please add some content or media");
-      return;
+      return false;
     }
     if (selectedAccountIds.length === 0) {
       toast.error("Please select at least one account");
       setActiveTab("accounts");
-      return;
+      return false;
     }
     if (isOverLimit) {
       toast.error(`Content exceeds the ${characterLimit} character limit`);
-      return;
+      return false;
     }
+    return true;
+  }
+
+  function buildMediaUrls() {
+    return files
+      .filter((file) => file.status === "success")
+      .map((file) => {
+        const isVideo = file.file.type.startsWith("video/");
+        const isLargeFile = file.file.size > UPLOAD.SKIP_PROCESSING_THRESHOLD;
+        return {
+          url: file.uploadedUrl!,
+          content_type: file.file.type,
+          skip_processing: isVideo && isLargeFile,
+        };
+      });
+  }
+
+  function buildPlatformConfigs(): PlatformConfigBuilder {
+    const configs: PlatformConfigBuilder = {};
+    if (selectedPlatforms.includes("instagram")) configs.instagram = { placement: "timeline" };
+    if (selectedPlatforms.includes("tiktok")) configs.tiktok = { privacy_status: "public" };
+    if (selectedPlatforms.includes("facebook")) configs.facebook = { placement: "timeline" };
+    if (selectedPlatforms.includes("youtube")) configs.youtube = { privacy_status: "public" };
+    return configs;
+  }
+
+  async function handleSubmit(): Promise<void> {
+    if (!validateSubmit()) return;
 
     setIsSubmitting(true);
 
     try {
-      const mediaUrls = files
-        .filter((f) => f.status === "success")
-        .map((f) => {
-          const isVideo = f.file.type.startsWith("video/");
-          const isLargeFile = f.file.size > UPLOAD.SKIP_PROCESSING_THRESHOLD;
-          return {
-            url: f.uploadedUrl!,
-            content_type: f.file.type,
-            // Skip processing for large videos to speed up uploads
-            // Note: Increases failure risk if video doesn't meet platform requirements
-            skip_processing: isVideo && isLargeFile,
-          };
-        });
-
-      const platformConfigs: PlatformConfigBuilder = {};
-      if (selectedPlatforms.includes("instagram")) platformConfigs.instagram = { placement: "timeline" };
-      if (selectedPlatforms.includes("tiktok")) platformConfigs.tiktok = { privacy_status: "public" };
-      if (selectedPlatforms.includes("facebook")) platformConfigs.facebook = { placement: "timeline" };
-      if (selectedPlatforms.includes("youtube")) platformConfigs.youtube = { privacy_status: "public" };
+      const mediaUrls = buildMediaUrls();
+      const platformConfigs = buildPlatformConfigs();
 
       const scheduledAt = scheduledDate
         ? new Date(`${format(scheduledDate, "yyyy-MM-dd")}T${scheduledTime}`).toISOString()
@@ -497,26 +557,39 @@ export default function ComposePanel() {
       }
 
       closeCompose();
-    } catch (error) {
-      toast.error(isEditMode ? "Failed to update post" : "Failed to create post");
+    } catch (submitError) {
+      const errorMessage = isEditMode ? "Failed to update post" : "Failed to create post";
+      toast.error(errorMessage);
+      console.error("Post submission error:", submitError);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
 
-  const handleDelete = async () => {
+  async function handleDelete(): Promise<void> {
     if (!editPostId) return;
     if (!confirm("Are you sure you want to delete this post?")) return;
 
     try {
       await deletePost.mutateAsync(editPostId);
       closeCompose();
-    } catch {
+    } catch (deleteError) {
       toast.error("Failed to delete post");
+      console.error("Delete post error:", deleteError);
     }
-  };
+  }
 
-  const scheduledPosts = allPosts.filter((p) => p.scheduled_at && p.status === "scheduled");
+  function handleTogglePreview(): void {
+    setShowPreview((previous) => !previous);
+  }
+
+  function handleApplyTemplate(template: PostTemplate): void {
+    setContent(template.caption);
+    setActiveTab("compose");
+    toast.success(`Template "${template.name}" applied!`);
+  }
+
+  const scheduledPosts = allPosts.filter((post) => post.scheduled_at && post.status === "scheduled");
 
   return (
     <div className="h-full flex flex-col bg-[#fafafa] dark:bg-[#0a0a0a]">
@@ -541,7 +614,7 @@ export default function ComposePanel() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setShowPreview(!showPreview)}
+            onClick={handleTogglePreview}
             className={cn("rounded-xl", showPreview && "bg-slate-100")}
             aria-label={showPreview ? "Hide preview" : "Show preview"}
             aria-pressed={showPreview}
@@ -605,22 +678,15 @@ export default function ComposePanel() {
                     <Textarea
                       placeholder="What's on your mind?"
                       value={content}
-                      onChange={(e) => setContent(e.target.value)}
+                      onChange={(event) => setContent(event.target.value)}
                       className={cn("min-h-[200px] text-base bg-white shadow-inner", isOverLimit && "ring-2 ring-red-400/50 bg-red-50")}
                     />
                     {charactersRemaining !== null && (
-                      <div
-                        className={cn(
-                          "absolute bottom-3 right-3 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm",
-                          isOverLimit
-                            ? "bg-rose-100 text-rose-600"
-                            : isNearLimit
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-blue-50 text-blue-600"
-                        )}
-                      >
-                        {charactersRemaining}
-                      </div>
+                      <CharacterCounter 
+                        charactersRemaining={charactersRemaining} 
+                        isOverLimit={isOverLimit} 
+                        isNearLimit={isNearLimit} 
+                      />
                     )}
                   </div>
 
@@ -628,7 +694,7 @@ export default function ComposePanel() {
                   {selectedPlatforms.length > 0 && (
                     <div className="flex items-center gap-2 flex-wrap">
                       {selectedPlatforms.map((platform) => {
-                        const limit = PLATFORM_CHARACTER_LIMITS[platform] ?? "∞";
+                        const limit = PLATFORM_CHARACTER_LIMITS[platform] ?? Infinity;
                         const Icon = getPlatformIcon(platform);
                         const isExceeded = typeof limit === "number" && content.length > limit;
                         if (!Icon) return null;
@@ -659,8 +725,8 @@ export default function ComposePanel() {
                   files={files}
                   onFilesChange={setFiles}
                   onUpload={handleUpload}
-                  maxFiles={10}
-                  maxSize={100 * 1024 * 1024}
+                  maxFiles={PLATFORM_LIMITS.MAX_MEDIA_PER_POST}
+                  maxSize={UPLOAD.MAX_FILE_SIZE}
                 />
               </TabsContent>
 
@@ -755,11 +821,7 @@ export default function ComposePanel() {
               {/* Templates Tab */}
               <TabsContent value="templates" className="mt-0 p-4 h-full">
                 <TemplateGallery
-                  onSelectTemplate={(template: PostTemplate) => {
-                    setContent(template.caption);
-                    setActiveTab("compose");
-                    toast.success(`Template "${template.name}" applied!`);
-                  }}
+                  onSelectTemplate={handleApplyTemplate}
                   selectedPlatform={selectedPlatforms[0]}
                 />
               </TabsContent>
@@ -770,7 +832,7 @@ export default function ComposePanel() {
           <div className="p-4 border-t border-slate-200/60 dark:border-slate-800/60 bg-white/70 dark:bg-[#111111]/70">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
-                {selectedPlatforms.slice(0, 3).map((platform) => {
+                {selectedPlatforms.slice(0, UI.MAX_PLATFORM_ICONS).map((platform) => {
                   const Icon = getPlatformIcon(platform);
                   if (!Icon) return null;
                   return (
@@ -779,9 +841,9 @@ export default function ComposePanel() {
                     </div>
                   );
                 })}
-                {selectedPlatforms.length > 3 && (
+                {selectedPlatforms.length > UI.MAX_PLATFORM_ICONS && (
                   <span className="text-xs text-slate-500">
-                    +{selectedPlatforms.length - 3}
+                    +{selectedPlatforms.length - UI.MAX_PLATFORM_ICONS}
                   </span>
                 )}
               </div>
@@ -829,7 +891,7 @@ export default function ComposePanel() {
           {showPreview && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 380, opacity: 1 }}
+              animate={{ width: PREVIEW_WIDTH_PX, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               className="hidden lg:block border-l border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-[#111111]/50 overflow-hidden"
             >
@@ -853,14 +915,14 @@ export default function ComposePanel() {
                         
                         // Find matching preview from API response
                         const apiPreview = postPreview.data?.find(
-                          (p) => p.social_account_id === accountId
+                          (preview) => preview.social_account_id === accountId
                         );
                         
                         return (
                           <PlatformPreview
                             key={accountId}
-                            caption={apiPreview?.caption || content}
-                            media={apiPreview?.media?.length ? apiPreview.media : files.map(f => ({ url: f.preview || f.uploadedUrl || "" }))}
+                            caption={apiPreview?.caption ?? content}
+                            media={apiPreview?.media?.length ? apiPreview.media : files.map((file) => ({ url: file.preview ?? file.uploadedUrl ?? "" }))}
                             account={account}
                             isLoading={postPreview.isPending}
                           />
@@ -877,3 +939,34 @@ export default function ComposePanel() {
     </div>
   );
 }
+
+interface CharacterCounterProps {
+  charactersRemaining: number;
+  isOverLimit: boolean;
+  isNearLimit: boolean;
+}
+
+function CharacterCounter({ charactersRemaining, isOverLimit, isNearLimit }: CharacterCounterProps): React.ReactElement {
+  function getCounterClasses(): string {
+    if (isOverLimit) {
+      return "bg-rose-100 text-rose-600";
+    }
+    if (isNearLimit) {
+      return "bg-amber-100 text-amber-600";
+    }
+    return "bg-blue-50 text-blue-600";
+  }
+
+  return (
+    <div
+      className={cn(
+        "absolute bottom-3 right-3 text-xs font-medium px-3 py-1.5 rounded-full shadow-sm",
+        getCounterClasses()
+      )}
+    >
+      {charactersRemaining}
+    </div>
+  );
+}
+
+import { PLATFORM_LIMITS } from "@/lib/constants";

@@ -3,8 +3,8 @@
  * @module lib/hooks/use-social-accounts
  */
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient, useQueries, UseQueryResult } from "@tanstack/react-query";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { pfmKeys } from "./keys";
 import { TIME, PAGINATION } from "@/lib/constants";
@@ -26,6 +26,56 @@ interface AccountsFilter {
   status?: ("connected" | "disconnected")[];
 }
 
+interface AccountFeedOptions {
+  limit?: number;
+  cursor?: string;
+  expand?: string[];
+}
+
+interface AccountFeedResponse {
+  data: SocialAccountFeedItem[];
+  meta: {
+    cursor?: string;
+    has_more: boolean;
+    next?: string;
+  };
+}
+
+interface UseSocialAccountsOptions {
+  staleTime?: number;
+  gcTime?: number;
+  refetchOnMount?: boolean;
+  refetchOnWindowFocus?: boolean;
+}
+
+// ==================== Query Builders ====================
+
+function buildAccountsQueryParams(
+  limit: number,
+  offset: number,
+  platform?: string[],
+  status?: ("connected" | "disconnected")[]
+): string {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  params.set("offset", offset.toString());
+  platform?.forEach((platformItem) => params.append("platform", platformItem));
+  status?.forEach((statusItem) => params.append("status", statusItem));
+  return params.toString();
+}
+
+function buildFeedQueryParams(
+  limit: number,
+  cursor?: string,
+  expand?: string[]
+): string {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  if (cursor) params.set("cursor", cursor);
+  if (expand?.length) params.set("expand", expand.join(","));
+  return params.toString();
+}
+
 // ==================== Queries ====================
 
 /**
@@ -36,15 +86,16 @@ interface AccountsFilter {
  * - staleTime: 2 minutes - data considered fresh
  * - gcTime: 10 minutes - keep in cache for back navigation
  */
-export function useSocialAccounts<T = SocialAccountListResponse>(
+export function useSocialAccounts(
   limit: number = PAGINATION.DEFAULT_LIMIT,
   offset: number = 0,
   platform?: string[],
   status?: ("connected" | "disconnected")[],
-  options?: Omit<Parameters<typeof useQuery<SocialAccountListResponse, Error, T>>[0], 'queryKey' | 'queryFn'>
+  options?: UseSocialAccountsOptions
 ) {
-  return useQuery<SocialAccountListResponse, Error, T>({
-    // TanStack Query handles key serialization internally - no useMemo needed
+  const queryParams = buildAccountsQueryParams(limit, offset, platform, status);
+  
+  return useQuery<SocialAccountListResponse, Error>({
     queryKey: [
       ...pfmKeys.accounts(),
       limit,
@@ -53,25 +104,13 @@ export function useSocialAccounts<T = SocialAccountListResponse>(
       status?.join(",") ?? null,
     ],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set("limit", limit.toString());
-      params.set("offset", offset.toString());
-      platform?.forEach((p) => params.append("platform", p));
-      status?.forEach((s) => params.append("status", s));
-      
-      return apiClient<SocialAccountListResponse>(`/api/accounts?${params}`);
+      return apiClient<SocialAccountListResponse>(`/api/accounts?${queryParams}`);
     },
-    // CRITICAL: Show cached data immediately while fetching
     placeholderData: (previousData) => previousData,
-    // Data stays fresh for 2 minutes
-    staleTime: TIME.STALE_TIME_ACCOUNTS,
-    // Keep in cache for 10 minutes (back navigation)
-    gcTime: TIME.MINUTE * 10,
-    // Don't refetch on mount if data exists
-    refetchOnMount: false,
-    // Refetch on window focus for fresh status
-    refetchOnWindowFocus: true,
-    ...options,
+    staleTime: options?.staleTime ?? TIME.STALE_TIME_ACCOUNTS,
+    gcTime: options?.gcTime ?? TIME.MINUTE * 10,
+    refetchOnMount: options?.refetchOnMount ?? false,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus ?? true,
   });
 }
 
@@ -94,7 +133,7 @@ export function useSocialAccount(id: string) {
 export function usePrefetchAccount() {
   const queryClient = useQueryClient();
 
-  return (id: string) => {
+  return (id: string): void => {
     if (!id) return;
     queryClient.prefetchQuery({
       queryKey: pfmKeys.account(id),
@@ -106,6 +145,16 @@ export function usePrefetchAccount() {
 
 // ==================== Mutations ====================
 
+interface ConnectAccountVariables {
+  platform: string;
+  redirect_uri: string;
+}
+
+interface ConnectAccountResponse {
+  url: string;
+  platform: string;
+}
+
 /**
  * Connect a new social account
  * Initiates OAuth flow
@@ -113,13 +162,8 @@ export function usePrefetchAccount() {
 export function useConnectSocialAccount() {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    { url: string; platform: string },
-    Error,
-    { platform: string; redirect_uri: string }
-  >({
+  return useMutation<ConnectAccountResponse, Error, ConnectAccountVariables>({
     mutationFn: ({ platform, redirect_uri }) => {
-      // Build body - only include redirect_url for non-Quickstart projects
       const body: { 
         platform: string; 
         redirect_url?: string; 
@@ -127,28 +171,28 @@ export function useConnectSocialAccount() {
         platform_data?: Record<string, unknown>;
       } = { 
         platform,
-        // Request both posting and feed access
         permissions: ["posts", "feeds"],
       };
-      if (redirect_uri && redirect_uri.trim() !== "") {
+      
+      if (redirect_uri?.trim()) {
         body.redirect_url = redirect_uri;
       }
-      // LinkedIn requires connection_type in platform_data
+      
       if (platform === "linkedin") {
         body.platform_data = {
           linkedin: {
-            connection_type: "personal" // or "organization" for Community API
+            connection_type: "personal"
           }
         };
       }
-      return apiClient<{ url: string; platform: string }>("/api/accounts/auth-url", {
+      
+      return apiClient<ConnectAccountResponse>("/api/accounts/auth-url", {
         method: "POST",
         body: JSON.stringify(body),
       });
     },
 
     onSuccess: (data) => {
-      // Redirect to OAuth provider
       window.location.href = data.url;
     },
 
@@ -158,13 +202,17 @@ export function useConnectSocialAccount() {
   });
 }
 
+interface DisconnectContext {
+  previousAccounts?: SocialAccountListResponse;
+}
+
 /**
  * Disconnect a social account
  */
 export function useDisconnectSocialAccount() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean }, Error, string>({
+  return useMutation<{ success: boolean }, Error, string, DisconnectContext>({
     mutationFn: (id) =>
       apiClient<{ success: boolean }>(`/api/accounts/${id}/disconnect`, {
         method: "POST",
@@ -183,8 +231,8 @@ export function useDisconnectSocialAccount() {
           if (!old) return old;
           return {
             ...old,
-            data: old.data.map((acc) =>
-              acc.id === id ? { ...acc, status: "disconnected" as const } : acc
+            data: old.data.map((account) =>
+              account.id === id ? { ...account, status: "disconnected" as const } : account
             ),
           };
         }
@@ -194,9 +242,8 @@ export function useDisconnectSocialAccount() {
     },
 
     onError: (error, _id, context) => {
-      const ctx = context as { previousAccounts?: SocialAccountListResponse } | undefined;
-      if (ctx?.previousAccounts) {
-        queryClient.setQueryData(pfmKeys.accounts(), ctx.previousAccounts);
+      if (context?.previousAccounts) {
+        queryClient.setQueryData(pfmKeys.accounts(), context.previousAccounts);
       }
       toast.error(error.message || "Failed to disconnect account");
     },
@@ -215,11 +262,7 @@ export function useDisconnectSocialAccount() {
 export function useCreateSocialAccount() {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    SocialAccount,
-    Error,
-    CreateSocialAccountDto
-  >({
+  return useMutation<SocialAccount, Error, CreateSocialAccountDto>({
     mutationFn: (data) =>
       apiClient<SocialAccount>("/api/accounts/manual", {
         method: "POST",
@@ -237,17 +280,23 @@ export function useCreateSocialAccount() {
   });
 }
 
+interface UpdateAccountVariables {
+  id: string;
+  data: UpdateSocialAccountDto;
+}
+
+interface UpdateAccountContext {
+  previousAccount?: SocialAccount;
+  previousAccounts?: SocialAccountListResponse;
+}
+
 /**
  * Update account settings
  */
 export function useUpdateSocialAccount() {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    SocialAccount,
-    Error,
-    { id: string; data: UpdateSocialAccountDto }
-  >({
+  return useMutation<SocialAccount, Error, UpdateAccountVariables, UpdateAccountContext>({
     mutationFn: ({ id, data }) =>
       apiClient<SocialAccount>(`/api/accounts/${id}`, {
         method: "PATCH",
@@ -276,8 +325,8 @@ export function useUpdateSocialAccount() {
           if (!old) return old;
           return {
             ...old,
-            data: old.data.map((acc) =>
-              acc.id === id ? { ...acc, ...data } : acc
+            data: old.data.map((account) =>
+              account.id === id ? { ...account, ...data } : account
             ),
           };
         }
@@ -287,12 +336,11 @@ export function useUpdateSocialAccount() {
     },
 
     onError: (error, variables, context) => {
-      const ctx = context as { previousAccount?: SocialAccount; previousAccounts?: SocialAccountListResponse } | undefined;
-      if (ctx?.previousAccount) {
-        queryClient.setQueryData(pfmKeys.account(variables.id), ctx.previousAccount);
+      if (context?.previousAccount) {
+        queryClient.setQueryData(pfmKeys.account(variables.id), context.previousAccount);
       }
-      if (ctx?.previousAccounts) {
-        queryClient.setQueryData(pfmKeys.accounts(), ctx.previousAccounts);
+      if (context?.previousAccounts) {
+        queryClient.setQueryData(pfmKeys.accounts(), context.previousAccounts);
       }
       toast.error(error.message || "Failed to update account");
     },
@@ -307,20 +355,6 @@ export function useUpdateSocialAccount() {
 
 // ==================== Feed Queries ====================
 
-interface AccountFeedOptions {
-  limit?: number;
-  cursor?: string;
-  expand?: string[];
-}
-
-interface AccountFeedResponse {
-  data: SocialAccountFeedItem[];
-  meta: {
-    cursor?: string;
-    has_more: boolean;
-  };
-}
-
 /**
  * Get feed for a single account
  */
@@ -329,22 +363,132 @@ export function useAccountFeed(
   options: AccountFeedOptions = {}
 ) {
   const { limit = PAGINATION.DEFAULT_LIMIT, cursor, expand } = options;
+  const queryParams = buildFeedQueryParams(limit, cursor, expand);
 
   return useQuery<AccountFeedResponse, Error>({
     queryKey: pfmKeys.feed(accountId, cursor),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set("limit", limit.toString());
-      if (cursor) params.set("cursor", cursor);
-      if (expand?.length) params.set("expand", expand.join(","));
-
-      return apiClient<AccountFeedResponse>(
-        `/api/account-feeds/${accountId}?${params}`
-      );
-    },
+    queryFn: () => apiClient<AccountFeedResponse>(`/api/account-feeds/${accountId}?${queryParams}`),
     enabled: !!accountId,
     staleTime: TIME.MINUTE * 2,
   });
+}
+
+interface PaginationActions {
+  loadMore: () => void;
+  reset: () => void;
+}
+
+interface PaginationResult extends PaginationActions {
+  items: SocialAccountFeedItem[];
+  latestPage: SocialAccountFeedItem[];
+  hasMore: boolean;
+  cursor?: string;
+  nextUrl?: string;
+  cursors: string[];
+  accumulatedItems: SocialAccountFeedItem[];
+  isLoading: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  query: ReturnType<typeof useQuery<AccountFeedResponse, Error>>;
+}
+
+/**
+ * Hook for cursor-based pagination with accumulated results
+ * 
+ * Features:
+ * - Accumulates all loaded items
+ * - Manages cursor history for pagination
+ * - Provides helpers for next page navigation
+ * 
+ * @example
+ * ```tsx
+ * const { items, hasMore, loadMore, isLoading, reset } = useAccountFeedPagination(accountId);
+ * ```
+ */
+export function useAccountFeedPagination(
+  accountId: string,
+  options: { limit?: number; expand?: string[] } = {}
+): PaginationResult {
+  const { limit = PAGINATION.DEFAULT_LIMIT, expand } = options;
+  const queryClient = useQueryClient();
+  
+  const [cursors, setCursors] = useState<string[]>([]);
+  const [accumulatedItems, setAccumulatedItems] = useState<SocialAccountFeedItem[]>([]);
+  
+  const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : undefined;
+  const queryParams = buildFeedQueryParams(limit, currentCursor, expand);
+  
+  const query = useQuery<AccountFeedResponse, Error>({
+    queryKey: [...pfmKeys.feed(accountId, currentCursor), "pagination"],
+    queryFn: () => apiClient<AccountFeedResponse>(`/api/account-feeds/${accountId}?${queryParams}`),
+    enabled: !!accountId,
+    staleTime: TIME.MINUTE * 2,
+  });
+
+  // Accumulate items when data changes
+  useEffect(() => {
+    if (!query.data?.data) return;
+
+    const newData = query.data.data;
+    
+    if (cursors.length <= 1) {
+      // First load or reset - replace all items
+      setAccumulatedItems(newData);
+    } else {
+      // Subsequent loads - append new unique items
+      setAccumulatedItems((previous) => {
+        const existingIds = new Set(previous.map((item) => item.platform_post_id));
+        const newItems = newData.filter(
+          (item) => !existingIds.has(item.platform_post_id)
+        );
+        return [...previous, ...newItems];
+      });
+    }
+  }, [query.data?.data, cursors.length]);
+
+  const loadMore = useCallback((): void => {
+    const nextCursor = query.data?.meta?.cursor;
+    if (nextCursor) {
+      setCursors((previous) => [...previous, nextCursor]);
+    }
+  }, [query.data?.meta?.cursor]);
+
+  const reset = useCallback((): void => {
+    setCursors([]);
+    setAccumulatedItems([]);
+    queryClient.invalidateQueries({ queryKey: pfmKeys.feeds() });
+  }, [queryClient]);
+
+  return {
+    items: accumulatedItems,
+    latestPage: query.data?.data ?? [],
+    hasMore: query.data?.meta?.has_more ?? false,
+    cursor: query.data?.meta?.cursor,
+    nextUrl: query.data?.meta?.next,
+    cursors,
+    accumulatedItems,
+    loadMore,
+    reset,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error,
+    query,
+  };
+}
+
+// ==================== Aggregated Feed Queries ====================
+
+interface AllAccountFeedsResult {
+  /** @deprecated Use feedsByAccount instead */
+  data: Map<string, SocialAccountFeedItem[]>;
+  feedsByAccount: Map<string, SocialAccountFeedItem[]>;
+  allItems: SocialAccountFeedItem[];
+  items: SocialAccountFeedItem[];
+  isLoading: boolean;
+  isAllLoaded: boolean;
+  loadingAccountIds: string[];
+  errors: Map<string, Error>;
+  queries: ReturnType<typeof useQueries>;
 }
 
 /**
@@ -354,16 +498,13 @@ export function useAccountFeed(
 export function useAllAccountFeeds(
   accountIds: string[],
   limit: number = PAGINATION.DEFAULT_LIMIT
-) {
+): AllAccountFeedsResult {
   const queries = useQueries({
     queries: accountIds.map((id) => ({
       queryKey: pfmKeys.feed(id, undefined),
       queryFn: async () => {
-        const params = new URLSearchParams();
-        params.set("limit", limit.toString());
-        return apiClient<AccountFeedResponse>(
-          `/api/account-feeds/${id}?${params}`
-        );
+        const params = buildFeedQueryParams(limit, undefined, undefined);
+        return apiClient<AccountFeedResponse>(`/api/account-feeds/${id}?${params}`);
       },
       enabled: !!id,
       staleTime: TIME.MINUTE * 2,
@@ -372,35 +513,34 @@ export function useAllAccountFeeds(
 
   // Build feeds by account map
   const feedsByAccount = new Map<string, SocialAccountFeedItem[]>();
-  queries.forEach((q, index) => {
+  queries.forEach((queryResult, index) => {
     const accountId = accountIds[index];
-    if (accountId && q.data?.data) {
-      feedsByAccount.set(accountId, q.data.data);
+    if (accountId && queryResult.data?.data) {
+      feedsByAccount.set(accountId, queryResult.data.data);
     }
   });
 
   // Combine all feed items and sort by date
   const allItems = queries
-    .flatMap((q) => q.data?.data ?? [])
+    .flatMap((queryResult) => queryResult.data?.data ?? [])
     .sort((a, b) => 
       new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime()
     );
 
-  const isLoading = queries.some((q) => q.isLoading);
-  const isAllLoaded = queries.every((q) => !q.isLoading);
+  const isLoading = queries.some((queryResult) => queryResult.isLoading);
+  const isAllLoaded = queries.every((queryResult) => !queryResult.isLoading);
   const loadingAccountIds = accountIds.filter((_, index) => queries[index]?.isLoading);
   
   // Build errors map for easy lookup by account ID
   const errors = new Map<string, Error>();
-  queries.forEach((q, index) => {
+  queries.forEach((queryResult, index) => {
     const accountId = accountIds[index];
-    if (accountId && q.error) {
-      errors.set(accountId, q.error);
+    if (accountId && queryResult.error) {
+      errors.set(accountId, queryResult.error as Error);
     }
   });
 
   return {
-    // For backwards compatibility
     data: feedsByAccount,
     feedsByAccount,
     allItems,
@@ -415,27 +555,41 @@ export function useAllAccountFeeds(
 
 // ==================== Utility Hooks ====================
 
+interface PausedAccountsResult {
+  pausedAccounts: SocialAccount[];
+  isPaused: (accountId: string) => boolean;
+  isLoading: boolean;
+  isReady: (accountId: string) => boolean;
+  toggleAccount: (accountId: string) => void;
+  selectedPausedIds: Set<string>;
+}
+
 /**
  * Get paused accounts for reconnect prompt
  * Maintains backwards compatibility with existing components
  */
-export function usePausedSocialAccounts() {
-  const { data, isLoading } = useSocialAccounts(PAGINATION.DEFAULT_LIMIT, 0, undefined, ["disconnected"]);
+export function usePausedSocialAccounts(): PausedAccountsResult {
+  const { data, isLoading } = useSocialAccounts(
+    PAGINATION.DEFAULT_LIMIT, 
+    0, 
+    undefined, 
+    ["disconnected"]
+  );
   const [selectedPausedIds, setSelectedPausedIds] = useState<Set<string>>(new Set());
 
   const pausedAccounts = data?.data ?? [];
 
-  const isPaused = (accountId: string) => {
-    return pausedAccounts.some((acc) => acc.id === accountId);
-  };
+  const isPaused = useCallback((accountId: string): boolean => {
+    return pausedAccounts.some((account) => account.id === accountId);
+  }, [pausedAccounts]);
 
-  const isReady = (accountId: string) => {
+  const isReady = useCallback((accountId: string): boolean => {
     return selectedPausedIds.has(accountId);
-  };
+  }, [selectedPausedIds]);
 
-  const toggleAccount = (accountId: string) => {
-    setSelectedPausedIds((prev) => {
-      const next = new Set(prev);
+  const toggleAccount = useCallback((accountId: string): void => {
+    setSelectedPausedIds((previous) => {
+      const next = new Set(previous);
       if (next.has(accountId)) {
         next.delete(accountId);
       } else {
@@ -443,13 +597,12 @@ export function usePausedSocialAccounts() {
       }
       return next;
     });
-  };
+  }, []);
 
   return { 
     pausedAccounts, 
     isPaused, 
     isLoading,
-    // Backwards compatibility
     isReady,
     toggleAccount,
     selectedPausedIds,

@@ -78,7 +78,10 @@ function MediaItem({ media, aspectRatio = "1:1", onClick, compact }: MediaItemPr
             onClick={(e) => {
               e.stopPropagation();
               const video = e.currentTarget.parentElement?.querySelector("video");
-              if (video) isPlaying ? video.pause() : video.play();
+              if (video) {
+                if (isPlaying) video.pause();
+                else video.play();
+              }
             }}
             className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"
           >

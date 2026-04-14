@@ -36,6 +36,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadedFile } from "@/components/ui/file-upload";
 import { cn } from "@/lib/utils";
+import { PAGINATION, UPLOAD, PLATFORM_LIMITS } from "@/lib/constants";
 
 // Constants - defined outside component to avoid recreation
 const SPRING_TRANSITION: Transition = { type: "spring", stiffness: 400, damping: 30 };
@@ -52,7 +53,6 @@ import {
   usePosts,
 } from "@/lib/hooks";
 import type { PlatformConfigBuilder } from "@/types/post-for-me-types";
-import { UPLOAD } from "@/lib/constants";
 
 // ==================== MINI CALENDAR (Same as compose) ====================
 function MiniCalendar({
@@ -235,7 +235,7 @@ export default function EditPostPage() {
   // Data fetching
   const { data: accountsData } = useSocialAccounts();
   const { data: existingPost, isLoading } = usePost(postId);
-  const { data: allPosts = [] } = usePosts({ limit: 100 }, { select: (r: any) => r?.data ?? [] });
+  const { data: allPosts = [] } = usePosts({ limit: PAGINATION.DEFAULT_LIMIT }, { select: (r: any) => r?.data ?? [] });
   const updatePost = useUpdatePost();
   const deletePost = useDeletePost();
   const uploadMedia = useUploadMedia();
@@ -453,8 +453,8 @@ export default function EditPostPage() {
                     files={files}
                     onFilesChange={setFiles}
                     onUpload={handleUpload}
-                    maxFiles={10}
-                    maxSize={100 * 1024 * 1024}
+                    maxFiles={PLATFORM_LIMITS.MAX_MEDIA_PER_POST}
+                    maxSize={UPLOAD.MAX_FILE_SIZE}
                   />
                 </div>
               </TabsContent>

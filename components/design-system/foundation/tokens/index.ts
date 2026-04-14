@@ -9,22 +9,28 @@ export { typography, typographyCSSVariables } from "./typography";
 export { elevation, elevationCSSVariables } from "./elevation";
 export { transitions, zIndex, transitionsCSSVariables } from "./transitions";
 
+import { colorCSSVariables } from "./colors";
+import { spacingCSSVariables } from "./spacing";
+import { typographyCSSVariables } from "./typography";
+import { elevationCSSVariables } from "./elevation";
+import { transitionsCSSVariables } from "./transitions";
+
 /* ==================== ALL CSS VARIABLES ==================== */
 export const allCSSVariables = `
 :root {
   /* Colors */
-  ${require("./colors").colorCSSVariables}
+  ${colorCSSVariables}
 
   /* Spacing */
-  ${require("./spacing").spacingCSSVariables}
+  ${spacingCSSVariables}
 
   /* Typography */
-  ${require("./typography").typographyCSSVariables}
+  ${typographyCSSVariables}
 
   /* Elevation */
-  ${require("./elevation").elevationCSSVariables}
+  ${elevationCSSVariables}
 
   /* Transitions */
-  ${require("./transitions").transitionsCSSVariables}
+  ${transitionsCSSVariables}
 }
 `;
